@@ -14,14 +14,19 @@
 --   `synced_at` (server time) drives incremental sync; deletions leave a
 --   row in sync_tombstones so other devices can catch up.
 -- * Nothing here deletes or rewrites existing data.
+-- * Safe to run again (e.g. after a partial run): every statement is
+--   "if not exists" / "or replace", and it runs as one transaction.
+--   Function bodies use named delimiters ($fn$, $do$).
 -- =====================================================================
+
+begin;
 
 create schema if not exists private;
 
 -- ---------------------------------------------------------------------
 -- Profiles
 -- ---------------------------------------------------------------------
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null default '',
   created_at timestamptz not null default now(),
@@ -33,23 +38,23 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $fn$
 begin
   insert into public.profiles (id, display_name)
   values (new.id, coalesce(split_part(new.email, '@', 1), ''))
   on conflict (id) do nothing;
   return new;
 end;
-$$;
+$fn$;
 
-create trigger on_auth_user_created
+create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute function private.handle_new_user();
 
 -- ---------------------------------------------------------------------
 -- Productivity tables
 -- ---------------------------------------------------------------------
-create table public.projects (
+create table if not exists public.projects (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   name text not null check (length(trim(name)) > 0),
@@ -71,7 +76,7 @@ create table public.projects (
   primary key (user_id, id)
 );
 
-create table public.project_milestones (
+create table if not exists public.project_milestones (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   project_id text not null,
@@ -95,7 +100,7 @@ create table public.project_milestones (
   foreign key (user_id, project_id) references public.projects (user_id, id) on delete cascade
 );
 
-create table public.recurrence_templates (
+create table if not exists public.recurrence_templates (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   title text not null check (length(trim(title)) > 0),
@@ -121,7 +126,7 @@ create table public.recurrence_templates (
   foreign key (user_id, project_id) references public.projects (user_id, id) on delete set null (project_id)
 );
 
-create table public.brain_dump_entries (
+create table if not exists public.brain_dump_entries (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   title text not null check (length(trim(title)) > 0),
@@ -136,7 +141,7 @@ create table public.brain_dump_entries (
   primary key (user_id, id)
 );
 
-create table public.tasks (
+create table if not exists public.tasks (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   title text not null check (length(trim(title)) > 0),
@@ -176,31 +181,33 @@ create or replace function private.clear_orphan_milestone()
 returns trigger
 language plpgsql
 set search_path = ''
-as $$
+as $fn$
 begin
   if new.project_id is null then
     new.milestone_id := null;
   end if;
   return new;
 end;
-$$;
+$fn$;
 
-create trigger clear_orphan_milestone
+create or replace trigger clear_orphan_milestone
   before insert or update on public.tasks
   for each row execute function private.clear_orphan_milestone();
 
 -- One occurrence per template per date, whichever device generates it.
-create unique index tasks_one_occurrence_per_date
+create unique index if not exists tasks_one_occurrence_per_date
   on public.tasks (user_id, recurrence_template_id, occurrence_date)
   where recurrence_template_id is not null and occurrence_date is not null;
 
 -- Brain Dump entry ↔ converted task point at each other; checked at commit so
 -- both can be written in one transaction.
+alter table public.brain_dump_entries drop constraint if exists brain_dump_entries_converted_task_fkey;
 alter table public.brain_dump_entries
-  add foreign key (user_id, converted_task_id) references public.tasks (user_id, id)
+  add constraint brain_dump_entries_converted_task_fkey
+  foreign key (user_id, converted_task_id) references public.tasks (user_id, id)
   on delete set null (converted_task_id) deferrable initially deferred;
 
-create table public.sprint_sessions (
+create table if not exists public.sprint_sessions (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   sprint text not null check (sprint in ('urgent', 'deadlines', 'admin', 'build')),
@@ -218,11 +225,11 @@ create table public.sprint_sessions (
 );
 
 -- Only one planned/running/paused session at a time.
-create unique index sprint_sessions_one_open
+create unique index if not exists sprint_sessions_one_open
   on public.sprint_sessions (user_id) where status <> 'ended';
 
 -- Which tasks a session covered — references, never copies.
-create table public.sprint_session_tasks (
+create table if not exists public.sprint_session_tasks (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null, -- "<session_id>:<task_id>"
   session_id text not null,
@@ -238,7 +245,7 @@ create table public.sprint_session_tasks (
   foreign key (user_id, task_id) references public.tasks (user_id, id) on delete cascade
 );
 
-create table public.daily_highlights (
+create table if not exists public.daily_highlights (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   date_key date not null,
@@ -254,7 +261,7 @@ create table public.daily_highlights (
   foreign key (user_id, task_id) references public.tasks (user_id, id) on delete set null (task_id)
 );
 
-create table public.micro_commitments (
+create table if not exists public.micro_commitments (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   title text not null check (length(trim(title)) > 0),
@@ -274,7 +281,7 @@ create table public.micro_commitments (
   primary key (user_id, id)
 );
 
-create table public.micro_commitment_completions (
+create table if not exists public.micro_commitment_completions (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   commitment_id text not null,
@@ -287,7 +294,7 @@ create table public.micro_commitment_completions (
   foreign key (user_id, commitment_id) references public.micro_commitments (user_id, id) on delete cascade
 );
 
-create table public.kaizen_logs (
+create table if not exists public.kaizen_logs (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   date_key date not null,
@@ -303,7 +310,7 @@ create table public.kaizen_logs (
   unique (user_id, date_key)
 );
 
-create table public.weekly_reviews (
+create table if not exists public.weekly_reviews (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   week_start_date date not null check (extract(isodow from week_start_date) = 1),
@@ -324,7 +331,7 @@ create table public.weekly_reviews (
   check (week_end_date = week_start_date + 6)
 );
 
-create table public.weekly_priorities (
+create table if not exists public.weekly_priorities (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   id text not null check (length(id) between 1 and 200),
   weekly_review_id text not null,
@@ -343,7 +350,7 @@ create table public.weekly_priorities (
 );
 
 -- Deleted rows, so other devices can remove them during incremental sync.
-create table public.sync_tombstones (
+create table if not exists public.sync_tombstones (
   user_id uuid not null references auth.users (id) on delete cascade,
   table_name text not null,
   id text not null,
@@ -355,37 +362,37 @@ create table public.sync_tombstones (
 -- Indexes for common filters (every table is also indexed by its PK,
 -- which starts with user_id).
 -- ---------------------------------------------------------------------
-create index tasks_user_status_idx on public.tasks (user_id, status);
-create index tasks_user_due_idx on public.tasks (user_id, due_date) where due_date is not null;
-create index tasks_user_completed_idx on public.tasks (user_id, completed_at) where completed_at is not null;
-create index tasks_user_project_idx on public.tasks (user_id, project_id) where project_id is not null;
-create index tasks_user_milestone_idx on public.tasks (user_id, project_id, milestone_id) where milestone_id is not null;
-create index tasks_user_template_idx on public.tasks (user_id, recurrence_template_id) where recurrence_template_id is not null;
-create index tasks_user_capture_idx on public.tasks (user_id, source_capture_id) where source_capture_id is not null;
-create index milestones_user_project_idx on public.project_milestones (user_id, project_id);
-create index recurrence_user_project_idx on public.recurrence_templates (user_id, project_id) where project_id is not null;
-create index captures_user_task_idx on public.brain_dump_entries (user_id, converted_task_id) where converted_task_id is not null;
-create index sessions_user_ended_idx on public.sprint_sessions (user_id, ended_at);
-create index session_tasks_user_task_idx on public.sprint_session_tasks (user_id, task_id);
-create index session_tasks_user_session_idx on public.sprint_session_tasks (user_id, session_id);
-create index highlights_user_task_idx on public.daily_highlights (user_id, task_id) where task_id is not null;
-create index completions_user_date_idx on public.micro_commitment_completions (user_id, date_key);
-create index priorities_user_review_idx on public.weekly_priorities (user_id, weekly_review_id);
-create index priorities_user_task_idx on public.weekly_priorities (user_id, task_id) where task_id is not null;
-create index priorities_user_project_idx on public.weekly_priorities (user_id, project_id) where project_id is not null;
-create index tombstones_user_deleted_idx on public.sync_tombstones (user_id, deleted_at);
+create index if not exists tasks_user_status_idx on public.tasks (user_id, status);
+create index if not exists tasks_user_due_idx on public.tasks (user_id, due_date) where due_date is not null;
+create index if not exists tasks_user_completed_idx on public.tasks (user_id, completed_at) where completed_at is not null;
+create index if not exists tasks_user_project_idx on public.tasks (user_id, project_id) where project_id is not null;
+create index if not exists tasks_user_milestone_idx on public.tasks (user_id, project_id, milestone_id) where milestone_id is not null;
+create index if not exists tasks_user_template_idx on public.tasks (user_id, recurrence_template_id) where recurrence_template_id is not null;
+create index if not exists tasks_user_capture_idx on public.tasks (user_id, source_capture_id) where source_capture_id is not null;
+create index if not exists milestones_user_project_idx on public.project_milestones (user_id, project_id);
+create index if not exists recurrence_user_project_idx on public.recurrence_templates (user_id, project_id) where project_id is not null;
+create index if not exists captures_user_task_idx on public.brain_dump_entries (user_id, converted_task_id) where converted_task_id is not null;
+create index if not exists sessions_user_ended_idx on public.sprint_sessions (user_id, ended_at);
+create index if not exists session_tasks_user_task_idx on public.sprint_session_tasks (user_id, task_id);
+create index if not exists session_tasks_user_session_idx on public.sprint_session_tasks (user_id, session_id);
+create index if not exists highlights_user_task_idx on public.daily_highlights (user_id, task_id) where task_id is not null;
+create index if not exists completions_user_date_idx on public.micro_commitment_completions (user_id, date_key);
+create index if not exists priorities_user_review_idx on public.weekly_priorities (user_id, weekly_review_id);
+create index if not exists priorities_user_task_idx on public.weekly_priorities (user_id, task_id) where task_id is not null;
+create index if not exists priorities_user_project_idx on public.weekly_priorities (user_id, project_id) where project_id is not null;
+create index if not exists tombstones_user_deleted_idx on public.sync_tombstones (user_id, deleted_at);
 
 -- Incremental sync reads "what changed since" per table.
-do $$
+do $do$
 declare t text;
 begin
   foreach t in array array['projects', 'project_milestones', 'recurrence_templates', 'brain_dump_entries', 'tasks',
     'sprint_sessions', 'sprint_session_tasks', 'daily_highlights', 'micro_commitments', 'micro_commitment_completions',
     'kaizen_logs', 'weekly_reviews', 'weekly_priorities']
   loop
-    execute format('create index %I on public.%I (user_id, synced_at)', t || '_user_synced_idx', t);
+    execute format('create index if not exists %I on public.%I (user_id, synced_at)', t || '_user_synced_idx', t);
   end loop;
-end $$;
+end $do$;
 
 -- ---------------------------------------------------------------------
 -- Triggers: ownership, versions, sync time, tombstones
@@ -394,7 +401,7 @@ create or replace function private.stamp_row()
 returns trigger
 language plpgsql
 set search_path = ''
-as $$
+as $fn$
 begin
   if tg_op = 'INSERT' then
     -- Rows created through the API always belong to the caller.
@@ -410,21 +417,21 @@ begin
   new.synced_at := clock_timestamp();
   return new;
 end;
-$$;
+$fn$;
 
 create or replace function private.record_tombstone()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $fn$
 begin
   insert into public.sync_tombstones (user_id, table_name, id, deleted_at)
   values (old.user_id, tg_table_name, old.id, clock_timestamp())
   on conflict (user_id, table_name, id) do update set deleted_at = excluded.deleted_at;
   return old;
 end;
-$$;
+$fn$;
 
 -- A row re-created with an id that was deleted earlier is no longer deleted.
 create or replace function private.clear_tombstone()
@@ -432,35 +439,37 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $fn$
 begin
   delete from public.sync_tombstones where user_id = new.user_id and table_name = tg_table_name and id = new.id;
   return new;
 end;
-$$;
+$fn$;
 
-do $$
+do $do$
 declare t text;
 begin
   foreach t in array array['projects', 'project_milestones', 'recurrence_templates', 'brain_dump_entries', 'tasks',
     'sprint_sessions', 'sprint_session_tasks', 'daily_highlights', 'micro_commitments', 'micro_commitment_completions',
     'kaizen_logs', 'weekly_reviews', 'weekly_priorities']
   loop
-    execute format('create trigger stamp_row before insert or update on public.%I for each row execute function private.stamp_row()', t);
-    execute format('create trigger record_tombstone after delete on public.%I for each row execute function private.record_tombstone()', t);
-    execute format('create trigger clear_tombstone after insert on public.%I for each row execute function private.clear_tombstone()', t);
+    execute format('create or replace trigger stamp_row before insert or update on public.%I for each row execute function private.stamp_row()', t);
+    execute format('create or replace trigger record_tombstone after delete on public.%I for each row execute function private.record_tombstone()', t);
+    execute format('create or replace trigger clear_tombstone after insert on public.%I for each row execute function private.clear_tombstone()', t);
   end loop;
-end $$;
+end $do$;
 
 -- ---------------------------------------------------------------------
 -- Row Level Security: every user-owned table, every operation.
 -- ---------------------------------------------------------------------
 alter table public.profiles enable row level security;
+drop policy if exists "Users read their own profile" on public.profiles;
 create policy "Users read their own profile" on public.profiles for select to authenticated using ((select auth.uid()) = id);
+drop policy if exists "Users update their own profile" on public.profiles;
 create policy "Users update their own profile" on public.profiles for update to authenticated
   using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
 
-do $$
+do $do$
 declare t text;
 begin
   foreach t in array array['projects', 'project_milestones', 'recurrence_templates', 'brain_dump_entries', 'tasks',
@@ -468,14 +477,19 @@ begin
     'kaizen_logs', 'weekly_reviews', 'weekly_priorities']
   loop
     execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "Owner can read" on public.%I', t);
+    execute format('drop policy if exists "Owner can insert" on public.%I', t);
+    execute format('drop policy if exists "Owner can update" on public.%I', t);
+    execute format('drop policy if exists "Owner can delete" on public.%I', t);
     execute format('create policy "Owner can read" on public.%I for select to authenticated using ((select auth.uid()) = user_id)', t);
     execute format('create policy "Owner can insert" on public.%I for insert to authenticated with check ((select auth.uid()) = user_id)', t);
     execute format('create policy "Owner can update" on public.%I for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id)', t);
     execute format('create policy "Owner can delete" on public.%I for delete to authenticated using ((select auth.uid()) = user_id)', t);
   end loop;
-end $$;
+end $do$;
 
 alter table public.sync_tombstones enable row level security;
+drop policy if exists "Owner can read" on public.sync_tombstones;
 create policy "Owner can read" on public.sync_tombstones for select to authenticated using ((select auth.uid()) = user_id);
 -- Tombstones are written only by the trigger (security definer); clients can't insert or change them.
 
@@ -504,31 +518,31 @@ returns text[]
 language sql
 immutable
 set search_path = ''
-as $$
+as $fn$
   select array['projects', 'project_milestones', 'recurrence_templates', 'brain_dump_entries', 'tasks',
     'sprint_sessions', 'sprint_session_tasks', 'daily_highlights', 'micro_commitments', 'micro_commitment_completions',
     'kaizen_logs', 'weekly_reviews', 'weekly_priorities']
-$$;
+$fn$;
 
 create or replace function private.data_columns(tbl text)
 returns text[]
 language sql
 stable
 set search_path = ''
-as $$
+as $fn$
   select array_agg(a.attname::text order by a.attnum)
   from pg_catalog.pg_attribute a
   where a.attrelid = ('public.' || quote_ident(tbl))::regclass
     and a.attnum > 0 and not a.attisdropped
     and a.attname not in ('user_id', 'id', 'version', 'synced_at')
-$$;
+$fn$;
 
 create or replace function public.apply_changes(changes jsonb)
 returns jsonb
 language plpgsql
 security invoker
 set search_path = ''
-as $$
+as $fn$
 declare
   uid uuid := auth.uid();
   c jsonb;
@@ -646,7 +660,7 @@ begin
 
   return jsonb_build_object('ok', true, 'results', results, 'synced_at', clock_timestamp());
 end;
-$$;
+$fn$;
 
 revoke all on function public.apply_changes(jsonb) from public, anon;
 grant execute on function public.apply_changes(jsonb) to authenticated;
@@ -664,7 +678,7 @@ returns jsonb
 language plpgsql
 security invoker
 set search_path = ''
-as $$
+as $fn$
 declare
   uid uuid := auth.uid();
   r jsonb;
@@ -723,7 +737,7 @@ begin
 
   return jsonb_build_object('inserted', inserted, 'existing', existing, 'filled', filled, 'skipped', skipped);
 end;
-$$;
+$fn$;
 
 revoke all on function public.import_rows(text, jsonb) from public, anon;
 grant execute on function public.import_rows(text, jsonb) to authenticated;
@@ -732,3 +746,5 @@ grant execute on function public.import_rows(text, jsonb) to authenticated;
 revoke all on schema private from public, anon, authenticated;
 grant usage on schema private to authenticated;
 grant execute on all functions in schema private to authenticated;
+
+commit;
