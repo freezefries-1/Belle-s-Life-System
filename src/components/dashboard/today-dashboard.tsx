@@ -22,7 +22,7 @@ export function TodayDashboard() {
       <WelcomeHeader />
       <CurrentSessionWidget />
       <GettingStarted />
-      <div className="grid gap-5 lg:grid-cols-3 lg:gap-6">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
         <HighlightCard className="lg:col-span-2 lg:col-start-1 lg:row-start-1" />
         <QuickCaptureCard className="lg:col-start-3 lg:row-start-1" />
         <MicroCommitmentsCard className="lg:col-start-3 lg:row-start-2" />

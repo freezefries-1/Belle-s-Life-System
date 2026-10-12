@@ -66,7 +66,7 @@ export function UnassignedTray({
               {filtered ? "Nothing matches these filters." : "Every open task has a sprint."}
             </p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {reorderable ? (
                 <SortableContext id="unassigned" items={tasks.map((t) => t.id)} strategy={rectSortingStrategy}>
                   {tasks.map((t) => (

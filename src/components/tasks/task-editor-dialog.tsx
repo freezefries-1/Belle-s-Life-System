@@ -267,7 +267,7 @@ export function TaskEditorDialog({
               </button>
 
               {showMore && (
-                <div className="grid gap-5 border-t px-3.5 pt-4 pb-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-5 border-t px-3.5 pt-4 pb-4 sm:grid-cols-2">
                   <fieldset className="sm:col-span-2">
                     <legend className="mb-2 text-[13px] font-semibold">Priority</legend>
                     <div className="inline-flex flex-wrap rounded-lg bg-muted p-1" role="radiogroup" aria-label="Priority">

@@ -29,7 +29,7 @@ export function MicroCommitmentsPage() {
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex flex-col gap-4">
           {workspace.commitments.map((c) => {
             const done = isCommitmentDone(c, today);

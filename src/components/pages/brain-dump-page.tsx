@@ -36,7 +36,7 @@ export function BrainDumpPage() {
         description="Capture first, organise later. Entries stay here until you turn them into tasks or let them go."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex min-w-0 flex-col gap-5">
           <Card className="p-4 sm:p-5">
             <CaptureForm size="lg" />

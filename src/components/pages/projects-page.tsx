@@ -40,7 +40,7 @@ export function ProjectsPage() {
           <TabsTrigger value="all">All</TabsTrigger>
         </TabsList>
       </Tabs>
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {projects.map((p) => (
           <ProjectPanel key={p.id} project={p} />
         ))}

@@ -58,7 +58,7 @@ export function TimeEstimationPage() {
         description="Compare what you expected with what actually happened. Not to judge — just to plan more kindly."
       />
 
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="p-5">
           <p className="flex items-center gap-2 text-[13px] font-semibold text-muted-foreground">
             <Gauge className="size-4" />

@@ -68,7 +68,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             <div
               className={cn(
-                "flex min-h-dvh flex-col transition-[padding] duration-200 ease-out",
+                // min-w-0 + overflow-x-clip: nothing can make the page wider than the screen
+            // (which would make phones zoom out); clip keeps the sticky top bar working.
+            "flex min-h-dvh min-w-0 flex-col overflow-x-clip transition-[padding] duration-200 ease-out",
                 collapsed ? "lg:pl-[72px]" : "lg:pl-[252px]",
               )}
             >

@@ -78,7 +78,7 @@ export function CalendarPage() {
         }
       />
 
-      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
             <h3 className="text-base font-semibold">{formatMonthYear(month)}</h3>

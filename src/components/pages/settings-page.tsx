@@ -138,7 +138,7 @@ export function SettingsPage() {
 
 function SettingsSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <Card className="grid gap-5 p-5 md:grid-cols-[200px_minmax(0,1fr)] md:p-6">
+    <Card className="grid grid-cols-1 gap-5 p-5 md:grid-cols-[200px_minmax(0,1fr)] md:p-6">
       <div>
         <h3 className="text-[15px] font-semibold">{title}</h3>
         <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p>

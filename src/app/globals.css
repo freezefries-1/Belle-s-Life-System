@@ -100,6 +100,8 @@
     @apply bg-background text-foreground text-sm antialiased;
     /* Manrope reads a touch light at 400 on screens. */
     font-weight: 450;
+    /* Long words and pasted links wrap instead of pushing the layout wider. */
+    overflow-wrap: break-word;
     font-feature-settings: "ss01", "cv11";
   }
   ::selection {

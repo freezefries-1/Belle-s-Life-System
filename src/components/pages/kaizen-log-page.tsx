@@ -48,7 +48,7 @@ export function KaizenLogPage() {
         title="Kaizen Log"
         description="One small page a day. Notice what worked, choose one tiny improvement, and carry it into tomorrow. Past entries are samples for now."
       />
-      <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
         <nav aria-label="Log entries" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
           {entries.map((e) => (
             <button
@@ -89,7 +89,7 @@ function EntryView({ entry, isToday }: { entry: KaizenEntry; isToday: boolean })
         <h3 className="mt-0.5 text-xl font-semibold tracking-tight">{formatLongDate(entry.date)}</h3>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Card className="p-5">
           <SectionLabel icon={Star} title="Daily highlight" />
           <p className="mt-3 flex items-start gap-2 text-[15px] font-semibold">
@@ -162,7 +162,7 @@ function EntryView({ entry, isToday }: { entry: KaizenEntry; isToday: boolean })
 
       <Card className="p-5">
         <SectionLabel icon={Lightbulb} title="Reflection" />
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
           <ReflectionField label="What went well?" value={entry.reflection.wentWell} editable={isToday} />
           <ReflectionField label="What could be better?" value={entry.reflection.improve} editable={isToday} />
           <ReflectionField label="One small step for tomorrow" value={entry.reflection.oneSmallStep} editable={isToday} />

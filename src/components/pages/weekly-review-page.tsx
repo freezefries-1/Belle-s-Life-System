@@ -55,7 +55,7 @@ export function WeeklyReviewPage() {
         ))}
       </dl>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <EditableList icon={Trophy} iconClass="text-amber-500" title="Wins" hint="What went well, big or small?" initial={review.wins} />
         <EditableList icon={AlertCircle} iconClass="text-slate-500" title="Challenges" hint="What got in the way?" initial={review.challenges} />
 
