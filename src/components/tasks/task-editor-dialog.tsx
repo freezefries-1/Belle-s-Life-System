@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Inbox, Trash2 } from "lucide-react";
+import { ChevronDown, Inbox, Repeat, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { RuleFields, defaultRule } from "@/components/recurrence/rule-fields";
 import { SprintDot } from "@/components/shared/sprint-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,15 +21,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { SPRINTS } from "@/data/sprints";
 import { addDays, formatClockTime, localDateOf, relativeDayLabel } from "@/lib/date";
+import { isOpenProject, milestonesOrdered } from "@/lib/projects/project-model";
+import { describeRule } from "@/lib/recurrence/recurrence";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { ESTIMATE_PRESETS, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/tasks/task-model";
 import { cn, formatMinutes } from "@/lib/utils";
-import type { SprintId, TaskInput, TaskPriority, TaskStatus } from "@/types";
+import type { RecurrenceRule, SprintId, TaskInput, TaskPriority, TaskStatus } from "@/types";
 
 import { useTaskFeedback } from "./use-task-feedback";
 
 export type TaskEditorTarget =
-  | { mode: "create"; defaults?: Partial<TaskInput> }
+  | { mode: "create"; defaults?: Partial<TaskInput>; repeat?: boolean }
   | { mode: "edit"; taskId: string }
   | { mode: "convert"; captureId: string };
 
@@ -41,7 +44,11 @@ interface FormState {
   estimatedMinutes: string;
   actualMinutes: string;
   projectId: string;
+  milestoneId: string;
   status: TaskStatus;
+  /** Create mode only: make this a repeating task. */
+  repeat: boolean;
+  rule: RecurrenceRule;
 }
 
 const NONE = "none";
@@ -55,10 +62,13 @@ export function TaskEditorDialog({
   target,
   open,
   onOpenChange,
+  onEditSeries,
 }: {
   target: TaskEditorTarget;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Open the series editor for a repeating task's template. */
+  onEditSeries?: (templateId: string) => void;
 }) {
   const { workspace, actions } = useWorkspace();
   const feedback = useTaskFeedback();
@@ -82,7 +92,10 @@ export function TaskEditorDialog({
       estimatedMinutes: base.estimatedMinutes != null ? String(base.estimatedMinutes) : "",
       actualMinutes: base.actualMinutes != null ? String(base.actualMinutes) : "",
       projectId: base.projectId ?? NONE,
+      milestoneId: base.milestoneId ?? NONE,
       status: base.status ?? "todo",
+      repeat: target.mode === "create" && !!target.repeat,
+      rule: defaultRule(base.dueDate || workspace.today),
     };
   });
 
@@ -99,7 +112,10 @@ export function TaskEditorDialog({
   );
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
-  const titleValid = form.title.trim().length > 0;
+  const template = task?.recurrenceTemplateId ? workspace.recurrences.find((r) => r.id === task.recurrenceTemplateId) : undefined;
+  const projectOptions = workspace.projects.filter((p) => isOpenProject(p) || p.id === form.projectId);
+  const milestoneOptions = form.projectId === NONE ? [] : milestonesOrdered(workspace.milestones, form.projectId);
+  const titleValid = form.title.trim().length > 0 && (!form.repeat || /^\d{4}-\d{2}-\d{2}$/.test(form.rule.startDate));
   const missing = (target.mode === "edit" && !task) || (target.mode === "convert" && !capture);
 
   function submit(e?: React.FormEvent) {
@@ -114,10 +130,22 @@ export function TaskEditorDialog({
       estimatedMinutes: toMinutes(form.estimatedMinutes),
       actualMinutes: toMinutes(form.actualMinutes),
       projectId: form.projectId === NONE ? null : form.projectId,
+      milestoneId: form.milestoneId === NONE ? null : form.milestoneId,
       status: form.status,
     };
 
-    if (target.mode === "create") {
+    if (target.mode === "create" && form.repeat) {
+      const created = actions.createRecurrence({
+        title: input.title,
+        description: input.description,
+        sprintId: input.sprint ?? null,
+        projectId: input.projectId ?? null,
+        priority: input.priority ?? null,
+        estimatedMinutes: input.estimatedMinutes ?? null,
+        ...form.rule,
+      });
+      if (created) toast("Repeating task created", { description: describeRule(created) });
+    } else if (target.mode === "create") {
       const created = actions.createTask(input);
       if (created) toast("Task created", { description: created.title });
     } else if (target.mode === "edit" && task) {
@@ -149,6 +177,21 @@ export function TaskEditorDialog({
           <p className="text-[13px] text-muted-foreground">This item no longer exists — it may have been deleted.</p>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
+            {template && (
+              <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs sm:flex-row sm:items-center">
+                <Repeat className="size-3.5 shrink-0 text-primary" />
+                <p className="min-w-0 flex-1 text-muted-foreground">
+                  One occurrence of a repeating task ({describeRule(template).toLowerCase()}). Changes here apply to{" "}
+                  <span className="font-semibold text-foreground">this occurrence only</span>.
+                </p>
+                {onEditSeries && (
+                  <Button type="button" variant="outline" size="xs" onClick={() => onEditSeries(template.id)}>
+                    Edit future occurrences
+                  </Button>
+                )}
+              </div>
+            )}
+
             {capture && (
               <p className="flex items-center gap-2 rounded-lg bg-muted/70 px-3 py-2 text-xs text-muted-foreground">
                 <Inbox className="size-3.5 shrink-0" />
@@ -223,6 +266,23 @@ export function TaskEditorDialog({
               </div>
             </fieldset>
 
+            {form.repeat ? (
+              <fieldset className="rounded-xl border bg-muted/30 p-3.5">
+                <div className="mb-3 flex items-center justify-between">
+                  <legend className="flex items-center gap-1.5 text-[13px] font-semibold">
+                    <Repeat className="size-3.5 text-primary" />
+                    Repeats
+                  </legend>
+                  <Button type="button" variant="ghost" size="xs" onClick={() => set("repeat", false)}>
+                    Don’t repeat
+                  </Button>
+                </div>
+                <RuleFields rule={form.rule} onChange={(rule) => set("rule", rule)} today={workspace.today} idPrefix="task-rule" />
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  Each date becomes its own task. Upcoming ones appear a little ahead of time.
+                </p>
+              </fieldset>
+            ) : (
             <div className="flex flex-col gap-2">
               <Label htmlFor="task-due">Due date</Label>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -249,8 +309,21 @@ export function TaskEditorDialog({
                     Clear
                   </Button>
                 )}
+                {target.mode === "create" && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => setForm((f) => ({ ...f, repeat: true, rule: defaultRule(f.dueDate || workspace.today) }))}
+                  >
+                    <Repeat className="size-3.5" />
+                    Repeat…
+                  </Button>
+                )}
               </div>
             </div>
+            )}
 
             <div className="rounded-xl border bg-muted/30">
               <button
@@ -321,13 +394,13 @@ export function TaskEditorDialog({
 
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="task-project">Project</Label>
-                    <Select value={form.projectId} onValueChange={(v) => set("projectId", v)}>
+                    <Select value={form.projectId} onValueChange={(v) => setForm((f) => ({ ...f, projectId: v, milestoneId: NONE }))}>
                       <SelectTrigger id="task-project" className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={NONE}>No project</SelectItem>
-                        {workspace.projects.map((p) => (
+                        {projectOptions.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             {p.name}
                           </SelectItem>
@@ -335,6 +408,25 @@ export function TaskEditorDialog({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {milestoneOptions.length > 0 && !form.repeat && (
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="task-milestone">Milestone</Label>
+                      <Select value={form.milestoneId} onValueChange={(v) => set("milestoneId", v)}>
+                        <SelectTrigger id="task-milestone" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE}>No milestone</SelectItem>
+                          {milestoneOptions.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="task-status">Status</Label>

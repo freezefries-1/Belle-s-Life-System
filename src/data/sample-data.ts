@@ -1,7 +1,10 @@
+import { LEGACY_PROJECTS } from "@/data/legacy-projects";
 import { addDays, parseISODate } from "@/lib/date";
 import { createCapture } from "@/lib/brain-dump/capture-model";
 import { createCommitment } from "@/lib/daily/commitments";
 import { createHighlight, createLog } from "@/lib/daily/day";
+import { createMilestone, createProject } from "@/lib/projects/project-model";
+import { createTemplate } from "@/lib/recurrence/recurrence";
 import { createId } from "@/lib/id";
 import { createTask } from "@/lib/tasks/task-model";
 import type {
@@ -11,7 +14,10 @@ import type {
   DailyHighlight,
   ISODate,
   KaizenLog,
+  MilestoneInput,
   PersistedData,
+  ProjectInput,
+  RecurrenceInput,
   Task,
   TaskInput,
 } from "@/types";
@@ -126,5 +132,60 @@ export function createSampleData(today: ISODate): PersistedData {
     }),
   ];
 
-  return { tasks, captures, sessions: [], highlights, commitments, commitmentCompletions, kaizenLogs };
+  // Projects (sample ids match the tasks above), milestones and recurring tasks.
+  const project = (id: keyof typeof LEGACY_PROJECTS, extra: Partial<ProjectInput>) => ({
+    ...createProject({ ...LEGACY_PROJECTS[id], ...extra, name: LEGACY_PROJECTS[id].name }, at(-30, 9)),
+    id,
+  });
+  const projects = [
+    project("p_sportcraft", { status: "active", priority: "high", startDate: d(-30), targetDate: d(30), preparationDate: d(16), notes: "Launch checklist:\n- Product photos\n- Pricing review\n- Payment test" }),
+    project("p_ladder", { status: "active", priority: "high", startDate: d(-40), targetDate: d(18), preparationDate: d(4) }),
+    project("p_coaching", { status: "active", priority: "medium" }),
+    project("p_life", { status: "active", priority: "low" }),
+  ];
+  const milestone = (projectId: string, title: string, order: number, extra: Partial<MilestoneInput>) =>
+    createMilestone(projectId, { title, ...extra }, order * 1000, at(-20, 9));
+  const milestones = [
+    milestone("p_ladder", "Registration closes", 1, { targetDate: d(-3), status: "completed" }),
+    milestone("p_ladder", "Participant packs dispatched", 2, { targetDate: d(3), preparationDate: d(-1), status: "in_progress" }),
+    milestone("p_ladder", "Group stage ends", 3, { targetDate: d(10) }),
+    milestone("p_ladder", "Finals completed", 4, { targetDate: d(18), preparationDate: d(11) }),
+    milestone("p_sportcraft", "Website launch", 1, { targetDate: d(21), preparationDate: d(14) }),
+  ];
+  const linkMilestone = (title: string, milestoneTitle: string) => {
+    const t = byTitle(title);
+    t.milestoneId = milestones.find((m) => m.title === milestoneTitle)!.id;
+  };
+  linkMilestone("Prepare Evolve Tennis Ladder tournament materials", "Participant packs dispatched");
+  linkMilestone("Design tournament materials", "Participant packs dispatched");
+  linkMilestone("Send ladder round 4 results", "Group stage ends");
+  linkMilestone("Develop SportCraft website", "Website launch");
+  tasks.forEach((t, i) => (t.projectSortOrder = (i + 1) * 1000));
+
+  const weekdayOn = (offset: number) => parseISODate(d(offset)).getDay();
+  const nextWeekday = (day: number) => Array.from({ length: 7 }, (_, i) => i).find((o) => weekdayOn(o) === day)!;
+  const recurring = (input: RecurrenceInput) => ({
+    ...createTemplate(input, at(-21, 9)),
+    // Treat the past as already handled so the demo doesn't start with overdue repeats.
+    generatedThrough: d(-1),
+  });
+  const recurrences = [
+    recurring({ title: "Update SportCraft expenses", frequency: "weekly", interval: 1, intervalUnit: "days", selectedWeekdays: [5], startDate: d(nextWeekday(5) - 21), endDate: null, sprintId: "admin", projectId: "p_sportcraft", estimatedMinutes: 20 }),
+    recurring({ title: "Review next week’s coaching schedule", frequency: "weekly", interval: 1, intervalUnit: "days", selectedWeekdays: [0], startDate: d(nextWeekday(0) - 21), endDate: null, sprintId: "admin", projectId: "p_coaching", estimatedMinutes: 15 }),
+    recurring({ title: "Change bedsheets", frequency: "biweekly", interval: 1, intervalUnit: "days", selectedWeekdays: [weekdayOn(2)], startDate: d(2 - 14), endDate: null, sprintId: "admin", projectId: "p_life", estimatedMinutes: 15 }),
+    recurring({ title: "Review personal finances", frequency: "monthly", interval: 1, intervalUnit: "days", selectedWeekdays: [], startDate: d(-25), endDate: null, sprintId: "admin", projectId: "p_life", estimatedMinutes: 30 }),
+  ];
+
+  return {
+    tasks,
+    captures,
+    sessions: [],
+    highlights,
+    commitments,
+    commitmentCompletions,
+    kaizenLogs,
+    projects,
+    milestones,
+    recurrences,
+  };
 }

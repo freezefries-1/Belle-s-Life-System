@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Flag, Pencil, Repeat } from "lucide-react";
 
 import { SprintBadge } from "@/components/shared/sprint-badge";
 import { DueLabel, EstimateLabel, StatusBadge } from "@/components/shared/task-meta";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getProject } from "@/lib/selectors";
 import { useWorkspace } from "@/lib/store/workspace-store";
+import { describeRule } from "@/lib/recurrence/recurrence";
 import { isOverdue } from "@/lib/tasks/task-queries";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
@@ -26,12 +27,15 @@ export function TaskItem({
   showSprint = true,
   showProject = false,
   showDescription = true,
+  projectId,
   className,
 }: {
   task: Task;
   showSprint?: boolean;
   showProject?: boolean;
   showDescription?: boolean;
+  /** Shown inside a project's workspace — enables "Remove from project". */
+  projectId?: string;
   className?: string;
 }) {
   const { workspace } = useWorkspace();
@@ -41,6 +45,8 @@ export function TaskItem({
   const done = task.status === "completed";
   const skipped = task.status === "skipped";
   const overdue = isOverdue(task, workspace.today);
+  const milestone = task.milestoneId ? workspace.milestones.find((m) => m.id === task.milestoneId) : undefined;
+  const template = task.recurrenceTemplateId ? workspace.recurrences.find((r) => r.id === task.recurrenceTemplateId) : undefined;
 
   return (
     <div
@@ -77,6 +83,18 @@ export function TaskItem({
           <DueLabel due={task.dueDate} today={workspace.today} done={done || skipped} />
           {task.priority && <PriorityIndicator priority={task.priority} showLabel />}
           <EstimateLabel minutes={task.estimatedMinutes} />
+          {template && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={describeRule(template)}>
+              <Repeat className="size-3" />
+              Repeats
+            </span>
+          )}
+          {milestone && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Flag className="size-3" />
+              {milestone.title}
+            </span>
+          )}
           {project && <span className="truncate text-xs text-muted-foreground">{project.name}</span>}
         </div>
       </div>
@@ -90,7 +108,7 @@ export function TaskItem({
         >
           <Pencil className="size-3.5" />
         </Button>
-        <TaskActionsMenu task={task} />
+        <TaskActionsMenu task={task} projectId={projectId} />
       </div>
     </div>
   );

@@ -54,6 +54,14 @@ export interface Task {
    * between tasks in the same sprint; gaps are fine.
    */
   sortOrder: number;
+  /** Manual position inside its project's task list (separate from the sprint order). */
+  projectSortOrder: number;
+  /** Optional milestone within the task's project. */
+  milestoneId: string | null;
+  /** Set on tasks generated from a recurring template. */
+  recurrenceTemplateId: string | null;
+  /** The scheduled date this occurrence was generated for (YYYY-MM-DD). */
+  occurrenceDate: ISODate | null;
 }
 
 /** The fields a person can set from the task editor. */
@@ -69,6 +77,7 @@ export type TaskInput = Pick<Task, "title"> &
       | "dueDate"
       | "estimatedMinutes"
       | "actualMinutes"
+      | "milestoneId"
     >
   >;
 
@@ -198,6 +207,102 @@ export type KaizenLogInput = Partial<
   Pick<KaizenLog, "reflectionWentWell" | "reflectionImprove" | "reflectionLearned" | "notes">
 >;
 
+/* ------------------------------------------------------------------ */
+/* Projects, milestones, recurring tasks                               */
+/* ------------------------------------------------------------------ */
+
+export type ProjectStatus = "planning" | "active" | "on_hold" | "completed" | "archived";
+export type ProjectColour = "blue" | "teal" | "amber" | "violet" | "rose" | "slate";
+export type ProjectIcon = "folder" | "briefcase" | "trophy" | "house" | "heart" | "sparkles" | "book" | "dumbbell";
+
+/** A collection of tasks working towards one outcome. Tasks point at it via `projectId`. */
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  status: ProjectStatus;
+  priority: TaskPriority | null;
+  /** Free-text life area, e.g. "Coaching". */
+  category: string;
+  startDate: ISODate | null;
+  targetDate: ISODate | null;
+  /** When to start working towards the target date (a reminder, not a task). */
+  preparationDate: ISODate | null;
+  icon: ProjectIcon;
+  colour: ProjectColour;
+  notes: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  archivedAt: ISODateTime | null;
+}
+
+export type ProjectInput = Pick<Project, "name"> &
+  Partial<
+    Pick<
+      Project,
+      "description" | "status" | "priority" | "category" | "startDate" | "targetDate" | "preparationDate" | "icon" | "colour" | "notes"
+    >
+  >;
+
+export type MilestoneStatus = "upcoming" | "in_progress" | "completed";
+
+export interface Milestone {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  targetDate: ISODate | null;
+  preparationDate: ISODate | null;
+  status: MilestoneStatus;
+  sortOrder: number;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type MilestoneInput = Pick<Milestone, "title"> &
+  Partial<Pick<Milestone, "description" | "targetDate" | "preparationDate" | "status">>;
+
+/**
+ * - daily: every day · weekdays: Mon–Fri
+ * - weekly / biweekly: on `selectedWeekdays`, every 1 or 2 weeks
+ * - monthly: same day of the month as the start date (clamped to month end)
+ * - custom: every `interval` days or weeks (`intervalUnit`)
+ */
+export type RecurrenceFrequency = "daily" | "weekdays" | "weekly" | "biweekly" | "monthly" | "custom";
+export type RecurrenceStatus = "active" | "paused" | "ended";
+
+/** A rule that generates ordinary tasks ("occurrences"), one per scheduled date. */
+export interface RecurrenceTemplate {
+  id: string;
+  title: string;
+  description: string;
+  frequency: RecurrenceFrequency;
+  interval: number;
+  intervalUnit: "days" | "weeks";
+  /** 0 = Sunday … 6 = Saturday. Used by weekly, biweekly and custom-weeks. */
+  selectedWeekdays: number[];
+  startDate: ISODate;
+  endDate: ISODate | null;
+  sprintId: SprintId | null;
+  projectId: string | null;
+  priority: TaskPriority | null;
+  estimatedMinutes: number | null;
+  status: RecurrenceStatus;
+  /** Every date up to here has been considered, so deleted occurrences never come back. */
+  generatedThrough: ISODate | null;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type RecurrenceRule = Pick<
+  RecurrenceTemplate,
+  "frequency" | "interval" | "intervalUnit" | "selectedWeekdays" | "startDate" | "endDate"
+>;
+
+export type RecurrenceInput = Pick<RecurrenceTemplate, "title"> &
+  RecurrenceRule &
+  Partial<Pick<RecurrenceTemplate, "description" | "sprintId" | "projectId" | "priority" | "estimatedMinutes">>;
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
@@ -207,34 +312,14 @@ export interface PersistedData {
   commitments: MicroCommitment[];
   commitmentCompletions: CommitmentCompletion[];
   kaizenLogs: KaizenLog[];
+  projects: Project[];
+  milestones: Milestone[];
+  recurrences: RecurrenceTemplate[];
 }
 
 /* ------------------------------------------------------------------ */
 /* Preview content (not yet persisted — later phases)                  */
 /* ------------------------------------------------------------------ */
-
-export type LifeArea = "Business" | "Coaching" | "Tennis Ladder" | "Personal";
-
-export interface Project {
-  id: string;
-  name: string;
-  description: string;
-  area: LifeArea;
-  status: "active" | "paused" | "complete";
-  targetDate: ISODate | null;
-}
-
-export type EventKind = "coaching" | "ladder" | "business" | "personal";
-
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  date: ISODate;
-  /** 24h "HH:MM" */
-  start: string;
-  end: string;
-  kind: EventKind;
-}
 
 export interface WeeklyReview {
   id: string;
@@ -247,8 +332,6 @@ export interface WeeklyReview {
 
 /** Sample content shown on pages whose real functionality arrives later. */
 export interface PreviewContent {
-  projects: Project[];
-  events: CalendarEvent[];
   weeklyReview: WeeklyReview;
 }
 

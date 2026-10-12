@@ -1,114 +1,112 @@
 "use client";
 
 import * as React from "react";
-import { CalendarClock, CheckCircle2 } from "lucide-react";
+import { FolderKanban, Plus } from "lucide-react";
 
+import { DeadlineOverview } from "@/components/projects/deadline-overview";
+import { ProjectCard } from "@/components/projects/project-card";
+import { ProjectEditorDialog } from "@/components/projects/project-editor-dialog";
+import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { AREA_STYLES } from "@/components/shared/project-card";
-import { ProgressRing } from "@/components/shared/progress-ring";
-import { TaskItem } from "@/components/tasks/task-item";
+import { FilterSelect } from "@/components/tasks/task-filters";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatShortDate, relativeDayPhrase } from "@/lib/date";
-import { getProjectStats } from "@/lib/selectors";
-import { isActive } from "@/lib/tasks/task-model";
-import { sortTasks } from "@/lib/tasks/task-queries";
+import { PROJECT_STATUSES, getProjectProgress } from "@/lib/projects/project-model";
 import { useWorkspace } from "@/lib/store/workspace-store";
-import { cn } from "@/lib/utils";
-import type { Project } from "@/types";
+import type { Project, ProjectStatus } from "@/types";
+
+type Sort = "target" | "name" | "updated" | "progress";
 
 export function ProjectsPage() {
   const { workspace } = useWorkspace();
-  const [filter, setFilter] = React.useState<"active" | "all">("active");
-  const projects = workspace.projects.filter((p) => filter === "all" || p.status === "active");
+  const [status, setStatus] = React.useState<ProjectStatus>("active");
+  const [sort, setSort] = React.useState<Sort>("target");
+  const [creating, setCreating] = React.useState(false);
+
+  const counts = Object.fromEntries(PROJECT_STATUSES.map((s) => [s.id, workspace.projects.filter((p) => p.status === s.id).length]));
+  const progressOf = (p: Project) => getProjectProgress(workspace.tasks, workspace.milestones, p.id, workspace.today).percent ?? -1;
+  const projects = workspace.projects
+    .filter((p) => p.status === status)
+    .sort((a, b) => {
+      switch (sort) {
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "updated":
+          return b.updatedAt.localeCompare(a.updatedAt);
+        case "progress":
+          return progressOf(b) - progressOf(a);
+        default:
+          return (a.targetDate ?? "9999").localeCompare(b.targetDate ?? "9999") || a.name.localeCompare(b.name);
+      }
+    });
 
   return (
     <>
       <PageHeader
         title="Projects"
-        description="The bigger outcomes your daily sprints add up to."
+        description="The bigger outcomes your sprints add up to. Projects give direction; deadlines give awareness."
         actions={
-          <Button variant="outline" disabled title="Creating projects arrives in a later phase">
+          <Button onClick={() => setCreating(true)} className="gap-1.5">
+            <Plus className="size-4" strokeWidth={2.5} />
             New project
           </Button>
         }
       />
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as "active" | "all")} className="mb-5">
-        <TabsList>
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        {projects.map((p) => (
-          <ProjectPanel key={p.id} project={p} />
-        ))}
-      </div>
+
+      {workspace.projects.length === 0 ? (
+        <Card className="items-center py-12">
+          <EmptyState icon={FolderKanban} title="No projects yet" description="Group related tasks under one outcome — a launch, a tournament, a home project." className="py-0" />
+          <Button className="mt-4" onClick={() => setCreating(true)}>
+            Create your first project
+          </Button>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                <Tabs value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
+                  <TabsList>
+                    {PROJECT_STATUSES.map((s) => (
+                      <TabsTrigger key={s.id} value={s.id}>
+                        {s.label}
+                        {counts[s.id] > 0 && <span className="text-muted-foreground tabular-nums">{counts[s.id]}</span>}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+              <FilterSelect
+                label="Sort projects by"
+                value={sort}
+                onChange={(v) => setSort(v as Sort)}
+                options={[
+                  { value: "target", label: "Target date" },
+                  { value: "name", label: "Name" },
+                  { value: "updated", label: "Recently updated" },
+                  { value: "progress", label: "Progress" },
+                ]}
+              />
+            </div>
+            {projects.length === 0 ? (
+              <p className="rounded-xl border border-dashed bg-card/60 px-4 py-8 text-center text-[13px] text-muted-foreground">
+                No {PROJECT_STATUSES.find((s) => s.id === status)?.label.toLowerCase()} projects.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {projects.map((p) => (
+                  <ProjectCard key={p.id} project={p} />
+                ))}
+              </div>
+            )}
+          </div>
+          <aside className="min-w-0">
+            <DeadlineOverview limit={10} />
+          </aside>
+        </div>
+      )}
+      {creating && <ProjectEditorDialog open={creating} onOpenChange={setCreating} />}
     </>
-  );
-}
-
-function ProjectPanel({ project }: { project: Project }) {
-  const { workspace } = useWorkspace();
-  const stats = getProjectStats(workspace, project.id);
-  const tasks = workspace.tasks.filter((t) => t.projectId === project.id);
-  const open = sortTasks(tasks.filter(isActive), "due");
-  const nextDeadline = open
-    .map((t) => t.dueDate)
-    .filter((d): d is string => !!d)
-    .sort()[0];
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex items-start gap-4 p-5">
-        <ProgressRing value={stats.percent} size={56} stroke={5} label={`${stats.percent}% complete`}>
-          <span className="text-xs font-bold tabular-nums">{stats.percent}%</span>
-        </ProgressRing>
-        <div className="min-w-0 flex-1">
-          <span className={cn("rounded-md px-1.5 py-0.5 text-[11px] font-semibold", AREA_STYLES[project.area])}>
-            {project.area}
-          </span>
-          <h3 className="mt-1.5 text-[17px] font-semibold tracking-tight">{project.name}</h3>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">{project.description}</p>
-        </div>
-      </div>
-
-      <dl className="grid grid-cols-3 border-y bg-muted/30 text-center">
-        <div className="px-3 py-2.5">
-          <dt className="text-[11px] font-semibold text-muted-foreground">Open</dt>
-          <dd className="text-[15px] font-bold tabular-nums">{stats.outstanding}</dd>
-        </div>
-        <div className="border-x px-3 py-2.5">
-          <dt className="text-[11px] font-semibold text-muted-foreground">Done</dt>
-          <dd className="text-[15px] font-bold tabular-nums">{stats.done}</dd>
-        </div>
-        <div className="px-3 py-2.5">
-          <dt className="text-[11px] font-semibold text-muted-foreground">Target</dt>
-          <dd className="text-[15px] font-bold">{project.targetDate ? formatShortDate(project.targetDate) : "Ongoing"}</dd>
-        </div>
-      </dl>
-
-      <div className="p-3">
-        <div className="flex items-center justify-between px-2 pb-1">
-          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Next up</p>
-          {nextDeadline && (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <CalendarClock className="size-3" />
-              Next deadline {relativeDayPhrase(nextDeadline, workspace.today)}
-            </span>
-          )}
-        </div>
-        {open.length === 0 ? (
-          <p className="flex items-center gap-2 px-2 py-4 text-[13px] text-muted-foreground">
-            <CheckCircle2 className="size-4 text-emerald-600" />
-            Nothing open — nicely done.
-          </p>
-        ) : (
-          open.slice(0, 4).map((t) => <TaskItem key={t.id} task={t} showDescription={false} />)
-        )}
-        {open.length > 4 && <p className="px-2 pt-1 text-xs text-muted-foreground">+ {open.length - 4} more in Tasks</p>}
-      </div>
-    </Card>
   );
 }

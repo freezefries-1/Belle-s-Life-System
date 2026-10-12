@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -11,14 +12,28 @@ import { cn } from "@/lib/utils";
 
 import { NAV_SECTIONS, isActivePath, type NavItem } from "./nav-config";
 
-export function SidebarNav({
-  collapsed = false,
-  onNavigate,
-}: {
+interface SidebarNavProps {
   collapsed?: boolean;
   onNavigate?: () => void;
-}) {
-  const pathname = usePathname();
+}
+
+/**
+ * The pathname is request-time data on dynamic routes (e.g. /projects/[id]),
+ * so it is read inside Suspense; the fallback is the same nav with nothing highlighted.
+ */
+export function SidebarNav(props: SidebarNavProps) {
+  return (
+    <React.Suspense fallback={<NavLinks {...props} pathname="" />}>
+      <SidebarNavWithPath {...props} />
+    </React.Suspense>
+  );
+}
+
+function SidebarNavWithPath(props: SidebarNavProps) {
+  return <NavLinks {...props} pathname={usePathname()} />;
+}
+
+function NavLinks({ collapsed = false, onNavigate, pathname }: SidebarNavProps & { pathname: string }) {
   const ctx = useWorkspaceOptional();
 
   const counts: Record<NonNullable<NavItem["countKey"]>, number | undefined> = {

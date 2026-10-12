@@ -1,3 +1,4 @@
+import { LEGACY_PROJECTS } from "@/data/legacy-projects";
 import type {
   Capture,
   CaptureKind,
@@ -9,6 +10,15 @@ import type {
   EnergyLevel,
   KaizenLog,
   MicroCommitment,
+  Milestone,
+  MilestoneStatus,
+  Project,
+  ProjectColour,
+  ProjectIcon,
+  ProjectStatus,
+  RecurrenceFrequency,
+  RecurrenceStatus,
+  RecurrenceTemplate,
   PersistedData,
   SessionStatus,
   SprintId,
@@ -30,8 +40,10 @@ export const STORAGE_KEY = "belles-life-system:v1";
  * 1 — Phase 2: tasks + captures.
  * 2 — Phase 3: tasks gain `sortOrder`; sprint `sessions` added.
  * 3 — Phase 4: daily `highlights`, `commitments`, `commitmentCompletions`, `kaizenLogs`.
+ * 4 — Phase 5: `projects`, `milestones`, `recurrences`; tasks gain milestone,
+ *     recurrence and project-order fields.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -47,6 +59,9 @@ export const EMPTY_DATA: PersistedData = {
   commitments: [],
   commitmentCompletions: [],
   kaizenLogs: [],
+  projects: [],
+  milestones: [],
+  recurrences: [],
 };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
@@ -58,6 +73,12 @@ const SESSION_STATUSES: SessionStatus[] = ["ready", "running", "paused", "ended"
 const ENERGY_LEVELS: EnergyLevel[] = ["low", "moderate", "high"];
 const FREQUENCIES: CommitmentFrequency[] = ["daily", "weekdays", "weekly"];
 const COMMITMENT_STATUSES: CommitmentStatus[] = ["active", "paused", "archived"];
+const PROJECT_STATUSES: ProjectStatus[] = ["planning", "active", "on_hold", "completed", "archived"];
+const PROJECT_COLOURS: ProjectColour[] = ["blue", "teal", "amber", "violet", "rose", "slate"];
+const PROJECT_ICONS: ProjectIcon[] = ["folder", "briefcase", "trophy", "house", "heart", "sparkles", "book", "dumbbell"];
+const MILESTONE_STATUSES: MilestoneStatus[] = ["upcoming", "in_progress", "completed"];
+const RECURRENCE_FREQUENCIES: RecurrenceFrequency[] = ["daily", "weekdays", "weekly", "biweekly", "monthly", "custom"];
+const RECURRENCE_STATUSES: RecurrenceStatus[] = ["active", "paused", "ended"];
 
 type Obj = Record<string, unknown>;
 
@@ -101,6 +122,91 @@ export function parseTask(raw: unknown): Task | null {
     capturedAt: timestamp(raw.capturedAt),
     // NaN marks "missing"; parseEnvelope assigns a stable position afterwards.
     sortOrder: finite(raw.sortOrder) ?? Number.NaN,
+    projectSortOrder: finite(raw.projectSortOrder) ?? Number.NaN,
+    milestoneId: strOrNull(raw.milestoneId),
+    recurrenceTemplateId: strOrNull(raw.recurrenceTemplateId),
+    occurrenceDate: isoDate(raw.occurrenceDate),
+  };
+}
+
+export function parseProject(raw: unknown): Project | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const name = str(raw.name)?.trim();
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !name || !createdAt) return null;
+  const status = oneOf(raw.status, PROJECT_STATUSES) ?? "active";
+  return {
+    id,
+    name,
+    description: str(raw.description) ?? "",
+    status,
+    priority: oneOf(raw.priority, PRIORITIES),
+    category: str(raw.category) ?? "",
+    startDate: isoDate(raw.startDate),
+    targetDate: isoDate(raw.targetDate),
+    preparationDate: isoDate(raw.preparationDate),
+    icon: oneOf(raw.icon, PROJECT_ICONS) ?? "folder",
+    colour: oneOf(raw.colour, PROJECT_COLOURS) ?? "blue",
+    notes: str(raw.notes) ?? "",
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+    archivedAt: status === "archived" ? (timestamp(raw.archivedAt) ?? createdAt) : null,
+  };
+}
+
+export function parseMilestone(raw: unknown): Milestone | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const projectId = str(raw.projectId);
+  const title = str(raw.title)?.trim();
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !projectId || !title || !createdAt) return null;
+  return {
+    id,
+    projectId,
+    title,
+    description: str(raw.description) ?? "",
+    targetDate: isoDate(raw.targetDate),
+    preparationDate: isoDate(raw.preparationDate),
+    status: oneOf(raw.status, MILESTONE_STATUSES) ?? "upcoming",
+    sortOrder: finite(raw.sortOrder) ?? 0,
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+  };
+}
+
+export function parseRecurrence(raw: unknown): RecurrenceTemplate | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const title = str(raw.title)?.trim();
+  const createdAt = timestamp(raw.createdAt);
+  const startDate = isoDate(raw.startDate);
+  const frequency = oneOf(raw.frequency, RECURRENCE_FREQUENCIES);
+  if (!id || !title || !createdAt || !startDate || !frequency) return null;
+  const weekdays = Array.isArray(raw.selectedWeekdays)
+    ? [...new Set(raw.selectedWeekdays.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+    : [];
+  const interval = finite(raw.interval);
+  const endDate = isoDate(raw.endDate);
+  return {
+    id,
+    title,
+    description: str(raw.description) ?? "",
+    frequency,
+    interval: interval && interval >= 1 ? Math.min(365, Math.round(interval)) : 1,
+    intervalUnit: raw.intervalUnit === "weeks" ? "weeks" : "days",
+    selectedWeekdays: weekdays,
+    startDate,
+    endDate: endDate && endDate >= startDate ? endDate : null,
+    sprintId: oneOf(raw.sprintId, SPRINT_IDS),
+    projectId: strOrNull(raw.projectId),
+    priority: oneOf(raw.priority, PRIORITIES),
+    estimatedMinutes: minutes(raw.estimatedMinutes),
+    status: oneOf(raw.status, RECURRENCE_STATUSES) ?? "active",
+    generatedThrough: isoDate(raw.generatedThrough),
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
   };
 }
 
@@ -293,6 +399,31 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     sessions = sessions.map((x) => (extra.has(x.id) ? { ...x, status: "ended", endedAt: x.endedAt ?? x.createdAt, lastResumedAt: null } : x));
   }
 
+  const projectsParsed = parseList(migrated.projects, parseProject);
+  const projects = dedupeById(projectsParsed.parsed);
+  const projectIds = new Set(projects.map((p) => p.id));
+  const milestonesParsed = parseList(migrated.milestones, parseMilestone);
+  const milestones = dedupeById(milestonesParsed.parsed).filter((m) => projectIds.has(m.projectId));
+  const milestoneProject = new Map(milestones.map((m) => [m.id, m.projectId]));
+  const recurrencesParsed = parseList(migrated.recurrences, parseRecurrence);
+  const recurrences = dedupeById(recurrencesParsed.parsed).map((r) =>
+    r.projectId && !projectIds.has(r.projectId) ? { ...r, projectId: null } : r,
+  );
+  const recurrenceIds = new Set(recurrences.map((r) => r.id));
+  // No broken references: links to missing projects, milestones or templates are cleared.
+  const linkedTasks = tasks.map((t) => {
+    const projectId = t.projectId && projectIds.has(t.projectId) ? t.projectId : null;
+    const milestoneId = t.milestoneId && projectId && milestoneProject.get(t.milestoneId) === projectId ? t.milestoneId : null;
+    const recurrenceTemplateId = t.recurrenceTemplateId && recurrenceIds.has(t.recurrenceTemplateId) ? t.recurrenceTemplateId : null;
+    const projectSortOrder = Number.isNaN(t.projectSortOrder) ? t.sortOrder : t.projectSortOrder;
+    return projectId === t.projectId &&
+      milestoneId === t.milestoneId &&
+      recurrenceTemplateId === t.recurrenceTemplateId &&
+      projectSortOrder === t.projectSortOrder
+      ? t
+      : { ...t, projectId, milestoneId, recurrenceTemplateId, projectSortOrder };
+  });
+
   const highlights = parseList(migrated.highlights, parseHighlight);
   const commitments = parseList(migrated.commitments, parseCommitment);
   const completions = parseList(migrated.commitmentCompletions, parseCompletion);
@@ -301,7 +432,7 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
 
   return {
     data: {
-      tasks,
+      tasks: linkedTasks,
       captures,
       sessions,
       // One highlight and one log per calendar day; one completion per commitment per day.
@@ -313,6 +444,9 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
         (c) => c.completedAt,
       ),
       kaizenLogs: uniqueBy(dedupeById(logs.parsed), (l) => l.dateKey, (l) => l.updatedAt),
+      projects,
+      milestones,
+      recurrences,
     },
     dropped:
       rawTasks.length -
@@ -322,7 +456,10 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       highlights.dropped +
       commitments.dropped +
       completions.dropped +
-      logs.dropped,
+      logs.dropped +
+      projectsParsed.dropped +
+      milestonesParsed.dropped +
+      recurrencesParsed.dropped,
     migratedFrom: raw.schemaVersion < SCHEMA_VERSION ? raw.schemaVersion : null,
   };
 }
@@ -338,6 +475,18 @@ function migrate(version: number, data: Obj): Obj | null {
   if (version < 3) {
     // v2 → v3: daily records start empty. Nothing existing is touched.
     current = { ...current, highlights: [], commitments: [], commitmentCompletions: [], kaizenLogs: [] };
+  }
+  if (version < 4) {
+    // v3 → v4: projects become real records. Tasks linked to one of the old
+    // built-in preview projects keep that link via a real project; no other
+    // projects are created.
+    const tasks = Array.isArray(current.tasks) ? current.tasks : [];
+    const used = new Set(tasks.map((t) => (isObj(t) ? t.projectId : null)).filter((id): id is string => typeof id === "string"));
+    const now = new Date().toISOString();
+    const projects = Object.entries(LEGACY_PROJECTS)
+      .filter(([id]) => used.has(id))
+      .map(([id, p]) => ({ id, ...p, status: "active", notes: "", createdAt: now, updatedAt: now }));
+    current = { ...current, projects, milestones: [], recurrences: [] };
   }
   return current;
 }

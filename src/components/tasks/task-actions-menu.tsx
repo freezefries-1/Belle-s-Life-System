@@ -1,6 +1,7 @@
 "use client";
 
-import { CircleDashed, CirclePlay, MoreHorizontal, Pencil, SkipForward, Trash2, Undo2 } from "lucide-react";
+import { CircleDashed, CirclePlay, MoreHorizontal, Pencil, Repeat, SkipForward, Trash2, Undo2, Unlink } from "lucide-react";
+import { toast } from "sonner";
 
 import { SprintDot } from "@/components/shared/sprint-badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import type { Task } from "@/types";
 import { useTaskEditor } from "./task-editor-provider";
 import { useTaskFeedback } from "./use-task-feedback";
 
-export function TaskActionsMenu({ task, align = "end" }: { task: Task; align?: "start" | "end" }) {
+export function TaskActionsMenu({ task, align = "end", projectId }: { task: Task; align?: "start" | "end"; projectId?: string }) {
   const { actions } = useWorkspace();
   const editor = useTaskEditor();
   const feedback = useTaskFeedback();
@@ -36,6 +37,12 @@ export function TaskActionsMenu({ task, align = "end" }: { task: Task; align?: "
           <Pencil />
           Edit
         </DropdownMenuItem>
+        {task.recurrenceTemplateId && (
+          <DropdownMenuItem onSelect={() => editor.openSeries(task.recurrenceTemplateId!)}>
+            <Repeat />
+            Edit future occurrences
+          </DropdownMenuItem>
+        )}
         {task.status === "todo" && (
           <DropdownMenuItem onSelect={() => feedback.setStatus(task, "in_progress")}>
             <CirclePlay />
@@ -78,6 +85,20 @@ export function TaskActionsMenu({ task, align = "end" }: { task: Task; align?: "
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
+        {projectId && task.projectId === projectId && (
+          <DropdownMenuItem
+            onSelect={() => {
+              actions.linkTaskToProject(task.id, null);
+              toast("Removed from project — the task is kept", {
+                description: task.title,
+                action: { label: "Undo", onClick: () => actions.linkTaskToProject(task.id, projectId) },
+              });
+            }}
+          >
+            <Unlink />
+            Remove from project
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => feedback.remove(task)} className="text-rose-600 focus:text-rose-700">
           <Trash2 className="text-rose-500" />
           Delete

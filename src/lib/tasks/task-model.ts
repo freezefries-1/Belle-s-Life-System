@@ -63,6 +63,10 @@ export function createTask(input: TaskInput, now: ISODateTime, extra?: Partial<T
     // Callers normally pass an explicit position (see `nextSortOrder`); the
     // timestamp fallback still places newer tasks after older ones.
     sortOrder: Date.parse(now),
+    projectSortOrder: Date.parse(now),
+    milestoneId: clean.milestoneId ?? null,
+    recurrenceTemplateId: null,
+    occurrenceDate: null,
     ...extra,
   };
 }

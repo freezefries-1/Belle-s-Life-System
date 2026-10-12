@@ -24,7 +24,7 @@ function search(ws: Workspace, query: string): SearchResult[] {
   return [
     ...ws.projects
       .filter((p) => match(p.name))
-      .map((p) => ({ id: p.id, label: p.name, meta: "Project", href: "/projects", icon: FolderKanban })),
+      .map((p) => ({ id: p.id, label: p.name, meta: "Project", href: `/projects/${p.id}`, icon: FolderKanban })),
     ...ws.tasks
       .filter((t) => match(t.title) || match(t.description))
       .map((t) => ({

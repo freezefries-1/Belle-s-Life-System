@@ -8,6 +8,9 @@ import { createSampleData } from "@/data/sample-data";
 import { createCapture } from "@/lib/brain-dump/capture-model";
 import { createCommitment } from "@/lib/daily/commitments";
 import { createHighlight, createLog } from "@/lib/daily/day";
+import { addDays } from "@/lib/date";
+import { createMilestone, createProject, nextProjectSortOrder } from "@/lib/projects/project-model";
+import { createTemplate, generateOccurrences, normalizeRule, templateTaskFields } from "@/lib/recurrence/recurrence";
 import { createId, nowISO } from "@/lib/id";
 import { EMPTY_DATA } from "@/lib/storage/schema";
 import {
@@ -35,7 +38,15 @@ import type {
   ISODate,
   KaizenLogInput,
   MicroCommitment,
+  Milestone,
+  MilestoneInput,
   PersistedData,
+  Project,
+  ProjectInput,
+  ProjectStatus,
+  RecurrenceInput,
+  RecurrenceStatus,
+  RecurrenceTemplate,
   SprintId,
   SprintSession,
   Task,
@@ -104,6 +115,36 @@ export interface WorkspaceActions {
   /** Create the day's log if it doesn't exist yet (idempotent). */
   ensureLog: (date: ISODate) => void;
   updateLog: (date: ISODate, changes: KaizenLogInput) => void;
+
+  // Projects
+  createProject: (input: ProjectInput) => Project | null;
+  updateProject: (id: string, changes: Partial<ProjectInput>) => void;
+  setProjectStatus: (id: string, status: ProjectStatus) => void;
+  /** Deletes the project and its milestones. Its tasks are kept and simply unlinked. */
+  deleteProject: (id: string) => void;
+  /** Link (or unlink with null) an existing task; it goes to the bottom of that project's list. */
+  linkTaskToProject: (taskId: string, projectId: string | null) => void;
+  reorderProjectTasks: (projectId: string, orderedTaskIds: string[]) => void;
+
+  // Milestones
+  createMilestone: (projectId: string, input: MilestoneInput) => Milestone | null;
+  updateMilestone: (id: string, changes: Partial<MilestoneInput>) => void;
+  /** Tasks linked to it stay, unlinked from the milestone. */
+  deleteMilestone: (id: string) => void;
+  reorderMilestones: (projectId: string, orderedIds: string[]) => void;
+
+  // Recurring tasks
+  createRecurrence: (input: RecurrenceInput) => RecurrenceTemplate | null;
+  /**
+   * Edit the series. Applies to future unfinished occurrences only; past and
+   * completed ones are never rewritten. A schedule change regenerates them.
+   */
+  updateRecurrence: (id: string, changes: Partial<RecurrenceInput>) => void;
+  setRecurrenceStatus: (id: string, status: RecurrenceStatus, options?: { removeFuture?: boolean }) => void;
+  /** Completed occurrences are always kept (as ordinary tasks). */
+  deleteRecurrence: (id: string, options?: { removeFuture?: boolean }) => void;
+  /** Generate any occurrences now due (runs automatically on open and at day change). */
+  syncRecurrences: () => void;
 
   // Data
   loadSampleData: () => void;
@@ -236,6 +277,7 @@ export function WorkspaceProvider({
           sourceCaptureId: capture.id,
           capturedAt: capture.createdAt,
           sortOrder: nextSortOrder(current.tasks),
+          projectSortOrder: input.projectId ? nextProjectSortOrder(current.tasks, input.projectId) : 0,
         });
         commit((d) => ({
           ...d,
@@ -249,7 +291,11 @@ export function WorkspaceProvider({
 
       createTask: (input) => {
         if (!input.title.trim() || !dataRef.current) return null;
-        const task = createTask(input, nowISO(), { sortOrder: nextSortOrder(dataRef.current.tasks) });
+        const tasks = dataRef.current.tasks;
+        const task = createTask(input, nowISO(), {
+          sortOrder: nextSortOrder(tasks),
+          projectSortOrder: input.projectId ? nextProjectSortOrder(tasks, input.projectId) : 0,
+        });
         commit((d) => ({ ...d, tasks: [task, ...d.tasks] }));
         return task;
       },
@@ -262,6 +308,12 @@ export function WorkspaceProvider({
           const movedSprint = changes.sprint !== undefined && changes.sprint !== task.sprint;
           const updated = applyTaskChanges(task, changes, now);
           if (movedSprint) updated.sortOrder = nextSortOrder(d.tasks);
+          if (updated.projectId !== task.projectId) {
+            updated.projectSortOrder = updated.projectId ? nextProjectSortOrder(d.tasks, updated.projectId) : 0;
+            const milestone = d.milestones.find((m) => m.id === updated.milestoneId);
+            if (milestone?.projectId !== updated.projectId) updated.milestoneId = null;
+          }
+          if (!updated.projectId) updated.milestoneId = null;
           // Keep highlight snapshots readable if the task is later deleted.
           const renamed = updated.title !== task.title;
           return {
@@ -449,9 +501,225 @@ export function WorkspaceProvider({
           };
         }),
 
+      createProject: (input) => {
+        if (!input.name.trim()) return null;
+        const project = createProject(input, nowISO());
+        commit((d) => ({ ...d, projects: [...d.projects, project] }));
+        return project;
+      },
+
+      updateProject: (id, changes) =>
+        commit((d) => ({
+          ...d,
+          projects: d.projects.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  ...changes,
+                  name: changes.name?.trim() || p.name,
+                  description: changes.description !== undefined ? changes.description.trim() : p.description,
+                  category: changes.category !== undefined ? changes.category.trim() : p.category,
+                  archivedAt: changes.status ? (changes.status === "archived" ? (p.archivedAt ?? nowISO()) : null) : p.archivedAt,
+                  updatedAt: nowISO(),
+                }
+              : p,
+          ),
+        })),
+
+      setProjectStatus: (id, status) =>
+        commit((d) => ({
+          ...d,
+          projects: d.projects.map((p) =>
+            p.id === id && p.status !== status
+              ? { ...p, status, archivedAt: status === "archived" ? nowISO() : null, updatedAt: nowISO() }
+              : p,
+          ),
+        })),
+
+      deleteProject: (id) =>
+        commit((d) => ({
+          ...d,
+          projects: d.projects.filter((p) => p.id !== id),
+          milestones: d.milestones.filter((m) => m.projectId !== id),
+          // Never cascade: tasks stay, just without a project.
+          tasks: d.tasks.map((t) => (t.projectId === id ? { ...t, projectId: null, milestoneId: null, updatedAt: nowISO() } : t)),
+          recurrences: d.recurrences.map((r) => (r.projectId === id ? { ...r, projectId: null } : r)),
+        })),
+
+      linkTaskToProject: (taskId, projectId) =>
+        commit((d) => {
+          const task = d.tasks.find((t) => t.id === taskId);
+          if (!task || task.projectId === projectId) return d;
+          const linked = {
+            ...task,
+            projectId,
+            milestoneId: null,
+            projectSortOrder: projectId ? nextProjectSortOrder(d.tasks, projectId) : 0,
+            updatedAt: nowISO(),
+          };
+          return { ...d, tasks: d.tasks.map((t) => (t.id === taskId ? linked : t)) };
+        }),
+
+      reorderProjectTasks: (projectId, orderedTaskIds) =>
+        commit((d) => {
+          const position = new Map(orderedTaskIds.map((id, i) => [id, (i + 1) * 1000]));
+          let changed = false;
+          const tasks = d.tasks.map((t) => {
+            const next = position.get(t.id);
+            if (t.projectId !== projectId || next === undefined || next === t.projectSortOrder) return t;
+            changed = true;
+            return { ...t, projectSortOrder: next };
+          });
+          return changed ? { ...d, tasks } : d;
+        }),
+
+      createMilestone: (projectId, input) => {
+        const current = dataRef.current;
+        if (!current || !input.title.trim() || !current.projects.some((p) => p.id === projectId)) return null;
+        const order = current.milestones.filter((m) => m.projectId === projectId).reduce((max, m) => Math.max(max, m.sortOrder), 0) + 1000;
+        const milestone = createMilestone(projectId, input, order, nowISO());
+        commit((d) => ({ ...d, milestones: [...d.milestones, milestone] }));
+        return milestone;
+      },
+
+      updateMilestone: (id, changes) =>
+        commit((d) => ({
+          ...d,
+          milestones: d.milestones.map((m) =>
+            m.id === id
+              ? {
+                  ...m,
+                  ...changes,
+                  title: changes.title?.trim() || m.title,
+                  description: changes.description !== undefined ? changes.description.trim() : m.description,
+                  updatedAt: nowISO(),
+                }
+              : m,
+          ),
+        })),
+
+      deleteMilestone: (id) =>
+        commit((d) => ({
+          ...d,
+          milestones: d.milestones.filter((m) => m.id !== id),
+          tasks: d.tasks.map((t) => (t.milestoneId === id ? { ...t, milestoneId: null } : t)),
+        })),
+
+      reorderMilestones: (projectId, orderedIds) =>
+        commit((d) => {
+          const position = new Map(orderedIds.map((id, i) => [id, (i + 1) * 1000]));
+          return {
+            ...d,
+            milestones: d.milestones.map((m) =>
+              m.projectId === projectId && position.has(m.id) ? { ...m, sortOrder: position.get(m.id)! } : m,
+            ),
+          };
+        }),
+
+      createRecurrence: (input) => {
+        if (!input.title.trim() || !today) return null;
+        const template = createTemplate(input, nowISO());
+        // Generate straight away so the first occurrence appears immediately.
+        commit((d) => generateOccurrences({ ...d, recurrences: [...d.recurrences, template] }, today, nowISO()));
+        return template;
+      },
+
+      updateRecurrence: (id, changes) =>
+        commit((d) => {
+          const template = d.recurrences.find((r) => r.id === id);
+          if (!template || !today) return d;
+          const now = nowISO();
+          const merged = { ...template, ...changes, title: changes.title?.trim() || template.title };
+          const rule = normalizeRule(merged);
+          const updated: RecurrenceTemplate = {
+            ...merged,
+            ...rule,
+            description: merged.description.trim(),
+            updatedAt: now,
+          };
+          const ruleKeys = ["frequency", "interval", "intervalUnit", "selectedWeekdays", "startDate", "endDate"] as const;
+          const scheduleChanged = ruleKeys.some((k) => JSON.stringify(template[k]) !== JSON.stringify(updated[k]));
+          const isFutureOpen = (t: Task) =>
+            t.recurrenceTemplateId === id && t.occurrenceDate !== null && t.occurrenceDate >= today && t.status !== "completed";
+
+          if (scheduleChanged) {
+            // Drop upcoming unfinished occurrences and regenerate on the new schedule.
+            const yesterday = addDays(today, -1);
+            const restart = updated.startDate > yesterday ? addDays(updated.startDate, -1) : yesterday;
+            const next = {
+              ...d,
+              tasks: d.tasks.filter((t) => !isFutureOpen(t)),
+              recurrences: d.recurrences.map((r) => (r.id === id ? { ...updated, generatedThrough: restart } : r)),
+            };
+            return generateOccurrences(next, today, now);
+          }
+          const fields = templateTaskFields(updated);
+          return {
+            ...d,
+            recurrences: d.recurrences.map((r) => (r.id === id ? updated : r)),
+            tasks: d.tasks.map((t) =>
+              isFutureOpen(t)
+                ? {
+                    ...t,
+                    ...fields,
+                    sprint: fields.sprint,
+                    milestoneId: fields.projectId === t.projectId ? t.milestoneId : null,
+                    updatedAt: now,
+                  }
+                : t,
+            ),
+          };
+        }),
+
+      setRecurrenceStatus: (id, status, options) =>
+        commit((d) => {
+          const template = d.recurrences.find((r) => r.id === id);
+          if (!template || !today) return d;
+          const now = nowISO();
+          const yesterday = addDays(today, -1);
+          const updated: RecurrenceTemplate = { ...template, status, updatedAt: now };
+          if (status === "active") {
+            // Resuming doesn't back-fill the paused stretch.
+            updated.generatedThrough =
+              template.generatedThrough && template.generatedThrough > yesterday ? template.generatedThrough : yesterday;
+          }
+          if (status === "ended" && (!template.endDate || template.endDate > today)) updated.endDate = today;
+          const tasks = options?.removeFuture
+            ? d.tasks.filter(
+                (t) =>
+                  !(t.recurrenceTemplateId === id && t.occurrenceDate !== null && t.occurrenceDate >= today && t.status !== "completed"),
+              )
+            : d.tasks;
+          const next = { ...d, tasks, recurrences: d.recurrences.map((r) => (r.id === id ? updated : r)) };
+          return status === "active" ? generateOccurrences(next, today, now) : next;
+        }),
+
+      deleteRecurrence: (id, options) =>
+        commit((d) => {
+          if (!today) return d;
+          const tasks = d.tasks
+            .filter(
+              (t) =>
+                !(
+                  options?.removeFuture &&
+                  t.recurrenceTemplateId === id &&
+                  t.occurrenceDate !== null &&
+                  t.occurrenceDate >= today &&
+                  t.status !== "completed"
+                ),
+            )
+            // Everything kept becomes an ordinary task (its date is preserved).
+            .map((t) => (t.recurrenceTemplateId === id ? { ...t, recurrenceTemplateId: null } : t));
+          return { ...d, tasks, recurrences: d.recurrences.filter((r) => r.id !== id) };
+        }),
+
+      syncRecurrences: () => {
+        if (today) commit((d) => generateOccurrences(d, today, nowISO()));
+      },
+
       loadSampleData: () => {
         if (!today) return;
-        commit(() => createSampleData(today));
+        commit(() => generateOccurrences(createSampleData(today), today, nowISO()));
       },
 
       clearAllData: () => commit(() => EMPTY_DATA),
@@ -463,6 +731,14 @@ export function WorkspaceProvider({
   // No background job needed, and earlier days are never touched.
   React.useEffect(() => {
     if (today && data && !data.kaizenLogs.some((l) => l.dateKey === today)) actions.ensureLog(today);
+  }, [today, data, actions]);
+
+  // Recurring tasks: no background scheduler, so occurrences are generated
+  // whenever the app opens or the day changes. Idempotent — it only saves
+  // when something new is due.
+  React.useEffect(() => {
+    if (!today || !data || !data.recurrences.some((r) => r.status === "active")) return;
+    if (generateOccurrences(data, today, nowISO()) !== data) actions.syncRecurrences();
   }, [today, data, actions]);
 
   const value = React.useMemo<WorkspaceContextValue | null>(() => {

@@ -25,9 +25,7 @@ export function Topbar({
   onShowShortcuts: () => void;
   searchInputRef: React.Ref<HTMLInputElement>;
 }) {
-  const pathname = usePathname();
   const today = useToday();
-  const page = getNavItem(pathname);
 
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur-md sm:px-6 lg:px-8">
@@ -42,7 +40,12 @@ export function Topbar({
       </Button>
 
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-[17px] leading-tight font-bold tracking-tight">{page.title}</h1>
+        <h1 className="h-[22px] truncate text-[17px] leading-tight font-bold tracking-tight">
+          {/* Pathname is request-time data on dynamic routes, so it streams in. */}
+          <React.Suspense fallback={null}>
+            <PageTitle />
+          </React.Suspense>
+        </h1>
         <p className="h-4 truncate text-xs font-medium text-muted-foreground" suppressHydrationWarning>
           {today ? formatLongDate(today) : ""}
         </p>
@@ -69,4 +72,8 @@ export function Topbar({
       <UserMenu onShowShortcuts={onShowShortcuts} />
     </header>
   );
+}
+
+function PageTitle() {
+  return getNavItem(usePathname()).title;
 }

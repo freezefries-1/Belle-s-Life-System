@@ -26,12 +26,26 @@ export function DataSettings() {
     workspace.tasks.length > 0 ||
     workspace.captures.length > 0 ||
     workspace.commitments.length > 0 ||
+    workspace.projects.length > 0 ||
+    workspace.recurrences.length > 0 ||
     workspace.highlights.length > 0 ||
     workspace.kaizenLogs.some((l) => l.notes || l.reflectionWentWell || l.reflectionImprove || l.reflectionLearned);
 
   function downloadBackup() {
-    const { tasks, captures, sessions, highlights, commitments, commitmentCompletions, kaizenLogs } = workspace;
-    const envelope = createEnvelope({ tasks, captures, sessions, highlights, commitments, commitmentCompletions, kaizenLogs });
+    const { tasks, captures, sessions, highlights, commitments, commitmentCompletions, kaizenLogs, projects, milestones, recurrences } =
+      workspace;
+    const envelope = createEnvelope({
+      tasks,
+      captures,
+      sessions,
+      highlights,
+      commitments,
+      commitmentCompletions,
+      kaizenLogs,
+      projects,
+      milestones,
+      recurrences,
+    });
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -63,7 +77,8 @@ export function DataSettings() {
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {workspace.tasks.length} tasks · {workspace.captures.length} Brain Dump entries ·{" "}
-            {workspace.commitments.length} commitments · {workspace.kaizenLogs.length} log days.{" "}
+            {workspace.commitments.length} commitments · {workspace.projects.length} projects ·{" "}
+            {workspace.recurrences.length} recurring · {workspace.kaizenLogs.length} log days.{" "}
             {storage.status === "unavailable"
               ? "This browser is blocking storage, so changes won’t survive closing the tab."
               : "Data stays on this device and browser until cloud sync arrives."}

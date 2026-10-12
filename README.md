@@ -4,7 +4,7 @@
 
 A calm, Kaizen-inspired personal productivity workspace, based on Ruri Ohama’s Kaizen method and designed to keep visual and mental clutter low. It replaces a Notion template with a faster, cleaner interface built around one daily highlight, four kinds of work (sprints), quick capture and small daily improvements.
 
-> **Phase 4 — Daily Highlight, Micro-Commitments & Kaizen Log.** Tasks, Brain Dump, focus sessions, daily highlights, micro-commitments and the Kaizen Log are saved in your browser (localStorage) and survive refreshes. Projects, Calendar events and the Weekly Review still show preview data. Nothing syncs between devices yet.
+> **Phase 5 — Projects, Deadlines & Recurring Tasks.** Tasks, Brain Dump, focus sessions, daily highlights, micro-commitments, the Kaizen Log, projects, milestones and recurring tasks are saved in your browser (localStorage) and survive refreshes. The Calendar is built from that saved data. Only the Weekly Review still shows preview data. Nothing syncs between devices yet.
 
 ---
 
@@ -62,7 +62,7 @@ src/
 ├── app/                      # Routes (one folder per page)
 │   ├── layout.tsx            # Root layout: font + app shell
 │   ├── page.tsx              # Today dashboard
-│   ├── brain-dump/ sprints/ tasks/ projects/ calendar/
+│   ├── brain-dump/ sprints/ tasks/ projects/ projects/[id]/ calendar/
 │   ├── kaizen-log/ micro-commitments/ weekly-review/ time-estimation/
 │   └── settings/
 ├── components/
@@ -74,20 +74,26 @@ src/
 │   ├── sprints/              # Kanban board (dnd-kit), columns, Unassigned tray, session planner + session view
 │   ├── daily/                # Highlight picker, reflection/notes editor, day history
 │   ├── commitments/          # Commitment editor, tick row, management card
+│   ├── projects/             # Project card, editor, workspace sections (tasks, milestones, notes), deadline overview
+│   ├── recurrence/           # Repeat-rule fields, series editor, Recurring tasks panel
 │   ├── settings/             # Data controls (backup, sample data, clear)
 │   ├── pages/                # Client components for every other page
-│   └── shared/               # SprintBadge, ProjectCard, ProgressRing, task meta labels…
+│   └── shared/               # SprintBadge, ProgressRing, task meta labels…
 ├── data/
 │   ├── sprints.ts            # The four sprints + their colours
 │   ├── capture-kinds.ts      # Task / Idea / Reminder / Note
-│   ├── sample-data.ts        # Opt-in sample tasks + Brain Dump ("Explore with sample data")
-│   └── preview-content.ts    # In-memory preview for later-phase pages
+│   ├── sample-data.ts        # Opt-in sample data ("Explore with sample data")
+│   ├── legacy-projects.ts    # The four former preview projects (used by the v4 migration and sample data)
+│   └── preview-content.ts    # Weekly Review preview
 ├── lib/
 │   ├── storage/              # localStorage wrapper, versioned schema + validation, repository
 │   ├── tasks/                # Task model, filter/sort/summary queries, sprint-board helpers (order, progress)
 │   ├── sessions/             # Session model: timestamp-based timer, start/pause/end, summaries
 │   ├── daily/                # Commitment scheduling + streaks; highlight, log and day-summary helpers
 │   ├── brain-dump/           # Capture model
+│   ├── projects/             # Project/milestone model, progress, deadline status, deadline overview items
+│   ├── recurrence/           # Repeat rules, occurrence generator
+│   ├── calendar/             # Derived calendar items
 │   ├── store/workspace-store.tsx  # Single source of truth + actions, persists via the repository
 │   ├── selectors.ts          # Project progress, inbox…
 │   ├── date.ts               # Local-date helpers (no time zone surprises)
@@ -100,7 +106,7 @@ src/
 - `WorkspaceProvider` (in the app shell) loads saved data through a `WorkspaceRepository` **in the browser only** (no hydration mismatches) and exposes `useWorkspace()` → `{ workspace, actions, storage }`.
 - Components read through `useWorkspace()` and the query helpers in `lib/tasks`, and change data only through `actions` (`addCapture`, `convertCapture`, `createTask`, `updateTask`, `toggleTaskComplete`, `deleteTask`…).
 - Every action writes through the repository. Today that's `localStorageRepository`; a Supabase repository can implement the same interface later.
-- **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures, sessions } }`. The current `schemaVersion` is **3**: v3 adds `highlights`, `commitments`, `commitmentCompletions` and `kaizenLogs`, and older data upgrades step by step, with a `pre-vN` backup kept first. Phase 2 (v1) data upgrades automatically: every task keeps its fields and gains a `sortOrder`, and a copy of the old data is kept under `belles-life-system:v1:backup:pre-v2-<time>`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
+- **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures, sessions } }`. The current `schemaVersion` is **4**: v4 adds `projects`, `milestones` and `recurrences`, plus four task fields (`projectSortOrder`, `milestoneId`, `recurrenceTemplateId`, `occurrenceDate`). v3 added `highlights`, `commitments`, `commitmentCompletions` and `kaizenLogs`, and older data upgrades step by step, with a `pre-vN` backup kept first. Phase 2 (v1) data upgrades automatically: every task keeps its fields and gains a `sortOrder`, and a copy of the old data is kept under `belles-life-system:v1:backup:pre-v2-<time>`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
 - **First run** starts empty. Sample data is only loaded when you choose “Explore with sample data”, and it never overwrites saved data without asking.
 
 ### Task rules
@@ -132,6 +138,23 @@ src/
 - **Streaks** count consecutive *scheduled* days (or weeks, for weekly commitments). Unscheduled days are skipped, and an open today or this week doesn't break a streak.
 - **Kaizen Log:** one entry per local date, holding only the reflection answers and notes. The highlight, commitments, completed tasks and sessions for that day are read from their own records. Today's entry is created the first time the app opens that day, including after midnight in an open tab or when you return to the tab; no background job is needed. Future dates are read-only and never create records.
 
+### Project rules
+
+- **Progress** = completed ÷ all tasks in the project. A project with no tasks shows "No tasks yet", never 100%. Status (Planning, Active, On Hold, Completed, Archived) is always set by you. Reaching 100% never completes a project on its own.
+- **Deadline status** (local dates): Upcoming (more than 7 days away), Approaching (1–7 days), Due today, Overdue, Completed. Completed projects and milestones are never overdue.
+- **Start preparing** dates (on projects and milestones) are reminders only. They show in the deadline overview and on the Calendar, and they never create tasks.
+- **Deleting** a project keeps its tasks; they just lose the project. Its milestones and notes are removed. Archive keeps everything and can be restored.
+- **Upgrading from v3:** tasks linked to the old preview projects keep their link. A real project is created only for each preview project a task actually used.
+
+### Recurring task rules
+
+- Frequencies: daily, weekdays (Mon–Fri), weekly or every two weeks on chosen days, monthly (on the start date's day; the 29th–31st fall on the last day in shorter months), and custom (every N days or weeks).
+- Each occurrence is an ordinary task with an id of `rec_<template>_<date>`. Generation runs when the app opens and when the day changes. It creates today's occurrence plus up to 4 upcoming ones within the next 14 days. The template's `generatedThrough` date means a date is never created twice, and deleted occurrences don't come back.
+- **Missed dates:** after time away, only the most recent missed occurrence is created (as overdue), not a pile of them.
+- **Edit this occurrence** changes one task. **Edit future occurrences** changes the series and its unfinished upcoming occurrences. Completed history is never rewritten.
+- Pause stops new occurrences, and resuming doesn't back-fill the gap. End stops after today. Delete removes the rule and keeps completed occurrences as normal tasks. Removing upcoming unfinished occurrences is an optional checkbox.
+- The Calendar also shows planned future dates that haven't been generated yet (dashed). Nothing is stored for them.
+
 ### Design tokens
 
 Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-ink`, `text-ink-muted`, `bg-sprint-urgent`, …):
@@ -147,6 +170,21 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 | `ink-border`     | `#334155` | Borders on dark surfaces    |
 
 ---
+
+## Phase 5 — what’s included
+
+- **Projects page:** status filters (Active, Planning, On Hold, Completed, Archived), sorting (target date, name, recently updated, progress) and an upcoming deadlines overview covering project deadlines, milestones, "Start preparing" dates and overdue items.
+- **Project workspace** at `/projects/<id>`:
+  - header with status (changeable inline), priority, target date with deadline status and days remaining, preparation date and progress ring;
+  - stats; Edit, Archive/Restore, and Delete (tasks kept);
+  - tasks: add, link existing, drag to reorder, complete/reopen, remove from project;
+  - milestones: checklist with status, reorder, prep dates and task links;
+  - plain-text notes that autosave.
+- **Task editor:** project and milestone pickers, plus **Repeat…** to make a recurring task.
+- **Tasks → Recurring:** view, edit, pause, resume, end or delete each series.
+- **Calendar:** month and list views showing task due dates, recurring occurrences, planned repeats, project deadlines, milestones and preparation dates, each with a distinct marker. Clicking an item opens the task, series or project.
+- **Today:** real Active Projects plus an Upcoming deadlines card. Project and recurring tasks can be the Daily Highlight.
+- Search results open the project page.
 
 ## Phase 4 — what’s included
 
@@ -207,16 +245,17 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 ## Known limitations
 
 - Data lives in one browser on one device. Clearing site data removes it, so use **Download a backup**. There's no import yet.
-- Projects are a fixed list of four. Tasks can link to them, but projects can't be created or edited yet.
-- Calendar events and the Weekly Review (wins, challenges, priorities) are still previews and aren't saved.
+- The Weekly Review (wins, challenges, priorities) is still a preview and isn't saved.
+- There are no reminders or notifications for deadlines or preparation dates, and no external calendar sync. Dates are shown inside the app only.
+- Recurring occurrences are created when the app is opened. If it isn't opened for a while, only the most recent missed occurrence appears. Projects and milestones can't be duplicated or templated yet.
+- Project notes are plain text (no rich formatting or links preview). Milestones reorder with arrow buttons rather than drag and drop.
 - The app doesn't record *when* a commitment was paused. For past days, the Kaizen Log lists commitments that had started and weren't archived yet, plus anything actually ticked that day.
 - On phones you can reorder within a sprint by dragging, but you move tasks between sprints with the menu or quick-assign buttons (one column shows at a time).
 - Session time isn't yet copied into a task's "actual time". Time Estimation and Weekly Review will use the session history in later phases.
-- Recurring tasks come in a later phase.
 
 ## Next phases (suggested)
 
 1. Weekly Review saving and gentle trends (session, highlight and commitment history are already stored).
 2. Time Estimation from session history.
 4. Supabase + sign-in, implementing `WorkspaceRepository` (with a one-time import from localStorage).
-5. Projects CRUD, recurring tasks, calendar sync, Notion import, dark mode.
+5. Calendar sync, reminders, Notion import, dark mode.

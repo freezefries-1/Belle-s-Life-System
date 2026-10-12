@@ -1,41 +1,56 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight, CircleDot } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CalendarDays, ChevronLeft, ChevronRight, Flag, Hourglass, List, Repeat, Target } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { SprintDot } from "@/components/shared/sprint-badge";
 import { useTaskEditor } from "@/components/tasks/task-editor-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { addDays, formatLongDate, formatMonthYear, formatTime, parseISODate, startOfWeek, toISODate } from "@/lib/date";
+import { CALENDAR_KIND_LABEL, getCalendarItems, type CalendarItem, type CalendarItemKind } from "@/lib/calendar/calendar-items";
+import { addDays, formatLongDate, formatMonthYear, formatWeekday, parseISODate, relativeDayLabel, startOfWeek, toISODate } from "@/lib/date";
 import { useWorkspace } from "@/lib/store/workspace-store";
-import { isActive } from "@/lib/tasks/task-model";
 import { cn } from "@/lib/utils";
-import type { CalendarEvent, EventKind, ISODate, Task } from "@/types";
+import type { ISODate } from "@/types";
 
-const EVENT_STYLES: Record<EventKind, { label: string; chip: string; dot: string }> = {
-  coaching: { label: "Coaching", chip: "bg-teal-50 text-teal-800 border-teal-100", dot: "bg-teal-500" },
-  ladder: { label: "Tennis Ladder", chip: "bg-amber-50 text-amber-800 border-amber-100", dot: "bg-amber-500" },
-  business: { label: "Business", chip: "bg-blue-50 text-blue-800 border-blue-100", dot: "bg-blue-500" },
-  personal: { label: "Personal", chip: "bg-violet-50 text-violet-800 border-violet-100", dot: "bg-violet-500" },
+/** Restrained markers: shape + a muted tone, so the grid stays calm. */
+const KIND_STYLE: Record<CalendarItemKind, { chip: string; dot: string; icon?: React.ComponentType<{ className?: string }> }> = {
+  task: { chip: "border-slate-200 bg-card text-foreground", dot: "bg-slate-600" },
+  recurring: { chip: "border-slate-200 bg-card text-foreground", dot: "bg-slate-600", icon: Repeat },
+  planned: { chip: "border-dashed border-slate-300 bg-transparent text-muted-foreground", dot: "border border-slate-400 bg-transparent", icon: Repeat },
+  project: { chip: "border-blue-200 bg-blue-50 text-blue-800", dot: "bg-primary", icon: Target },
+  milestone: { chip: "border-violet-200 bg-violet-50 text-violet-800", dot: "bg-violet-500", icon: Flag },
+  prep: { chip: "border-dashed border-amber-300 bg-amber-50/60 text-amber-800", dot: "bg-amber-400", icon: Hourglass },
 };
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function firstOfMonth(iso: ISODate) {
+const firstOfMonth = (iso: ISODate) => {
   const d = parseISODate(iso);
   return toISODate(new Date(d.getFullYear(), d.getMonth(), 1));
-}
-
-function shiftMonth(iso: ISODate, delta: number) {
+};
+const shiftMonth = (iso: ISODate, delta: number) => {
   const d = parseISODate(iso);
   return toISODate(new Date(d.getFullYear(), d.getMonth() + delta, 1));
+};
+const lastOfMonth = (iso: ISODate) => addDays(shiftMonth(iso, 1), -1);
+
+/** Opens whatever a calendar item points at. */
+function useOpenItem() {
+  const editor = useTaskEditor();
+  const router = useRouter();
+  return (item: CalendarItem) => {
+    if (item.taskId) editor.openEdit(item.taskId);
+    else if (item.templateId) editor.openSeries(item.templateId);
+    else if (item.projectId) router.push(`/projects/${item.projectId}${item.milestoneId ? `#milestone-${item.milestoneId}` : ""}`);
+  };
 }
 
 export function CalendarPage() {
   const { workspace } = useWorkspace();
   const { today } = workspace;
+  const [view, setView] = React.useState<"month" | "list">("month");
   const [month, setMonth] = React.useState(() => firstOfMonth(today));
   const [selected, setSelected] = React.useState<ISODate>(today);
 
@@ -45,19 +60,43 @@ export function CalendarPage() {
   const weeks = days.slice(35).some((d) => parseISODate(d).getMonth() === monthIndex) ? 6 : 5;
   const visible = days.slice(0, weeks * 7);
 
-  const eventsByDay = React.useMemo(() => groupBy(workspace.events, (e) => e.date), [workspace.events]);
-  const dueByDay = React.useMemo(
-    () => groupBy(workspace.tasks.filter((t) => t.dueDate && isActive(t)), (t) => t.dueDate!),
-    [workspace.tasks],
-  );
+  const items = React.useMemo(() => getCalendarItems(workspace, visible[0], visible[visible.length - 1]), [workspace, visible[0], visible.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const byDay = React.useMemo(() => {
+    const out: Record<string, CalendarItem[]> = {};
+    for (const i of items) (out[i.date] ??= []).push(i);
+    return out;
+  }, [items]);
+  const monthItems = items.filter((i) => i.date >= month && i.date <= lastOfMonth(month));
 
   return (
     <>
       <PageHeader
         title="Calendar"
-        description="Your task due dates alongside a sample coaching schedule. Calendar syncing arrives in a later phase."
+        description="Due dates, project deadlines, milestones and preparation dates in one place."
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="inline-flex rounded-lg border bg-card p-0.5" role="group" aria-label="Calendar view">
+              {(
+                [
+                  { id: "month", label: "Month", icon: CalendarDays },
+                  { id: "list", label: "List", icon: List },
+                ] as const
+              ).map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  aria-pressed={view === v.id}
+                  onClick={() => setView(v.id)}
+                  className={cn(
+                    "inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                    view === v.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <v.icon className="size-3.5" />
+                  {v.label}
+                </button>
+              ))}
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -82,153 +121,162 @@ export function CalendarPage() {
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
             <h3 className="text-base font-semibold">{formatMonthYear(month)}</h3>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {Object.entries(EVENT_STYLES).map(([k, s]) => (
-                <span key={k} className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                  <span className={cn("size-2 rounded-full", s.dot)} />
-                  {s.label}
-                </span>
-              ))}
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                <CircleDot className="size-3" />
-                Deadline
-              </span>
-            </div>
+            <Legend />
           </div>
 
-          <div className="grid grid-cols-7 border-b bg-muted/40">
-            {WEEKDAYS.map((d) => (
-              <div key={d} className="px-2 py-2 text-center text-[11px] font-semibold tracking-wide text-muted-foreground uppercase md:text-left">
-                <span className="md:hidden">{d.slice(0, 1)}</span>
-                <span className="hidden md:inline">{d}</span>
+          {view === "list" ? (
+            <MonthList items={monthItems} today={today} />
+          ) : (
+            <>
+              <div className="grid grid-cols-7 border-b bg-muted/40">
+                {WEEKDAYS.map((d) => (
+                  <div key={d} className="px-2 py-2 text-center text-[11px] font-semibold tracking-wide text-muted-foreground uppercase md:text-left">
+                    <span className="md:hidden">{d.slice(0, 1)}</span>
+                    <span className="hidden md:inline">{d}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7">
-            {visible.map((date, i) => {
-              const inMonth = parseISODate(date).getMonth() === monthIndex;
-              const events = eventsByDay[date] ?? [];
-              const due = dueByDay[date] ?? [];
-              const isToday = date === today;
-              const isSelected = date === selected;
-              const items = [...due.map((t) => ({ type: "task" as const, t })), ...events.map((e) => ({ type: "event" as const, e }))];
-
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  onClick={() => setSelected(date)}
-                  aria-label={formatLongDate(date)}
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "relative flex min-h-16 cursor-pointer flex-col gap-1 border-b p-1.5 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary/50 md:min-h-28 md:p-2",
-                    (i + 1) % 7 !== 0 && "border-r",
-                    !inMonth && "bg-muted/30",
-                    isSelected && "bg-accent/60 hover:bg-accent/70",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex size-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-                      !inMonth && "text-subtle-foreground",
-                      isToday && "bg-primary text-primary-foreground",
-                    )}
-                  >
-                    {parseISODate(date).getDate()}
-                  </span>
-
-                  {/* Compact dots on small screens */}
-                  <span className="flex flex-wrap gap-0.5 md:hidden">
-                    {due.length > 0 && <span className="size-1.5 rounded-full bg-slate-700" />}
-                    {events.slice(0, 3).map((e) => (
-                      <span key={e.id} className={cn("size-1.5 rounded-full", EVENT_STYLES[e.kind].dot)} />
-                    ))}
-                  </span>
-
-                  {/* Labels on larger screens */}
-                  <span className="hidden flex-col gap-1 md:flex">
-                    {items.slice(0, 3).map((item) =>
-                      item.type === "task" ? (
-                        <span key={item.t.id} className="flex items-center gap-1 truncate rounded border border-slate-200 bg-card px-1.5 py-0.5 text-[11px] font-semibold">
-                          <SprintDot sprintId={item.t.sprint} className="size-1.5" />
-                          <span className="truncate">{item.t.title}</span>
-                        </span>
-                      ) : (
-                        <span key={item.e.id} className={cn("truncate rounded border px-1.5 py-0.5 text-[11px] font-medium", EVENT_STYLES[item.e.kind].chip)}>
-                          {formatTime(item.e.start)} {item.e.title}
-                        </span>
-                      ),
-                    )}
-                    {items.length > 3 && <span className="px-1 text-[11px] text-muted-foreground">+{items.length - 3} more</span>}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+              <div className="grid grid-cols-7">
+                {visible.map((date, i) => {
+                  const inMonth = parseISODate(date).getMonth() === monthIndex;
+                  const dayItems = byDay[date] ?? [];
+                  return (
+                    <button
+                      key={date}
+                      type="button"
+                      onClick={() => setSelected(date)}
+                      aria-label={`${formatLongDate(date)}${dayItems.length ? `, ${dayItems.length} ${dayItems.length === 1 ? "item" : "items"}` : ""}`}
+                      aria-pressed={date === selected}
+                      className={cn(
+                        "relative flex min-h-16 min-w-0 cursor-pointer flex-col gap-1 border-b p-1.5 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary/50 md:min-h-28 md:p-2",
+                        (i + 1) % 7 !== 0 && "border-r",
+                        !inMonth && "bg-muted/30",
+                        date === selected && "bg-accent/60 hover:bg-accent/70",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
+                          !inMonth && "text-subtle-foreground",
+                          date === today && "bg-primary text-primary-foreground",
+                        )}
+                      >
+                        {parseISODate(date).getDate()}
+                      </span>
+                      <span className="flex flex-wrap gap-0.5 md:hidden">
+                        {dayItems.slice(0, 4).map((it) => (
+                          <span key={it.key} className={cn("size-1.5 rounded-full", KIND_STYLE[it.kind].dot, it.done && "opacity-40")} />
+                        ))}
+                      </span>
+                      <span className="hidden min-w-0 flex-col gap-1 md:flex">
+                        {dayItems.slice(0, 3).map((it) => (
+                          <ItemChip key={it.key} item={it} />
+                        ))}
+                        {dayItems.length > 3 && <span className="px-1 text-[11px] text-muted-foreground">+{dayItems.length - 3} more</span>}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </Card>
 
-        <DayAgenda date={selected} events={eventsByDay[selected] ?? []} due={dueByDay[selected] ?? []} />
+        {view === "month" && <DayAgenda date={selected} items={byDay[selected] ?? []} />}
       </div>
     </>
   );
 }
 
-function DayAgenda({ date, events, due }: { date: ISODate; events: CalendarEvent[]; due: Task[] }) {
-  const { workspace } = useWorkspace();
-  const editor = useTaskEditor();
+function ItemChip({ item }: { item: CalendarItem }) {
+  const style = KIND_STYLE[item.kind];
+  const Icon = style.icon;
+  return (
+    <span className={cn("flex min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-semibold", style.chip, item.done && "line-through opacity-50")}>
+      {Icon && <Icon className="size-3 shrink-0" />}
+      <span className="truncate">{item.title}</span>
+    </span>
+  );
+}
 
+function Legend() {
+  const shown: CalendarItemKind[] = ["task", "recurring", "project", "milestone", "prep"];
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {shown.map((k) => {
+        const Icon = KIND_STYLE[k].icon;
+        return (
+          <span key={k} className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+            {Icon ? <Icon className="size-3" /> : <span className={cn("size-2 rounded-full", KIND_STYLE[k].dot)} />}
+            {CALENDAR_KIND_LABEL[k]}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function ItemRow({ item }: { item: CalendarItem }) {
+  const open = useOpenItem();
+  const style = KIND_STYLE[item.kind];
+  const Icon = style.icon;
+  return (
+    <li>
+      <button type="button" onClick={() => open(item)} className="flex w-full cursor-pointer items-start gap-2.5 rounded-md py-1 text-left hover:text-primary">
+        <span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border", style.chip)}>
+          {Icon ? <Icon className="size-3" /> : <span className={cn("size-1.5 rounded-full", style.dot)} />}
+        </span>
+        <span className="min-w-0">
+          <span className={cn("block text-[13px] font-semibold", item.done && "text-muted-foreground line-through")}>{item.title}</span>
+          <span className="block text-xs text-muted-foreground">
+            {CALENDAR_KIND_LABEL[item.kind]}
+            {item.done && " · done"}
+            {item.meta && ` · ${item.meta}`}
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function DayAgenda({ date, items }: { date: ISODate; items: CalendarItem[] }) {
+  const { workspace } = useWorkspace();
   return (
     <Card className="h-fit p-5">
-      <p className="text-[11px] font-semibold tracking-wide text-primary uppercase">
-        {date === workspace.today ? "Today" : "Selected day"}
-      </p>
+      <p className="text-[11px] font-semibold tracking-wide text-primary uppercase">{date === workspace.today ? "Today" : "Selected day"}</p>
       <h3 className="mt-0.5 text-base font-semibold">{formatLongDate(date)}</h3>
-
-      <div className="mt-4 flex flex-col gap-4">
-        <AgendaGroup title="Schedule · sample" empty="Nothing scheduled — open space.">
-          {events.map((e) => (
-            <li key={e.id} className="flex gap-3">
-              <span className={cn("mt-1 w-1 shrink-0 self-stretch rounded-full", EVENT_STYLES[e.kind].dot)} />
-              <div>
-                <p className="text-[13px] font-semibold">{e.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatTime(e.start)} – {formatTime(e.end)} · {EVENT_STYLES[e.kind].label}
-                </p>
-              </div>
-            </li>
+      {items.length === 0 ? (
+        <p className="mt-4 text-[13px] text-muted-foreground">Nothing scheduled — open space.</p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-1.5" aria-label={`Items on ${formatLongDate(date)}`}>
+          {items.map((it) => (
+            <ItemRow key={it.key} item={it} />
           ))}
-        </AgendaGroup>
-        <AgendaGroup title="Tasks due" empty="Nothing due.">
-          {due.map((t) => (
-            <li key={t.id} className="flex items-center gap-2 text-[13px]">
-              <SprintDot sprintId={t.sprint} />
-              <button
-                type="button"
-                onClick={() => editor.openEdit(t.id)}
-                className="cursor-pointer text-left font-medium hover:text-primary"
-              >
-                {t.title}
-              </button>
-            </li>
-          ))}
-        </AgendaGroup>
-      </div>
+        </ul>
+      )}
     </Card>
   );
 }
 
-function AgendaGroup({ title, empty, children }: { title: string; empty: string; children: React.ReactNode[] }) {
+function MonthList({ items, today }: { items: CalendarItem[]; today: ISODate }) {
+  if (!items.length) return <p className="px-5 py-10 text-center text-[13px] text-muted-foreground">Nothing dated this month.</p>;
+  const dates = [...new Set(items.map((i) => i.date))];
   return (
-    <section>
-      <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{title}</p>
-      {children.length ? <ul className="flex flex-col gap-2.5">{children}</ul> : <p className="text-[13px] text-muted-foreground">{empty}</p>}
-    </section>
+    <ol className="flex flex-col divide-y" aria-label="Calendar list">
+      {dates.map((d) => (
+        <li key={d} className={cn("flex flex-col gap-1 px-4 py-3 sm:flex-row sm:gap-4 sm:px-5", d === today && "bg-accent/40")}>
+          <p className="w-32 shrink-0 pt-1 text-xs font-semibold text-muted-foreground">
+            <span className="text-foreground">{formatWeekday(d)}</span> {parseISODate(d).getDate()} · {relativeDayLabel(d, today)}
+          </p>
+          <ul className="flex min-w-0 flex-1 flex-col gap-1">
+            {items
+              .filter((i) => i.date === d)
+              .map((it) => (
+                <ItemRow key={it.key} item={it} />
+              ))}
+          </ul>
+        </li>
+      ))}
+    </ol>
   );
-}
-
-function groupBy<T>(items: T[], key: (item: T) => string) {
-  const out: Record<string, T[]> = {};
-  for (const item of items) (out[key(item)] ??= []).push(item);
-  return out;
 }
