@@ -1,19 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 
 import { SectionHeader } from "@/components/shared/page-header";
+import { useTaskEditor } from "@/components/tasks/task-editor-provider";
+import { useTaskFeedback } from "@/components/tasks/use-task-feedback";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { SPRINTS, SPRINT_STYLES } from "@/data/sprints";
-import { getSprintStats } from "@/lib/selectors";
 import { useWorkspace } from "@/lib/store/workspace-store";
+import { isActive } from "@/lib/tasks/task-model";
+import { getSprintStats } from "@/lib/tasks/task-queries";
 import { cn } from "@/lib/utils";
 import type { Sprint } from "@/types";
 
 export function SprintOverview({ className }: { className?: string }) {
+  const { workspace } = useWorkspace();
+  const unassigned = workspace.tasks.filter((t) => t.sprint === null && isActive(t)).length;
+
   return (
     <section className={cn("flex flex-col gap-4", className)} aria-labelledby="sprints-heading">
       <SectionHeader
@@ -30,13 +36,23 @@ export function SprintOverview({ className }: { className?: string }) {
           <SprintCard key={sprint.id} sprint={sprint} />
         ))}
       </div>
+      {unassigned > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {unassigned} open {unassigned === 1 ? "task has" : "tasks have"} no sprint yet —{" "}
+          <Link href="/tasks" className="font-semibold text-primary hover:text-primary-hover">
+            assign in Tasks
+          </Link>
+        </p>
+      )}
     </section>
   );
 }
 
 function SprintCard({ sprint }: { sprint: Sprint }) {
-  const { workspace, actions } = useWorkspace();
-  const { open, doneToday, total, percent } = getSprintStats(workspace, sprint.id);
+  const { workspace } = useWorkspace();
+  const feedback = useTaskFeedback();
+  const editor = useTaskEditor();
+  const { open, doneToday, total, percent } = getSprintStats(workspace.tasks, sprint.id, workspace.today);
   const style = SPRINT_STYLES[sprint.id];
   const preview = [...open, ...doneToday].slice(0, 3);
 
@@ -54,25 +70,39 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
       </div>
 
       <ul className="mt-3 flex flex-1 flex-col">
-        {preview.length === 0 && <li className="py-3 text-[13px] text-muted-foreground">All clear here.</li>}
+        {preview.length === 0 && (
+          <li className="flex items-center justify-between gap-2 py-2 text-[13px] text-muted-foreground">
+            All clear here.
+            <button
+              type="button"
+              onClick={() => editor.openCreate({ sprint: sprint.id })}
+              className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              <Plus className="size-3.5" />
+              Add task
+            </button>
+          </li>
+        )}
         {preview.map((task) => {
-          const done = task.status === "done";
+          const done = task.status === "completed";
           return (
             <li key={task.id} className="flex items-start gap-2.5 py-1.5">
               <Checkbox
                 checked={done}
-                onCheckedChange={() => actions.toggleTask(task.id)}
-                aria-label={`Toggle “${task.title}”`}
+                onCheckedChange={() => feedback.toggleComplete(task)}
+                aria-label={done ? `Reopen “${task.title}”` : `Complete “${task.title}”`}
                 className="mt-px size-4 rounded-[4px]"
               />
-              <span
+              <button
+                type="button"
+                onClick={() => editor.openEdit(task.id)}
                 className={cn(
-                  "line-clamp-1 text-[13px] leading-snug",
+                  "line-clamp-1 cursor-pointer text-left text-[13px] leading-snug hover:text-primary",
                   done && "text-muted-foreground line-through decoration-slate-300",
                 )}
               >
                 {task.title}
-              </span>
+              </button>
             </li>
           );
         })}

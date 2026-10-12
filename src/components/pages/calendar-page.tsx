@@ -5,10 +5,12 @@ import { ChevronLeft, ChevronRight, CircleDot } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { SprintDot } from "@/components/shared/sprint-badge";
+import { useTaskEditor } from "@/components/tasks/task-editor-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { addDays, formatLongDate, formatMonthYear, formatTime, parseISODate, startOfWeek, toISODate } from "@/lib/date";
 import { useWorkspace } from "@/lib/store/workspace-store";
+import { isActive } from "@/lib/tasks/task-model";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent, EventKind, ISODate, Task } from "@/types";
 
@@ -45,7 +47,7 @@ export function CalendarPage() {
 
   const eventsByDay = React.useMemo(() => groupBy(workspace.events, (e) => e.date), [workspace.events]);
   const dueByDay = React.useMemo(
-    () => groupBy(workspace.tasks.filter((t) => t.dueDate && t.status !== "done"), (t) => t.dueDate!),
+    () => groupBy(workspace.tasks.filter((t) => t.dueDate && isActive(t)), (t) => t.dueDate!),
     [workspace.tasks],
   );
 
@@ -53,7 +55,7 @@ export function CalendarPage() {
     <>
       <PageHeader
         title="Calendar"
-        description="Your lessons, commitments and deadlines in one calm view."
+        description="Your task due dates alongside a sample coaching schedule. Calendar syncing arrives in a later phase."
         actions={
           <div className="flex items-center gap-1.5">
             <Button
@@ -149,7 +151,7 @@ export function CalendarPage() {
                     {items.slice(0, 3).map((item) =>
                       item.type === "task" ? (
                         <span key={item.t.id} className="flex items-center gap-1 truncate rounded border border-slate-200 bg-card px-1.5 py-0.5 text-[11px] font-semibold">
-                          <SprintDot sprintId={item.t.sprintId} className="size-1.5" />
+                          <SprintDot sprintId={item.t.sprint} className="size-1.5" />
                           <span className="truncate">{item.t.title}</span>
                         </span>
                       ) : (
@@ -174,7 +176,7 @@ export function CalendarPage() {
 
 function DayAgenda({ date, events, due }: { date: ISODate; events: CalendarEvent[]; due: Task[] }) {
   const { workspace } = useWorkspace();
-  const planned = workspace.tasks.filter((t) => t.plannedDate === date && t.status !== "done");
+  const editor = useTaskEditor();
 
   return (
     <Card className="h-fit p-5">
@@ -184,7 +186,7 @@ function DayAgenda({ date, events, due }: { date: ISODate; events: CalendarEvent
       <h3 className="mt-0.5 text-base font-semibold">{formatLongDate(date)}</h3>
 
       <div className="mt-4 flex flex-col gap-4">
-        <AgendaGroup title="Schedule" empty="Nothing scheduled — open space.">
+        <AgendaGroup title="Schedule · sample" empty="Nothing scheduled — open space.">
           {events.map((e) => (
             <li key={e.id} className="flex gap-3">
               <span className={cn("mt-1 w-1 shrink-0 self-stretch rounded-full", EVENT_STYLES[e.kind].dot)} />
@@ -197,19 +199,17 @@ function DayAgenda({ date, events, due }: { date: ISODate; events: CalendarEvent
             </li>
           ))}
         </AgendaGroup>
-        <AgendaGroup title="Deadlines" empty="No deadlines.">
+        <AgendaGroup title="Tasks due" empty="Nothing due.">
           {due.map((t) => (
             <li key={t.id} className="flex items-center gap-2 text-[13px]">
-              <SprintDot sprintId={t.sprintId} />
-              <span className="font-medium">{t.title}</span>
-            </li>
-          ))}
-        </AgendaGroup>
-        <AgendaGroup title="Planned tasks" empty="No tasks planned.">
-          {planned.map((t) => (
-            <li key={t.id} className="flex items-center gap-2 text-[13px]">
-              <SprintDot sprintId={t.sprintId} />
-              <span>{t.title}</span>
+              <SprintDot sprintId={t.sprint} />
+              <button
+                type="button"
+                onClick={() => editor.openEdit(t.id)}
+                className="cursor-pointer text-left font-medium hover:text-primary"
+              >
+                {t.title}
+              </button>
             </li>
           ))}
         </AgendaGroup>

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Database, FileInput, Lock } from "lucide-react";
 
+import { DataSettings } from "@/components/settings/data-settings";
 import { PageHeader } from "@/components/shared/page-header";
 import { SprintDot } from "@/components/shared/sprint-badge";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +23,9 @@ export function SettingsPage() {
     <>
       <PageHeader
         title="Preferences"
-        description="Shape the system around how you work. These are previews — saving arrives in Phase 2."
+        description="Shape the system around how you work. Data controls work now; the other preferences are previews."
         actions={
-          <Button disabled title="Saving preferences arrives in Phase 2">
+          <Button disabled title="Saving preferences arrives in a later phase">
             Save changes
           </Button>
         }
@@ -98,7 +99,7 @@ export function SettingsPage() {
           <ToggleField id="carry" label="Carry over unfinished tasks" description="Quietly move yesterday’s open tasks into today." defaultChecked />
         </SettingsSection>
 
-        <SettingsSection title="Sprints" description="The four kinds of work. Renaming arrives in Phase 2.">
+        <SettingsSection title="Sprints" description="The four kinds of work. Renaming arrives in a later phase.">
           <ul className="flex flex-col divide-y rounded-lg border">
             {SPRINTS.map((s) => (
               <li key={s.id} className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]">
@@ -110,7 +111,11 @@ export function SettingsPage() {
           </ul>
         </SettingsSection>
 
-        <SettingsSection title="Data & integrations" description="Coming in later phases.">
+        <SettingsSection title="Your data" description="Tasks and Brain Dump entries.">
+          <DataSettings />
+        </SettingsSection>
+
+        <SettingsSection title="Integrations" description="Coming in later phases.">
           {[
             { icon: Database, title: "Cloud sync", body: "Save everything securely and use it on any device." },
             { icon: Lock, title: "Sign in", body: "A private, password-protected workspace." },
@@ -122,7 +127,7 @@ export function SettingsPage() {
                 <p className="text-[13px] font-semibold">{i.title}</p>
                 <p className="text-xs text-muted-foreground">{i.body}</p>
               </div>
-              <Badge variant="secondary">Phase 2</Badge>
+              <Badge variant="secondary">Later</Badge>
             </div>
           ))}
         </SettingsSection>

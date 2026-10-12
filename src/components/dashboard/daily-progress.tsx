@@ -1,37 +1,23 @@
 "use client";
 
-import { CircleCheck, CircleDot, Sprout, Star } from "lucide-react";
+import { CalendarClock, CircleCheck, CircleDot, Gauge } from "lucide-react";
 
 import { SectionHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
-import { getHighlightTask, getTodayTasks, isCommitmentDone } from "@/lib/selectors";
+import { Progress } from "@/components/ui/progress";
 import { useWorkspace } from "@/lib/store/workspace-store";
+import { getDailyProgress } from "@/lib/tasks/task-queries";
 import { cn } from "@/lib/utils";
 
 export function DailyProgress({ className }: { className?: string }) {
   const { workspace } = useWorkspace();
-  const tasks = getTodayTasks(workspace);
-  const completed = tasks.filter((t) => t.status === "done").length;
-  const outstanding = tasks.length - completed;
-  const commitmentsDone = workspace.commitments.filter((c) => isCommitmentDone(c, workspace.today)).length;
-  const highlight = getHighlightTask(workspace);
-  const highlightDone = highlight?.status === "done";
+  const p = getDailyProgress(workspace.tasks, workspace.today);
 
   const stats = [
-    { label: "Completed", value: String(completed), icon: CircleCheck, tone: "text-emerald-600" },
-    { label: "Still open", value: String(outstanding), icon: CircleDot, tone: "text-muted-foreground" },
-    {
-      label: "Commitments",
-      value: `${commitmentsDone}/${workspace.commitments.length}`,
-      icon: Sprout,
-      tone: "text-primary",
-    },
-    {
-      label: "Highlight",
-      value: highlight ? (highlightDone ? "Done" : "In focus") : "Not set",
-      icon: Star,
-      tone: highlightDone ? "text-amber-500" : "text-muted-foreground",
-    },
+    { label: "Completed today", value: String(p.completedToday), icon: CircleCheck, tone: "text-emerald-600" },
+    { label: "Due today", value: String(p.activeDueToday), icon: CalendarClock, tone: "text-amber-600" },
+    { label: "Outstanding", value: String(p.outstanding), icon: CircleDot, tone: "text-muted-foreground" },
+    { label: "Progress", value: p.planned ? `${p.percent}%` : "—", icon: Gauge, tone: "text-primary" },
   ];
 
   return (
@@ -41,13 +27,24 @@ export function DailyProgress({ className }: { className?: string }) {
         {stats.map((s) => (
           <div key={s.label} className="rounded-lg bg-muted/60 px-3 py-2.5">
             <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-              <s.icon className={cn("size-3.5", s.tone, s.label === "Highlight" && highlightDone && "fill-amber-400")} />
+              <s.icon className={cn("size-3.5", s.tone)} />
               {s.label}
             </dt>
             <dd className="mt-1 text-lg font-bold tracking-tight tabular-nums">{s.value}</dd>
           </div>
         ))}
       </dl>
+      <Progress
+        value={p.percent}
+        className="mt-4"
+        indicatorClassName="bg-emerald-500"
+        aria-label={`${p.completedToday} of ${p.planned} of today’s tasks complete`}
+      />
+      <p className="mt-2 text-xs text-muted-foreground">
+        {p.planned
+          ? `${p.completedToday} of ${p.planned} of today’s tasks done.`
+          : "Nothing is due today. Anything you finish still counts."}
+      </p>
     </Card>
   );
 }

@@ -2,8 +2,17 @@ import { SPRINT_BY_ID, SPRINT_STYLES } from "@/data/sprints";
 import { cn } from "@/lib/utils";
 import type { SprintId } from "@/types";
 
-export function SprintDot({ sprintId, className }: { sprintId: SprintId; className?: string }) {
-  return <span className={cn("inline-block size-2 shrink-0 rounded-full", SPRINT_STYLES[sprintId].dot, className)} aria-hidden />;
+export function SprintDot({ sprintId, className }: { sprintId: SprintId | null; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-block size-2 shrink-0 rounded-full",
+        sprintId ? SPRINT_STYLES[sprintId].dot : "border border-dashed border-slate-400",
+        className,
+      )}
+      aria-hidden
+    />
+  );
 }
 
 /** Compact sprint label: coloured dot + "S3 Admin & Life". */
@@ -12,10 +21,18 @@ export function SprintBadge({
   variant = "default",
   className,
 }: {
-  sprintId: SprintId;
+  sprintId: SprintId | null;
   variant?: "default" | "full" | "ink";
   className?: string;
 }) {
+  if (!sprintId) {
+    return (
+      <span className={cn("inline-flex items-center gap-1.5 text-xs whitespace-nowrap text-subtle-foreground", className)}>
+        <span className="inline-block size-2 shrink-0 rounded-full border border-dashed border-slate-300" aria-hidden />
+        No sprint
+      </span>
+    );
+  }
   const sprint = SPRINT_BY_ID[sprintId];
   return (
     <span

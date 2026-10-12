@@ -1,31 +1,51 @@
 "use client";
 
-import { Gauge, TrendingUp } from "lucide-react";
+import { Gauge, Timer, TrendingUp } from "lucide-react";
 
+import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { SprintBadge } from "@/components/shared/sprint-badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SPRINTS } from "@/data/sprints";
-import { relativeDayLabel } from "@/lib/date";
+import { localDateOf, relativeDayLabel } from "@/lib/date";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn, formatMinutes } from "@/lib/utils";
 
 export function TimeEstimationPage() {
   const { workspace } = useWorkspace();
   const rows = workspace.tasks
-    .filter((t) => t.status === "done" && t.estimateMinutes != null && t.actualMinutes != null)
-    .sort((a, b) => (b.completedDate ?? "").localeCompare(a.completedDate ?? ""));
+    .filter((t) => t.status === "completed" && t.estimatedMinutes != null && t.actualMinutes != null)
+    .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
 
-  const totalEst = rows.reduce((s, t) => s + t.estimateMinutes!, 0);
+  if (rows.length === 0) {
+    return (
+      <>
+        <PageHeader
+          title="Time Estimation"
+          description="Compare what you expected with what actually happened. Not to judge — just to plan more kindly."
+        />
+        <Card>
+          <EmptyState
+            icon={Timer}
+            title="Nothing to compare yet"
+            description="When you complete a task, open it and add the actual time next to your estimate. Comparisons appear here."
+            className="py-14"
+          />
+        </Card>
+      </>
+    );
+  }
+
+  const totalEst = rows.reduce((s, t) => s + t.estimatedMinutes!, 0);
   const totalAct = rows.reduce((s, t) => s + t.actualMinutes!, 0);
   const ratio = totalEst ? totalAct / totalEst : 1;
-  const withinRange = rows.filter((t) => Math.abs(t.actualMinutes! - t.estimateMinutes!) / t.estimateMinutes! <= 0.2).length;
-  const maxMinutes = Math.max(...rows.map((t) => Math.max(t.estimateMinutes!, t.actualMinutes!)), 1);
+  const withinRange = rows.filter((t) => Math.abs(t.actualMinutes! - t.estimatedMinutes!) / t.estimatedMinutes! <= 0.2).length;
+  const maxMinutes = Math.max(...rows.map((t) => Math.max(t.estimatedMinutes!, t.actualMinutes!)), 1);
 
   const bySprint = SPRINTS.map((s) => {
-    const r = rows.filter((t) => t.sprintId === s.id);
-    const est = r.reduce((sum, t) => sum + t.estimateMinutes!, 0);
+    const r = rows.filter((t) => t.sprint === s.id);
+    const est = r.reduce((sum, t) => sum + t.estimatedMinutes!, 0);
     const act = r.reduce((sum, t) => sum + t.actualMinutes!, 0);
     return { sprint: s, count: r.length, ratio: est ? act / est : null };
   });
@@ -95,18 +115,18 @@ export function TimeEstimationPage() {
           </TableHeader>
           <TableBody>
             {rows.map((t) => {
-              const diff = t.actualMinutes! - t.estimateMinutes!;
-              const pct = Math.round((diff / t.estimateMinutes!) * 100);
+              const diff = t.actualMinutes! - t.estimatedMinutes!;
+              const pct = Math.round((diff / t.estimatedMinutes!) * 100);
               return (
                 <TableRow key={t.id}>
                   <TableCell className="max-w-[260px] pl-5 whitespace-normal">
                     <p className="font-medium">{t.title}</p>
-                    <p className="text-xs text-muted-foreground">{relativeDayLabel(t.completedDate!, workspace.today)}</p>
+                    <p className="text-xs text-muted-foreground">{relativeDayLabel(localDateOf(t.completedAt!), workspace.today)}</p>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <SprintBadge sprintId={t.sprintId} />
+                    <SprintBadge sprintId={t.sprint} />
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground tabular-nums">{formatMinutes(t.estimateMinutes)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground tabular-nums">{formatMinutes(t.estimatedMinutes)}</TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">{formatMinutes(t.actualMinutes)}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     <span
@@ -120,7 +140,7 @@ export function TimeEstimationPage() {
                   </TableCell>
                   <TableCell className="hidden pr-5 lg:table-cell">
                     <div className="flex flex-col gap-1">
-                      <span className="h-1.5 rounded-full bg-slate-300" style={{ width: `${(t.estimateMinutes! / maxMinutes) * 100}%` }} />
+                      <span className="h-1.5 rounded-full bg-slate-300" style={{ width: `${(t.estimatedMinutes! / maxMinutes) * 100}%` }} />
                       <span className="h-1.5 rounded-full bg-primary" style={{ width: `${(t.actualMinutes! / maxMinutes) * 100}%` }} />
                     </div>
                   </TableCell>

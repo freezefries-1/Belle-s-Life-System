@@ -1,147 +1,263 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 
-import { createMockWorkspace } from "@/data/mock-workspace";
-import { createId } from "@/lib/utils";
+import { createPreviewContent } from "@/data/preview-content";
+import { createSampleData } from "@/data/sample-data";
+import { createCapture } from "@/lib/brain-dump/capture-model";
+import { nowISO } from "@/lib/id";
+import { EMPTY_DATA } from "@/lib/storage/schema";
+import {
+  localStorageRepository,
+  type LoadStatus,
+  type WorkspaceRepository,
+} from "@/lib/storage/workspace-repository";
+import { applyTaskChanges, createTask } from "@/lib/tasks/task-model";
 import { useToday } from "@/lib/use-today";
-import type { CaptureKind, SprintId, Task, TaskStatus, Workspace } from "@/types";
+import type {
+  Capture,
+  CaptureInput,
+  MicroCommitment,
+  PersistedData,
+  Task,
+  TaskInput,
+  TaskStatus,
+  Workspace,
+} from "@/types";
 
 /**
- * In-memory workspace store for Phase 1.
+ * The single source of truth for tasks and Brain Dump entries.
  *
- * Everything lives in React state and resets on refresh — nothing is saved.
- * In Phase 2 each action becomes a Supabase mutation; components keep
- * calling the same `useWorkspace()` API.
+ * Components read through `useWorkspace()` and change data only through
+ * `actions`. Every change is written through the repository, which is
+ * localStorage today and can become Supabase later.
  */
 
-type Updater = (ws: Workspace) => Workspace;
-
 export interface WorkspaceActions {
-  toggleTask: (id: string) => void;
+  // Brain Dump
+  addCapture: (input: CaptureInput) => Capture | null;
+  updateCapture: (id: string, changes: Partial<CaptureInput>) => void;
+  deleteCapture: (id: string) => Capture | null;
+  restoreCapture: (capture: Capture) => void;
+  /** Returns the new task, or null if the entry was already converted. */
+  convertCapture: (id: string, input: TaskInput) => Task | null;
+
+  // Tasks
+  createTask: (input: TaskInput) => Task | null;
+  updateTask: (id: string, changes: Partial<TaskInput>) => void;
   setTaskStatus: (id: string, status: TaskStatus) => void;
-  moveTask: (id: string, sprintId: SprintId) => void;
-  setHighlight: (id: string | null) => void;
-  addCapture: (text: string, kind?: CaptureKind) => void;
-  toggleCaptureProcessed: (id: string) => void;
-  removeCapture: (id: string) => void;
-  convertCaptureToTask: (id: string, sprintId: SprintId) => void;
+  /** Completed ↔ To Do. Returns the updated task. */
+  toggleTaskComplete: (id: string) => Task | null;
+  deleteTask: (id: string) => Task | null;
+  restoreTask: (task: Task) => void;
+
+  // Data
+  loadSampleData: () => void;
+  clearAllData: () => void;
+
+  // Preview only (in memory, Phase 5)
   toggleCommitment: (id: string) => void;
+}
+
+export interface StorageInfo {
+  status: LoadStatus;
+  isFirstRun: boolean;
 }
 
 interface WorkspaceContextValue {
   workspace: Workspace;
   actions: WorkspaceActions;
+  storage: StorageInfo;
 }
 
 const WorkspaceContext = React.createContext<WorkspaceContextValue | null>(null);
 
-function patchTask(ws: Workspace, id: string, patch: (t: Task) => Task): Workspace {
-  return { ...ws, tasks: ws.tasks.map((t) => (t.id === id ? patch(t) : t)) };
-}
-
-export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+export function WorkspaceProvider({
+  children,
+  repository = localStorageRepository,
+}: {
+  children: React.ReactNode;
+  repository?: WorkspaceRepository;
+}) {
   const today = useToday();
-  // `edited` stays null until the first change, so the base data can be
-  // built as soon as the viewer's local date is known (after hydration).
-  const [edited, setEdited] = React.useState<Workspace | null>(null);
-  const base = React.useMemo(() => (today ? createMockWorkspace(today) : null), [today]);
-  const workspace = edited ?? base;
+  const [data, setData] = React.useState<PersistedData | null>(null);
+  const [storage, setStorage] = React.useState<StorageInfo>({ status: "ok", isFirstRun: false });
+  const [commitments, setCommitments] = React.useState<MicroCommitment[] | null>(null);
+  const dataRef = React.useRef<PersistedData | null>(null);
+  const saveErrorShown = React.useRef(false);
 
-  const baseRef = React.useRef(base);
+  // Load once, in the browser only (avoids hydration mismatches).
   React.useEffect(() => {
-    baseRef.current = base;
-  }, [base]);
+    let cancelled = false;
+    repository.load().then((result) => {
+      if (cancelled) return;
+      dataRef.current = result.data;
+      setData(result.data);
+      setStorage({ status: result.status, isFirstRun: result.isFirstRun });
+      if (result.message) toast(result.message, { duration: 8000 });
+    });
+    const unsubscribe = repository.subscribe((external) => {
+      dataRef.current = external;
+      setData(external);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [repository]);
+
+  const preview = React.useMemo(() => (today ? createPreviewContent(today) : null), [today]);
 
   const actions = React.useMemo<WorkspaceActions>(() => {
-    const update = (fn: Updater) =>
-      setEdited((prev) => {
-        const current = prev ?? baseRef.current;
-        return current ? fn(current) : prev;
+    /** Apply a change, then persist it. Synchronous so callers get results back. */
+    const commit = (change: (current: PersistedData) => PersistedData) => {
+      const current = dataRef.current;
+      if (!current) return;
+      const next = change(current);
+      if (next === current) return;
+      dataRef.current = next;
+      setData(next);
+      setStorage((s) => (s.isFirstRun ? { ...s, isFirstRun: false } : s));
+      repository.save(next).then((result) => {
+        if (!result.ok && !saveErrorShown.current) {
+          saveErrorShown.current = true;
+          toast.error(result.message);
+        }
+      });
+    };
+
+    const updateTaskWhere = (id: string, fn: (t: Task, now: string) => Task) =>
+      commit((d) => {
+        if (!d.tasks.some((t) => t.id === id)) return d;
+        const now = nowISO();
+        return { ...d, tasks: d.tasks.map((t) => (t.id === id ? fn(t, now) : t)) };
       });
 
     return {
-      toggleTask: (id) =>
-        update((ws) =>
-          patchTask(ws, id, (t) =>
-            t.status === "done"
-              ? { ...t, status: "todo", completedDate: null }
-              : { ...t, status: "done", completedDate: ws.today },
+      addCapture: (input) => {
+        if (!input.title.trim()) return null;
+        const capture = createCapture(input, nowISO());
+        commit((d) => ({ ...d, captures: [capture, ...d.captures] }));
+        return capture;
+      },
+
+      updateCapture: (id, changes) =>
+        commit((d) => ({
+          ...d,
+          captures: d.captures.map((c) =>
+            c.id === id
+              ? {
+                  ...c,
+                  ...changes,
+                  title: changes.title?.trim() || c.title,
+                  note: changes.note !== undefined ? changes.note.trim() : c.note,
+                  updatedAt: nowISO(),
+                }
+              : c,
           ),
-        ),
-      setTaskStatus: (id, status) =>
-        update((ws) =>
-          patchTask(ws, id, (t) => ({
-            ...t,
-            status,
-            completedDate: status === "done" ? ws.today : null,
-          })),
-        ),
-      moveTask: (id, sprintId) => update((ws) => patchTask(ws, id, (t) => ({ ...t, sprintId }))),
-      setHighlight: (id) => update((ws) => ({ ...ws, highlightTaskId: id })),
-      addCapture: (text, kind = "task") =>
-        update((ws) => ({
-          ...ws,
-          captures: [
-            { id: createId("b"), text, kind, capturedDate: ws.today, processed: false },
-            ...ws.captures,
-          ],
         })),
-      toggleCaptureProcessed: (id) =>
-        update((ws) => ({
-          ...ws,
-          captures: ws.captures.map((c) => (c.id === id ? { ...c, processed: !c.processed } : c)),
-        })),
-      removeCapture: (id) =>
-        update((ws) => ({ ...ws, captures: ws.captures.filter((c) => c.id !== id) })),
-      convertCaptureToTask: (id, sprintId) =>
-        update((ws) => {
-          const capture = ws.captures.find((c) => c.id === id);
-          if (!capture) return ws;
-          const task: Task = {
-            id: createId("t"),
-            title: capture.text,
-            sprintId,
-            projectId: null,
-            status: "todo",
-            plannedDate: null,
-            dueDate: null,
-            estimateMinutes: null,
-            actualMinutes: null,
-            completedDate: null,
-          };
-          return {
-            ...ws,
-            tasks: [task, ...ws.tasks],
-            captures: ws.captures.map((c) => (c.id === id ? { ...c, processed: true } : c)),
-          };
-        }),
+
+      deleteCapture: (id) => {
+        const capture = dataRef.current?.captures.find((c) => c.id === id) ?? null;
+        if (capture) commit((d) => ({ ...d, captures: d.captures.filter((c) => c.id !== id) }));
+        return capture;
+      },
+
+      restoreCapture: (capture) =>
+        commit((d) =>
+          d.captures.some((c) => c.id === capture.id) ? d : { ...d, captures: [capture, ...d.captures] },
+        ),
+
+      convertCapture: (id, input) => {
+        const current = dataRef.current;
+        const capture = current?.captures.find((c) => c.id === id);
+        // Guard against double conversion (double clicks, two tabs, stale dialogs).
+        if (
+          !current ||
+          !capture ||
+          capture.status !== "inbox" ||
+          current.tasks.some((t) => t.sourceCaptureId === id) ||
+          !input.title.trim()
+        ) {
+          return null;
+        }
+        const now = nowISO();
+        const task = createTask(input, now, { sourceCaptureId: capture.id, capturedAt: capture.createdAt });
+        commit((d) => ({
+          tasks: [task, ...d.tasks],
+          captures: d.captures.map((c) =>
+            c.id === id ? { ...c, status: "converted", convertedTaskId: task.id, updatedAt: now } : c,
+          ),
+        }));
+        return task;
+      },
+
+      createTask: (input) => {
+        if (!input.title.trim()) return null;
+        const task = createTask(input, nowISO());
+        commit((d) => ({ ...d, tasks: [task, ...d.tasks] }));
+        return task;
+      },
+
+      updateTask: (id, changes) => updateTaskWhere(id, (t, now) => applyTaskChanges(t, changes, now)),
+
+      setTaskStatus: (id, status) => updateTaskWhere(id, (t, now) => applyTaskChanges(t, { status }, now)),
+
+      toggleTaskComplete: (id) => {
+        updateTaskWhere(id, (t, now) =>
+          applyTaskChanges(t, { status: t.status === "completed" ? "todo" : "completed" }, now),
+        );
+        return dataRef.current?.tasks.find((t) => t.id === id) ?? null;
+      },
+
+      deleteTask: (id) => {
+        const task = dataRef.current?.tasks.find((t) => t.id === id) ?? null;
+        if (task) commit((d) => ({ ...d, tasks: d.tasks.filter((t) => t.id !== id) }));
+        return task;
+      },
+
+      restoreTask: (task) =>
+        commit((d) => (d.tasks.some((t) => t.id === task.id) ? d : { ...d, tasks: [task, ...d.tasks] })),
+
+      loadSampleData: () => {
+        if (!today) return;
+        commit(() => createSampleData(today));
+      },
+
+      clearAllData: () => commit(() => EMPTY_DATA),
+
       toggleCommitment: (id) =>
-        update((ws) => ({
-          ...ws,
-          commitments: ws.commitments.map((c) => {
+        setCommitments((prev) => {
+          const list = prev ?? preview?.commitments ?? [];
+          if (!today) return list;
+          return list.map((c) => {
             if (c.id !== id) return c;
-            const done = c.completedDates.includes(ws.today);
+            const done = c.completedDates.includes(today);
             return {
               ...c,
               completedDates: done
-                ? c.completedDates.filter((date) => date !== ws.today)
-                : [...c.completedDates, ws.today],
+                ? c.completedDates.filter((date) => date !== today)
+                : [...c.completedDates, today],
             };
-          }),
-        })),
+          });
+        }),
     };
-  }, []);
+  }, [repository, today, preview]);
 
-  const value = React.useMemo(
-    () => (workspace ? { workspace, actions } : null),
-    [workspace, actions],
-  );
+  const value = React.useMemo<WorkspaceContextValue | null>(() => {
+    if (!today || !data || !preview) return null;
+    return {
+      workspace: { ...preview, commitments: commitments ?? preview.commitments, ...data, today },
+      actions,
+      storage,
+    };
+  }, [today, data, preview, commitments, actions, storage]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
-/** Returns null until the workspace is ready (i.e. during server render). */
+/** Returns null until the workspace has loaded in the browser. */
 export function useWorkspaceOptional() {
   return React.useContext(WorkspaceContext);
 }

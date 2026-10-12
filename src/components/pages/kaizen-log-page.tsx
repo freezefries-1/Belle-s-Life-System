@@ -7,8 +7,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatLongDate, formatShortDate, formatWeekday, relativeDayLabel } from "@/lib/date";
-import { getHighlightTask, isCommitmentDone } from "@/lib/selectors";
+import { formatLongDate, formatShortDate, formatWeekday, localDateOf, relativeDayLabel } from "@/lib/date";
+import { isCommitmentDone } from "@/lib/selectors";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 import type { KaizenEntry } from "@/types";
@@ -19,28 +19,34 @@ export function KaizenLogPage() {
   const { workspace } = useWorkspace();
   const [selectedId, setSelectedId] = React.useState(workspace.kaizenEntries[0]?.id);
 
-  // Today's entry mirrors live dashboard state so the log and Today page agree.
-  const entries = React.useMemo(() => {
-    const highlight = getHighlightTask(workspace);
-    return workspace.kaizenEntries.map((e): KaizenEntry =>
-      e.date === workspace.today
-        ? {
-            ...e,
-            highlight: highlight?.title ?? "Not chosen yet",
-            highlightDone: highlight?.status === "done",
-            brainDump: workspace.captures.filter((c) => c.capturedDate === workspace.today).map((c) => c.text),
-            commitments: workspace.commitments.map((c) => ({ title: c.title, done: isCommitmentDone(c, workspace.today) })),
-          }
-        : e,
-    );
-  }, [workspace]);
+  // Today's entry mirrors live Brain Dump data so the log and Today page agree.
+  const entries = React.useMemo(
+    () =>
+      workspace.kaizenEntries.map((e): KaizenEntry =>
+        e.date === workspace.today
+          ? {
+              ...e,
+              highlight: workspace.highlightPreview.title,
+              highlightDone: false,
+              brainDump: workspace.captures
+                .filter((c) => localDateOf(c.createdAt) === workspace.today)
+                .map((c) => c.title),
+              commitments: workspace.commitments.map((c) => ({
+                title: c.title,
+                done: isCommitmentDone(c, workspace.today),
+              })),
+            }
+          : e,
+      ),
+    [workspace],
+  );
   const entry = entries.find((e) => e.id === selectedId) ?? entries[0];
 
   return (
     <>
       <PageHeader
         title="Kaizen Log"
-        description="One small page a day. Notice what worked, choose one tiny improvement, and carry it into tomorrow."
+        description="One small page a day. Notice what worked, choose one tiny improvement, and carry it into tomorrow. Past entries are samples for now."
       />
       <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
         <nav aria-label="Log entries" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
@@ -161,7 +167,7 @@ function EntryView({ entry, isToday }: { entry: KaizenEntry; isToday: boolean })
           <ReflectionField label="What could be better?" value={entry.reflection.improve} editable={isToday} />
           <ReflectionField label="One small step for tomorrow" value={entry.reflection.oneSmallStep} editable={isToday} />
         </div>
-        {isToday && <p className="mt-3 text-xs text-muted-foreground">Preview only — reflections are saved once Phase 2 adds storage.</p>}
+        {isToday && <p className="mt-3 text-xs text-muted-foreground">Preview only — journal entries are saved from a later phase.</p>}
       </Card>
     </div>
   );

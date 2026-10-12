@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getTodayTasks } from "@/lib/selectors";
+import { getInbox } from "@/lib/selectors";
+import { getTaskSummary } from "@/lib/tasks/task-queries";
 import { useWorkspaceOptional } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 
@@ -21,8 +22,8 @@ export function SidebarNav({
   const ctx = useWorkspaceOptional();
 
   const counts: Record<NonNullable<NavItem["countKey"]>, number | undefined> = {
-    inbox: ctx?.workspace.captures.filter((c) => !c.processed).length,
-    today: ctx ? getTodayTasks(ctx.workspace).filter((t) => t.status !== "done").length : undefined,
+    inbox: ctx ? getInbox(ctx.workspace).length : undefined,
+    today: ctx ? getTaskSummary(ctx.workspace.tasks, ctx.workspace.today).dueToday : undefined,
   };
 
   return (

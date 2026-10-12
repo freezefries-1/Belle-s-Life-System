@@ -1,9 +1,16 @@
-import { Info } from "lucide-react";
+"use client";
 
+import { HardDrive, TriangleAlert } from "lucide-react";
+
+import { useWorkspaceOptional } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 
-/** Makes it clear Phase 1 controls are a preview and nothing is saved. */
-export function DemoNotice({ compact = false, className }: { compact?: boolean; className?: string }) {
+/** Says plainly where data lives — this browser only, until cloud sync arrives. */
+export function DemoNotice({ className }: { className?: string }) {
+  const ctx = useWorkspaceOptional();
+  const unavailable = ctx?.storage.status === "unavailable";
+  const Icon = unavailable ? TriangleAlert : HardDrive;
+
   return (
     <div
       className={cn(
@@ -11,13 +18,16 @@ export function DemoNotice({ compact = false, className }: { compact?: boolean; 
         className,
       )}
     >
-      <Info className="mt-px size-3.5 shrink-0" />
-      {compact ? (
-        <span>Preview data</span>
+      <Icon className={cn("mt-px size-3.5 shrink-0", unavailable && "text-amber-400")} />
+      {unavailable ? (
+        <span>
+          <span className="font-semibold text-ink-foreground">Not saving.</span> This browser is blocking storage, so
+          changes last until you close the tab.
+        </span>
       ) : (
         <span>
-          <span className="font-semibold text-ink-foreground">Preview mode.</span> Sample data — changes
-          reset when you refresh.
+          <span className="font-semibold text-ink-foreground">Saved in this browser.</span> Tasks and Brain Dump stay on
+          this device. Other sections show preview data.
         </span>
       )}
     </div>

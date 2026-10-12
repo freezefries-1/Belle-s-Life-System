@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { CAPTURE_KINDS } from "@/data/capture-kinds";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
-import type { CaptureKind } from "@/types";
+import type { Capture, CaptureKind } from "@/types";
 
 /**
- * One-line capture. Type, press Enter, get back to what you were doing.
- * Sorting happens later in the Brain Dump.
+ * One-line capture. Type, press Enter, keep going — the input stays
+ * focused so several thoughts can be dumped in a row.
+ * New entries go to the Brain Dump inbox with no date, sprint or project.
  */
 export function CaptureForm({
   autoFocus,
@@ -24,22 +25,25 @@ export function CaptureForm({
   autoFocus?: boolean;
   size?: "default" | "lg";
   showKinds?: boolean;
-  onCaptured?: () => void;
+  onCaptured?: (capture: Capture) => void;
   className?: string;
 }) {
   const { actions } = useWorkspace();
   const [text, setText] = React.useState("");
   const [kind, setKind] = React.useState<CaptureKind>("task");
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const inputId = React.useId();
+  const canSubmit = text.trim().length > 0;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    const value = text.trim();
-    if (!value) return;
-    actions.addCapture(value, kind);
+    if (!canSubmit) return;
+    const capture = actions.addCapture({ title: text, kind });
+    if (!capture) return;
     setText("");
-    toast("Captured to Brain Dump", { description: value });
-    onCaptured?.();
+    inputRef.current?.focus();
+    toast("Captured to Brain Dump", { description: capture.title });
+    onCaptured?.(capture);
   }
 
   return (
@@ -55,18 +59,21 @@ export function CaptureForm({
         </label>
         <Plus className="size-4 shrink-0 text-subtle-foreground" />
         <input
+          ref={inputRef}
           id={inputId}
           value={text}
           onChange={(e) => setText(e.target.value)}
           autoFocus={autoFocus}
           autoComplete="off"
+          enterKeyHint="done"
+          maxLength={500}
           placeholder="What’s on your mind?"
           className={cn(
             "h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-subtle-foreground",
             size === "lg" ? "text-[15px]" : "text-sm",
           )}
         />
-        <Button type="submit" size="sm" disabled={!text.trim()} className="gap-1.5">
+        <Button type="submit" size="sm" disabled={!canSubmit} className="gap-1.5">
           Add
           <CornerDownLeft className="hidden size-3.5 opacity-70 sm:block" />
         </Button>

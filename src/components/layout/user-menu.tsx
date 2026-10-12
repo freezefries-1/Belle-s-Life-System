@@ -43,7 +43,7 @@ export function UserMenu({ onShowShortcuts }: { onShowShortcuts: () => void }) {
         <DropdownMenuItem disabled>
           <LogOut />
           Sign out
-          <DropdownMenuShortcut className="tracking-normal">Phase 2</DropdownMenuShortcut>
+          <DropdownMenuShortcut className="tracking-normal">Later</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

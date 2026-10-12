@@ -22,8 +22,16 @@ export function MicroCommitmentsCard({ className }: { className?: string }) {
         description="Tiny actions. Done most days."
         icon={<Sprout className="size-4" />}
         action={
-          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
-            {doneCount}/{workspace.commitments.length}
+          <span className="flex items-center gap-1.5">
+            <span
+              className="rounded-md border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase"
+              title="Habit tracking is saved from a later phase. Ticks here reset on refresh."
+            >
+              Preview
+            </span>
+            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+              {doneCount}/{workspace.commitments.length}
+            </span>
           </span>
         }
       />

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { TaskEditorProvider } from "@/components/tasks/task-editor-provider";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -37,11 +38,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        focusSearch();
-        return;
-      }
       if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
       if (document.querySelector("[role=dialog]")) return;
 
@@ -64,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <WorkspaceProvider>
       <TooltipProvider>
+        <TaskEditorProvider>
         <Sidebar collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
         <MobileNav open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
 
@@ -93,7 +90,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <GlobalSearch autoFocus onNavigate={() => setMobileSearchOpen(false)} />
           </DialogContent>
         </Dialog>
-        <Toaster />
+          <Toaster />
+        </TaskEditorProvider>
       </TooltipProvider>
     </WorkspaceProvider>
   );

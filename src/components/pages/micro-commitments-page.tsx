@@ -20,9 +20,9 @@ export function MicroCommitmentsPage() {
     <>
       <PageHeader
         title="Micro-Commitments"
-        description="Habits so small they’re hard to skip. Missing a day is normal — just pick it back up."
+        description="Habits so small they’re hard to skip. Missing a day is normal — just pick it back up. Ticks here are a preview and reset on refresh."
         actions={
-          <Button variant="outline" disabled title="Adding commitments arrives in Phase 2" className="gap-1.5">
+          <Button variant="outline" disabled title="Adding commitments arrives in a later phase" className="gap-1.5">
             <Plus className="size-4" />
             New commitment
           </Button>

@@ -7,7 +7,9 @@ import { PageHeader } from "@/components/shared/page-header";
 import { SprintBadge } from "@/components/shared/sprint-badge";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { addDays, formatShortDate } from "@/lib/date";
+import { addDays, formatShortDate, localDateOf } from "@/lib/date";
+import { isActive } from "@/lib/tasks/task-model";
+import { sortTasks } from "@/lib/tasks/task-queries";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 
@@ -16,11 +18,16 @@ export function WeeklyReviewPage() {
   const review = workspace.weeklyReview;
   const weekEnd = addDays(review.weekStart, 6);
 
-  const completed = workspace.tasks.filter(
-    (t) => t.status === "done" && t.completedDate && t.completedDate >= review.weekStart && t.completedDate <= weekEnd,
+  const completed = workspace.tasks.filter((t) => {
+    if (t.status !== "completed" || !t.completedAt) return false;
+    const day = localDateOf(t.completedAt);
+    return day >= review.weekStart && day <= weekEnd;
+  });
+  // Open tasks that were due by the end of the review period.
+  const incomplete = sortTasks(
+    workspace.tasks.filter((t) => isActive(t) && t.dueDate !== null && t.dueDate <= weekEnd),
+    "due",
   );
-  // Anything that was planned up to the end of the review period but isn't finished.
-  const incomplete = workspace.tasks.filter((t) => t.status !== "done" && t.plannedDate && t.plannedDate <= weekEnd);
   const commitmentChecks = workspace.commitments.reduce(
     (sum, c) => sum + c.completedDates.filter((d) => d > addDays(workspace.today, -7) && d <= workspace.today).length,
     0,
@@ -36,7 +43,7 @@ export function WeeklyReviewPage() {
       <dl className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
           { label: "Tasks completed", value: completed.length, sub: "this week" },
-          { label: "Still open", value: incomplete.length, sub: "from this week" },
+          { label: "Still open", value: incomplete.length, sub: "due by today" },
           { label: "Commitment check-ins", value: commitmentChecks, sub: `of ${workspace.commitments.length * 7} possible` },
           { label: "Highlights done", value: workspace.kaizenEntries.filter((e) => e.highlightDone).length, sub: "this week" },
         ].map((s) => (
@@ -59,7 +66,7 @@ export function WeeklyReviewPage() {
               <li key={t.id} className="flex items-center gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium">{t.title}</p>
-                  <SprintBadge sprintId={t.sprintId} className="mt-0.5" />
+                  <SprintBadge sprintId={t.sprint} className="mt-0.5" />
                 </div>
                 <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-muted-foreground">
                   Carry forward <ArrowRight className="size-3" />
@@ -86,7 +93,7 @@ export function WeeklyReviewPage() {
         <Card className="p-5 lg:col-span-2">
           <ReviewHeading icon={Lightbulb} iconClass="text-amber-500" title="Lesson learned" hint="One kaizen to carry into next week." />
           <Textarea defaultValue={review.lessons} className="mt-3" aria-label="Lesson learned" />
-          <p className="mt-2 text-xs text-muted-foreground">Preview only — edits reset on refresh until Phase 2 adds storage.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Preview only — saving weekly reviews arrives in a later phase.</p>
         </Card>
       </div>
     </>

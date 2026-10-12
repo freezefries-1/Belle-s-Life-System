@@ -2,15 +2,12 @@
 
 import { ProgressRing } from "@/components/shared/progress-ring";
 import { formatLongDate } from "@/lib/date";
-import { getTodayTasks } from "@/lib/selectors";
 import { useWorkspace } from "@/lib/store/workspace-store";
-import { percent } from "@/lib/utils";
+import { getDailyProgress } from "@/lib/tasks/task-queries";
 
 export function WelcomeHeader() {
   const { workspace } = useWorkspace();
-  const tasks = getTodayTasks(workspace);
-  const done = tasks.filter((t) => t.status === "done").length;
-  const pct = percent(done, tasks.length);
+  const { completedToday, planned, percent } = getDailyProgress(workspace.tasks, workspace.today);
 
   return (
     <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -21,14 +18,14 @@ export function WelcomeHeader() {
       </div>
 
       <div className="flex items-center gap-3 self-start rounded-xl border bg-card py-2.5 pr-4 pl-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:self-auto">
-        <ProgressRing value={pct} size={40} stroke={4} label={`${done} of ${tasks.length} of today’s tasks done`}>
-          <span className="text-[10px] font-bold tabular-nums">{pct}%</span>
+        <ProgressRing value={percent} size={40} stroke={4} label={`${completedToday} of ${planned} of today’s tasks done`}>
+          <span className="text-[10px] font-bold tabular-nums">{percent}%</span>
         </ProgressRing>
         <div className="leading-tight">
           <p className="text-[13px] font-semibold tabular-nums">
-            {done} of {tasks.length} done
+            {planned ? `${completedToday} of ${planned} done` : "Nothing due today"}
           </p>
-          <p className="text-xs text-muted-foreground">Today’s plan</p>
+          <p className="text-xs text-muted-foreground">Today’s tasks</p>
         </div>
       </div>
     </div>

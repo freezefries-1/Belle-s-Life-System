@@ -2,6 +2,7 @@
 
 import { ActiveProjects } from "./active-projects";
 import { DailyProgress } from "./daily-progress";
+import { GettingStarted } from "./getting-started";
 import { HighlightCard } from "./highlight-card";
 import { MicroCommitmentsCard } from "./micro-commitments-card";
 import { QuickCaptureCard } from "./quick-capture-card";
@@ -17,6 +18,7 @@ export function TodayDashboard() {
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
       <WelcomeHeader />
+      <GettingStarted />
       <div className="grid gap-5 lg:grid-cols-3 lg:gap-6">
         <HighlightCard className="lg:col-span-2 lg:col-start-1 lg:row-start-1" />
         <QuickCaptureCard className="lg:col-start-3 lg:row-start-1" />

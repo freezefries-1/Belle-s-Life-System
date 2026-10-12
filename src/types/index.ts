@@ -2,11 +2,14 @@
  * Domain model for Belle's Life System.
  *
  * These shapes are intentionally flat and relational (ids, not nested objects)
- * so each one maps cleanly onto a Supabase table in Phase 2.
+ * so each one maps cleanly onto a Supabase table in a later phase.
  */
 
 /** Calendar date in the user's local time zone, formatted YYYY-MM-DD. */
 export type ISODate = string;
+
+/** Full timestamp, `Date.prototype.toISOString()` format (UTC). */
+export type ISODateTime = string;
 
 export type SprintId = "urgent" | "deadlines" | "admin" | "build";
 
@@ -19,23 +22,82 @@ export interface Sprint {
   energyHint: string;
 }
 
-export type TaskStatus = "todo" | "in_progress" | "done";
+/* ------------------------------------------------------------------ */
+/* Tasks                                                               */
+/* ------------------------------------------------------------------ */
+
+/** Stable internal identifiers — display labels live in `lib/tasks`. */
+export type TaskStatus = "todo" | "in_progress" | "completed" | "skipped";
+
+export type TaskPriority = "low" | "medium" | "high";
 
 export interface Task {
   id: string;
   title: string;
-  notes?: string;
-  sprintId: SprintId;
-  projectId: string | null;
+  description: string;
   status: TaskStatus;
-  /** The day Belle intends to work on it. */
-  plannedDate: ISODate | null;
-  /** A real external deadline, if there is one. */
+  priority: TaskPriority | null;
+  sprint: SprintId | null;
+  projectId: string | null;
   dueDate: ISODate | null;
-  estimateMinutes: number | null;
+  estimatedMinutes: number | null;
   actualMinutes: number | null;
-  completedDate: ISODate | null;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  completedAt: ISODateTime | null;
+  /** The Brain Dump entry this task was converted from, if any. */
+  sourceCaptureId: string | null;
+  /** When the original thought was captured (preserved on conversion). */
+  capturedAt: ISODateTime | null;
 }
+
+/** The fields a person can set from the task editor. */
+export type TaskInput = Pick<Task, "title"> &
+  Partial<
+    Pick<
+      Task,
+      | "description"
+      | "status"
+      | "priority"
+      | "sprint"
+      | "projectId"
+      | "dueDate"
+      | "estimatedMinutes"
+      | "actualMinutes"
+    >
+  >;
+
+/* ------------------------------------------------------------------ */
+/* Brain Dump                                                          */
+/* ------------------------------------------------------------------ */
+
+export type CaptureKind = "task" | "idea" | "reminder" | "note";
+
+/** `inbox` until it is converted into a task (or deleted). */
+export type CaptureStatus = "inbox" | "converted";
+
+export interface Capture {
+  id: string;
+  title: string;
+  note: string;
+  kind: CaptureKind;
+  status: CaptureStatus;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  convertedTaskId: string | null;
+}
+
+export type CaptureInput = Pick<Capture, "title"> & Partial<Pick<Capture, "note" | "kind">>;
+
+/** Everything that is saved between visits. */
+export interface PersistedData {
+  tasks: Task[];
+  captures: Capture[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Preview content (not yet persisted — later phases)                  */
+/* ------------------------------------------------------------------ */
 
 export type LifeArea = "Business" | "Coaching" | "Tennis Ladder" | "Personal";
 
@@ -55,16 +117,6 @@ export interface MicroCommitment {
   /** The moment in the day that prompts this habit. */
   cue?: string;
   completedDates: ISODate[];
-}
-
-export type CaptureKind = "task" | "idea" | "reminder" | "note";
-
-export interface CaptureItem {
-  id: string;
-  text: string;
-  kind: CaptureKind;
-  capturedDate: ISODate;
-  processed: boolean;
 }
 
 export type EventKind = "coaching" | "ladder" | "business" | "personal";
@@ -103,14 +155,23 @@ export interface WeeklyReview {
   nextWeekPriorities: string[];
 }
 
-export interface Workspace {
-  today: ISODate;
-  highlightTaskId: string | null;
-  tasks: Task[];
+/** Sample content shown on pages whose real functionality arrives later. */
+export interface PreviewContent {
   projects: Project[];
   commitments: MicroCommitment[];
-  captures: CaptureItem[];
   events: CalendarEvent[];
   kaizenEntries: KaizenEntry[];
   weeklyReview: WeeklyReview;
+  /** Static stand-in for the Daily Highlight (Phase 4). */
+  highlightPreview: {
+    title: string;
+    sprint: SprintId;
+    projectId: string;
+    estimatedMinutes: number;
+  };
+}
+
+/** What components read: saved data + preview content + today's date. */
+export interface Workspace extends PersistedData, PreviewContent {
+  today: ISODate;
 }

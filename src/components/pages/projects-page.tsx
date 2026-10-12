@@ -6,12 +6,14 @@ import { CalendarClock, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AREA_STYLES } from "@/components/shared/project-card";
 import { ProgressRing } from "@/components/shared/progress-ring";
-import { TaskRow } from "@/components/shared/task-row";
+import { TaskItem } from "@/components/tasks/task-item";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatShortDate, relativeDayPhrase } from "@/lib/date";
-import { getProjectStats, sortTasksForDisplay } from "@/lib/selectors";
+import { getProjectStats } from "@/lib/selectors";
+import { isActive } from "@/lib/tasks/task-model";
+import { sortTasks } from "@/lib/tasks/task-queries";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types";
@@ -27,7 +29,7 @@ export function ProjectsPage() {
         title="Projects"
         description="The bigger outcomes your daily sprints add up to."
         actions={
-          <Button variant="outline" disabled title="Creating projects arrives in Phase 2">
+          <Button variant="outline" disabled title="Creating projects arrives in a later phase">
             New project
           </Button>
         }
@@ -51,7 +53,7 @@ function ProjectPanel({ project }: { project: Project }) {
   const { workspace } = useWorkspace();
   const stats = getProjectStats(workspace, project.id);
   const tasks = workspace.tasks.filter((t) => t.projectId === project.id);
-  const open = sortTasksForDisplay(tasks.filter((t) => t.status !== "done"));
+  const open = sortTasks(tasks.filter(isActive), "due");
   const nextDeadline = open
     .map((t) => t.dueDate)
     .filter((d): d is string => !!d)
@@ -103,7 +105,7 @@ function ProjectPanel({ project }: { project: Project }) {
             Nothing open — nicely done.
           </p>
         ) : (
-          open.slice(0, 4).map((t) => <TaskRow key={t.id} task={t} showProject={false} />)
+          open.slice(0, 4).map((t) => <TaskItem key={t.id} task={t} showDescription={false} />)
         )}
         {open.length > 4 && <p className="px-2 pt-1 text-xs text-muted-foreground">+ {open.length - 4} more in Tasks</p>}
       </div>

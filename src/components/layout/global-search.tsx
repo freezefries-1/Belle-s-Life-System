@@ -26,17 +26,17 @@ function search(ws: Workspace, query: string): SearchResult[] {
       .filter((p) => match(p.name))
       .map((p) => ({ id: p.id, label: p.name, meta: "Project", href: "/projects", icon: FolderKanban })),
     ...ws.tasks
-      .filter((t) => match(t.title))
+      .filter((t) => match(t.title) || match(t.description))
       .map((t) => ({
         id: t.id,
         label: t.title,
-        meta: t.status === "done" ? "Task · done" : "Task",
+        meta: t.status === "completed" ? "Task · completed" : "Task",
         href: "/tasks",
         icon: ListChecks,
       })),
     ...ws.captures
-      .filter((c) => match(c.text))
-      .map((c) => ({ id: c.id, label: c.text, meta: "Brain Dump", href: "/brain-dump", icon: Inbox })),
+      .filter((c) => c.status === "inbox" && (match(c.title) || match(c.note)))
+      .map((c) => ({ id: c.id, label: c.title, meta: "Brain Dump", href: "/brain-dump", icon: Inbox })),
     ...ws.commitments
       .filter((c) => match(c.title))
       .map((c) => ({ id: c.id, label: c.title, meta: "Micro-commitment", href: "/micro-commitments", icon: Sprout })),
@@ -45,7 +45,7 @@ function search(ws: Workspace, query: string): SearchResult[] {
 
 /**
  * Phase 1 search: filters the in-memory sample data and links to the
- * relevant page. Phase 2 swaps this for a proper indexed search.
+ * relevant page. A later phase can swap this for indexed search.
  */
 export function GlobalSearch({
   className,
@@ -95,7 +95,7 @@ export function GlobalSearch({
         className="h-9 w-full rounded-lg border border-input bg-card pr-12 pl-9 text-[13px] shadow-xs transition-[border-color,box-shadow] outline-none placeholder:text-subtle-foreground focus:border-primary/60 focus:ring-[3px] focus:ring-ring/15 [&::-webkit-search-cancel-button]:hidden"
       />
       <kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 rounded border bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground sm:block">
-        ⌘K
+        /
       </kbd>
 
       {open && (

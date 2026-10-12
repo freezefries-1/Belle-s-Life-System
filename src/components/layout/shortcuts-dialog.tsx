@@ -4,7 +4,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 const SHORTCUTS = [
   { keys: ["N"], label: "Quick capture" },
-  { keys: ["⌘", "K"], label: "Search" },
+  { keys: ["Enter"], label: "Save a capture or task" },
+  { keys: ["Esc"], label: "Close a dialog" },
   { keys: ["/"], label: "Search" },
   { keys: ["["], label: "Collapse or expand sidebar" },
   { keys: ["?"], label: "Show shortcuts" },

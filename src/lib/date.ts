@@ -72,3 +72,16 @@ export function relativeDayPhrase(iso: ISODate, today: ISODate) {
   const label = relativeDayLabel(iso, today);
   return ["Today", "Tomorrow", "Yesterday"].includes(label) ? label.toLowerCase() : label;
 }
+
+/** The local calendar date on which a timestamp falls. */
+export function localDateOf(timestamp: string): ISODate {
+  return toISODate(new Date(timestamp));
+}
+
+/** "2:45pm" for a timestamp, in local time. */
+export function formatClockTime(timestamp: string) {
+  return new Date(timestamp)
+    .toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true })
+    .replace(" ", "")
+    .toLowerCase();
+}
