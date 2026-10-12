@@ -77,6 +77,17 @@ export function occurrencesBetween(r: RecurrenceRule, from: ISODate, to: ISODate
   return out;
 }
 
+/** The latest date in [from, to] that the rule fires on, scanning back from `to`. */
+export function lastOccurrenceBetween(r: RecurrenceRule, from: ISODate, to: ISODate): ISODate | null {
+  const start = from < r.startDate ? r.startDate : from;
+  let d = r.endDate && r.endDate < to ? r.endDate : to;
+  // Bounded so a bad rule can't loop for ever; 30 years covers any real gap.
+  for (let i = 0; d >= start && i < 11_000; i++, d = addDays(d, -1)) {
+    if (occursOn(r, d)) return d;
+  }
+  return null;
+}
+
 export function nextOccurrence(r: RecurrenceRule, from: ISODate): ISODate | null {
   return occurrencesBetween(r, from, addDays(from, 400), 1)[0] ?? null;
 }
@@ -126,18 +137,23 @@ export function normalizeRule(r: RecurrenceRule): RecurrenceRule {
   };
 }
 
-export function createTemplate(input: RecurrenceInput, now: ISODateTime): RecurrenceTemplate {
+/**
+ * A new series never back-fills: with a past start date, the first
+ * occurrence is today's (or the next one), not an overdue one.
+ */
+export function createTemplate(input: RecurrenceInput, now: ISODateTime, today?: ISODate): RecurrenceTemplate {
+  const rule = normalizeRule(input);
   return {
     id: createId(),
     title: input.title.trim(),
     description: input.description?.trim() ?? "",
-    ...normalizeRule(input),
+    ...rule,
     sprintId: input.sprintId ?? null,
     projectId: input.projectId ?? null,
     priority: input.priority ?? null,
     estimatedMinutes: input.estimatedMinutes ?? null,
     status: "active",
-    generatedThrough: null,
+    generatedThrough: today && rule.startDate < today ? addDays(today, -1) : null,
     createdAt: now,
     updatedAt: now,
   };
@@ -183,11 +199,16 @@ export function generateOccurrences(data: PersistedData, today: ISODate, now: IS
 
     const dates: ISODate[] = [];
     // Missed while away → only the most recent one, surfaced as overdue.
-    const missed = from <= yesterday ? occurrencesBetween(t, from, yesterday) : [];
-    if (missed.length) dates.push(missed[missed.length - 1]);
+    const missed = from <= yesterday ? lastOccurrenceBetween(t, from, yesterday) : null;
+    if (missed) dates.push(missed);
 
+    // Only upcoming occurrences still to do take up room; skipped ones don't.
     const openFuture = data.tasks.filter(
-      (x) => x.recurrenceTemplateId === t.id && x.status !== "completed" && x.occurrenceDate !== null && x.occurrenceDate > today,
+      (x) =>
+        x.recurrenceTemplateId === t.id &&
+        (x.status === "todo" || x.status === "in_progress") &&
+        x.occurrenceDate !== null &&
+        x.occurrenceDate > today,
     ).length;
     let room = Math.max(0, MAX_FUTURE_OCCURRENCES - openFuture);
     let handledThrough = from > yesterday ? addDays(from, -1) : yesterday;

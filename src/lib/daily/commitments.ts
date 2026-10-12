@@ -1,5 +1,5 @@
 import { createId } from "@/lib/id";
-import { addDays, parseISODate, startOfWeek } from "@/lib/date";
+import { addDays, localDateOf, parseISODate, startOfWeek } from "@/lib/date";
 import type {
   CommitmentCompletion,
   CommitmentInput,
@@ -74,6 +74,17 @@ export function fallsOn(c: MicroCommitment, date: ISODate) {
   return true; // daily, and weekly (any day of the week)
 }
 
+/**
+ * Was the commitment switched on for this date? Uses its recorded history:
+ * not before its start date, not inside a paused period, not on or after the
+ * day it was archived.
+ */
+export function wasActiveOn(c: MicroCommitment, date: ISODate) {
+  if (date < c.startDate) return false;
+  if (c.archivedAt && date >= localDateOf(c.archivedAt)) return false;
+  return !c.pausedPeriods.some((p) => date >= p.from && (p.to === null || date < p.to));
+}
+
 /** Dates of the Monday–Sunday week containing `date`. */
 function weekOf(date: ISODate) {
   const start = startOfWeek(date);
@@ -121,8 +132,9 @@ export function getCommitmentProgress(commitments: MicroCommitment[], date: ISOD
 
 /**
  * Consecutive scheduled periods completed, counted back from today.
- * Days (or weeks) that weren't scheduled are skipped, never counted against
- * it, and today/this week doesn't break the streak while it's still open.
+ * Days (or weeks) that weren't scheduled, or when the commitment was paused,
+ * are skipped, never counted against it, and today/this week doesn't break
+ * the streak while it's still open.
  */
 export function getStreak(c: MicroCommitment, today: ISODate, completions: CommitmentCompletion[]) {
   const done = completionDates(c.id, completions);
@@ -134,7 +146,7 @@ export function getStreak(c: MicroCommitment, today: ISODate, completions: Commi
       const days = Array.from({ length: 7 }, (_, d) => addDays(weekStart, d));
       if (days[6] < c.startDate) break;
       if (days.some((d) => done.has(d))) streak++;
-      else if (i > 0) break;
+      else if (i > 0 && days.some((d) => wasActiveOn(c, d))) break;
       weekStart = addDays(weekStart, -7);
     }
     return { count: streak, unit: streak === 1 ? "week" : "weeks" };
@@ -142,7 +154,7 @@ export function getStreak(c: MicroCommitment, today: ISODate, completions: Commi
 
   let date = today;
   for (let i = 0; i < 730 && date >= c.startDate; i++, date = addDays(date, -1)) {
-    if (!fallsOn(c, date)) continue;
+    if (!fallsOn(c, date) || !wasActiveOn(c, date)) continue;
     if (done.has(date)) streak++;
     else if (date !== today) break;
   }
@@ -151,7 +163,10 @@ export function getStreak(c: MicroCommitment, today: ISODate, completions: Commi
 
 export type HistoryCell = { key: string; label: string; state: "done" | "open" | "off" | "today" };
 
-/** Recent history for the little dot strip: last N days, or last N weeks for weekly commitments. */
+/**
+ * Recent history for the little dot strip: last N days, or last N weeks for
+ * weekly commitments. Paused stretches show as "off", like unscheduled days.
+ */
 export function getRecentHistory(
   c: MicroCommitment,
   today: ISODate,
@@ -167,17 +182,17 @@ export function getRecentHistory(
       const start = addDays(thisWeek, -7 * i);
       const days = Array.from({ length: 7 }, (_, d) => addDays(start, d));
       const isDone = days.some((d) => done.has(d));
-      const beforeStart = days[6] < c.startDate;
+      const off = !days.some((d) => wasActiveOn(c, d));
       cells.push({
         key: start,
         label: `Week of ${start}`,
-        state: beforeStart ? "off" : isDone ? "done" : i === 0 ? "today" : "open",
+        state: isDone ? "done" : off ? "off" : i === 0 ? "today" : "open",
       });
     }
   } else {
     for (let i = count - 1; i >= 0; i--) {
       const date = addDays(today, -i);
-      const scheduled = fallsOn(c, date);
+      const scheduled = fallsOn(c, date) && wasActiveOn(c, date);
       cells.push({
         key: date,
         label: date,

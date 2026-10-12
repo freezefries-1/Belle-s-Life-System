@@ -6,6 +6,14 @@ export function toISODate(date: Date): ISODate {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+/** A real calendar date in YYYY-MM-DD form (rejects e.g. 2026-02-30). */
+export function isValidISODate(v: unknown): v is ISODate {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+}
+
 /** Parse YYYY-MM-DD as a local date (not UTC) to avoid off-by-one days. */
 export function parseISODate(iso: ISODate): Date {
   const [y, m, d] = iso.split("-").map(Number);

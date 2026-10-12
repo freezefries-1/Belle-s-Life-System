@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listKeys, readRaw, removeRaw, writeRaw } from "@/lib/storage/local-storage";
 import { STORAGE_KEY, parseEnvelope, type ParseResult } from "@/lib/storage/schema";
-import type { PersistedData } from "@/types";
 import { TABLE_ORDER, type AnyRow, type TableName } from "@/types/database";
 
 import { dataToRows, stripManaged, type RowSet } from "./mappers";
@@ -70,12 +69,12 @@ export function readLocalSnapshot(): LocalSnapshot | { error: string } | null {
     rows: dataToRows(parsed.data),
     schemaVersion: env.schemaVersion ?? 0,
     savedAt: env.savedAt ?? null,
-    invalid: parsed.dropped,
-    missingReferences: findMissingReferences(env.data ?? {}, parsed.data),
+    invalid: parsed.unreadable,
+    missingReferences: findMissingReferences(env.data ?? {}, parsed),
   };
 }
 
-function findMissingReferences(raw: Record<string, unknown>, clean: PersistedData) {
+function findMissingReferences(raw: Record<string, unknown>, { data: clean, removed }: ParseResult) {
   const list = (k: string) => (Array.isArray(raw[k]) ? (raw[k] as Record<string, unknown>[]) : []);
   const byId = <T extends { id: string }>(xs: T[]) => new Map(xs.map((x) => [x.id, x]));
   const tasks = byId(clean.tasks);
@@ -94,8 +93,10 @@ function findMissingReferences(raw: Record<string, unknown>, clean: PersistedDat
     const c = clean.weeklyPriorities.find((x) => x.id === p.id);
     return !!c && ((typeof p.taskId === "string" && c.taskId === null) || (typeof p.projectId === "string" && c.projectId === null));
   }).length);
-  count("Milestone → missing project (skipped)", list("milestones").length - clean.milestones.length);
-  count("Commitment history → missing commitment (skipped)", list("commitmentCompletions").length - clean.commitmentCompletions.length);
+  count("Milestone → missing project (skipped)", removed.milestones);
+  count("Commitment history → missing commitment (skipped)", removed.completions);
+  count("Weekly priority → missing review, or more than three (skipped)", removed.priorities);
+  count("Repeated records — same id, or a second one for the same day or week (skipped)", removed.duplicates);
   return out;
 }
 

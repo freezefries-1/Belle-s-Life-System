@@ -3,7 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WEEKDAYS } from "@/lib/daily/commitments";
-import { parseISODate } from "@/lib/date";
+import { isValidISODate, parseISODate } from "@/lib/date";
 import { FREQUENCY_OPTIONS, describeRule, nextOccurrence, normalizeRule } from "@/lib/recurrence/recurrence";
 import { relativeDayLabel } from "@/lib/date";
 import { cn } from "@/lib/utils";
@@ -23,9 +23,9 @@ export function RuleFields({
 }) {
   const set = (patch: Partial<RecurrenceRule>) => onChange({ ...rule, ...patch });
   const usesWeekdays = rule.frequency === "weekly" || rule.frequency === "biweekly" || (rule.frequency === "custom" && rule.intervalUnit === "weeks");
-  const startWeekday = /^\d{4}-\d{2}-\d{2}$/.test(rule.startDate) ? parseISODate(rule.startDate).getDay() : 1;
+  const startWeekday = isValidISODate(rule.startDate) ? parseISODate(rule.startDate).getDay() : 1;
   const weekdays = rule.selectedWeekdays.length ? rule.selectedWeekdays : [startWeekday];
-  const valid = /^\d{4}-\d{2}-\d{2}$/.test(rule.startDate);
+  const valid = isValidISODate(rule.startDate);
   const next = valid ? nextOccurrence(normalizeRule(rule), rule.startDate > today ? rule.startDate : today) : null;
 
   return (

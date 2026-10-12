@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { addDays, formatShortDate, parseISODate, startOfWeek } from "@/lib/date";
+import { addDays, formatShortDate, isValidISODate, parseISODate, startOfWeek } from "@/lib/date";
 import { defaultReviewWeek, getWeekSummary } from "@/lib/review/weekly";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,7 @@ const STEPS = [
 ] as const;
 type Step = (typeof STEPS)[number]["id"];
 
-const isDateKey = (v: string | null): v is ISODate => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(parseISODate(v).getTime());
+const isDateKey = (v: string | null): v is ISODate => isValidISODate(v);
 
 export function weekRangeLabel(weekStart: ISODate) {
   const end = addDays(weekStart, 6);

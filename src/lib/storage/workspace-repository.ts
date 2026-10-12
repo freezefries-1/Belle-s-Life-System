@@ -104,7 +104,7 @@ function readFromStorage(): LoadResult {
       status: "recovered",
       data: parsed.data,
       isFirstRun: false,
-      message: `${parsed.dropped} saved ${parsed.dropped === 1 ? "item" : "items"} couldn’t be read and ${parsed.dropped === 1 ? "was" : "were"} skipped. A backup copy was kept.`,
+      message: `${parsed.dropped} saved ${parsed.dropped === 1 ? "item" : "items"} couldn’t be used and ${parsed.dropped === 1 ? "was" : "were"} set aside (unreadable, repeated, or linked to something that no longer exists). A backup copy was kept.`,
     };
   }
 

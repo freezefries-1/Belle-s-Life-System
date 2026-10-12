@@ -16,7 +16,7 @@ import { SPRINTS, SPRINT_STYLES } from "@/data/sprints";
 import { getConsistency, getConsistencyReport } from "@/lib/analytics/consistency";
 import { getCompletionTrend, getSprintDistribution } from "@/lib/analytics/progress";
 import { getFocusStats, sessionsBetween } from "@/lib/analytics/time";
-import { addDays, daysBetween, formatShortDate, formatWeekday, localDateOf, parseISODate, startOfWeek } from "@/lib/date";
+import { addDays, daysBetween, formatShortDate, formatWeekday, isValidISODate, localDateOf, parseISODate, startOfWeek } from "@/lib/date";
 import { getProjectProgress } from "@/lib/projects/project-model";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn, formatMinutes } from "@/lib/utils";
@@ -30,7 +30,7 @@ const PRESETS: { id: Preset; label: string }[] = [
   { id: "custom", label: "Custom" },
 ];
 
-const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+const isDate = (v: string) => isValidISODate(v);
 
 export function ProgressPage() {
   const { workspace } = useWorkspace();

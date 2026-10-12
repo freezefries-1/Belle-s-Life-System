@@ -3,7 +3,7 @@ import { addDays, localDateOf } from "@/lib/date";
 import { isCompleted } from "@/lib/tasks/task-model";
 import type { DailyHighlight, ISODate, ISODateTime, KaizenLog, Task, Workspace } from "@/types";
 
-import { isDoneOn, isDueByPattern } from "./commitments";
+import { isDoneOn, isDueByPattern, wasActiveOn } from "./commitments";
 
 /* ---------------- Daily Highlight ---------------- */
 
@@ -67,16 +67,16 @@ export const tasksCompletedOn = (tasks: Task[], date: ISODate) =>
   tasks.filter((t) => isCompleted(t) && t.completedAt !== null && localDateOf(t.completedAt) === date);
 
 /**
- * Commitments to show for a past or present day. We don't keep a history of
- * pausing, so for past days we include every commitment that had started
- * and wasn't archived by then — plus anything actually ticked that day.
+ * Commitments to show for a past or present day: today, the active ones; for
+ * past days, those that were switched on then (started, not paused, not yet
+ * archived) — plus anything actually ticked that day.
  */
 export function commitmentsForDay(ws: Pick<Workspace, "commitments" | "commitmentCompletions">, date: ISODate, today: ISODate) {
   return ws.commitments.filter((c) => {
     if (isDoneOn(c.id, date, ws.commitmentCompletions)) return true;
     if (!isDueByPattern(c, date, ws.commitmentCompletions)) return false;
     if (date === today) return c.status === "active";
-    return c.status !== "archived" || (c.archivedAt !== null && localDateOf(c.archivedAt) > date);
+    return wasActiveOn(c, date);
   });
 }
 

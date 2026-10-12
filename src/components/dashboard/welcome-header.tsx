@@ -18,8 +18,8 @@ export function WelcomeHeader() {
       </div>
 
       <div className="flex items-center gap-3 self-start rounded-xl border bg-card py-2.5 pr-4 pl-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:self-auto">
-        <ProgressRing value={percent} size={40} stroke={4} label={`${completedToday} of ${planned} of today’s tasks done`}>
-          <span className="text-[10px] font-bold tabular-nums">{percent}%</span>
+        <ProgressRing value={percent} size={40} stroke={4} label={planned ? `${completedToday} of ${planned} of today’s tasks done` : "Nothing due today"}>
+          <span className="text-[10px] font-bold tabular-nums">{planned ? `${percent}%` : "—"}</span>
         </ProgressRing>
         <div className="leading-tight">
           <p className="text-[13px] font-semibold tabular-nums">

@@ -14,14 +14,14 @@ import { SprintDot } from "@/components/shared/sprint-badge";
 import { useTaskEditor } from "@/components/tasks/task-editor-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { addDays, formatClockTime, formatLongDate, localDateOf, relativeDayLabel } from "@/lib/date";
+import { addDays, formatClockTime, formatLongDate, isValidISODate, localDateOf, relativeDayLabel } from "@/lib/date";
 import { isDoneOn } from "@/lib/daily/commitments";
 import { commitmentsForDay, resolveHighlight, tasksCompletedOn } from "@/lib/daily/day";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn, formatMinutes } from "@/lib/utils";
 import type { ISODate } from "@/types";
 
-const isDateKey = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const isDateKey = (v: string | null): v is string => isValidISODate(v);
 
 export function KaizenLogPage() {
   const { workspace } = useWorkspace();

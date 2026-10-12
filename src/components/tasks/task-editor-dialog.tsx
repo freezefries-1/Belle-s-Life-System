@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SPRINTS } from "@/data/sprints";
-import { addDays, formatClockTime, localDateOf, relativeDayLabel } from "@/lib/date";
+import { addDays, formatClockTime, isValidISODate, localDateOf, relativeDayLabel } from "@/lib/date";
 import { isOpenProject, milestonesOrdered } from "@/lib/projects/project-model";
 import { describeRule } from "@/lib/recurrence/recurrence";
 import { useWorkspace } from "@/lib/store/workspace-store";
@@ -115,7 +115,7 @@ export function TaskEditorDialog({
   const template = task?.recurrenceTemplateId ? workspace.recurrences.find((r) => r.id === task.recurrenceTemplateId) : undefined;
   const projectOptions = workspace.projects.filter((p) => isOpenProject(p) || p.id === form.projectId);
   const milestoneOptions = form.projectId === NONE ? [] : milestonesOrdered(workspace.milestones, form.projectId);
-  const titleValid = form.title.trim().length > 0 && (!form.repeat || /^\d{4}-\d{2}-\d{2}$/.test(form.rule.startDate));
+  const titleValid = form.title.trim().length > 0 && (!form.repeat || isValidISODate(form.rule.startDate));
   const missing = (target.mode === "edit" && !task) || (target.mode === "convert" && !capture);
 
   function submit(e?: React.FormEvent) {

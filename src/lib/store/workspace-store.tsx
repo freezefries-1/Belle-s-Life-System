@@ -653,7 +653,7 @@ export function WorkspaceProvider({
 
       createRecurrence: (input) => {
         if (!input.title.trim() || !today) return null;
-        const template = createTemplate(input, nowISO());
+        const template = createTemplate(input, nowISO(), today);
         // Generate straight away so the first occurrence appears immediately.
         commit((d) => generateOccurrences({ ...d, recurrences: [...d.recurrences, template] }, today, nowISO()));
         return template;

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { WEEKDAYS } from "@/lib/daily/commitments";
+import { isValidISODate } from "@/lib/date";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn, formatMinutes } from "@/lib/utils";
 import type { CommitmentFrequency, MicroCommitment } from "@/types";
@@ -49,7 +50,7 @@ export function CommitmentEditorDialog({
   const targetMinutes = target.trim() ? Math.round(Number(target)) : null;
   const targetValid = targetMinutes === null || (Number.isFinite(targetMinutes) && targetMinutes > 0 && targetMinutes <= 600);
   const daysValid = frequency !== "weekdays" || weekdays.length > 0;
-  const valid = title.trim().length > 0 && targetValid && daysValid && /^\d{4}-\d{2}-\d{2}$/.test(startDate);
+  const valid = title.trim().length > 0 && targetValid && daysValid && isValidISODate(startDate);
 
   function submit(e?: React.FormEvent) {
     e?.preventDefault();

@@ -1,5 +1,5 @@
 import { LEGACY_PROJECTS } from "@/data/legacy-projects";
-import { addDays, localDateOf, startOfWeek } from "@/lib/date";
+import { addDays, isValidISODate, localDateOf, startOfWeek } from "@/lib/date";
 import type {
   Capture,
   CaptureKind,
@@ -97,7 +97,7 @@ const oneOf = <T extends string>(v: unknown, allowed: readonly T[]): T | null =>
   typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : null;
 const minutes = (v: unknown) =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 100_000 ? Math.round(v) : null;
-const isoDate = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+const isoDate = (v: unknown) => (isValidISODate(v) ? v : null);
 const timestamp = (v: unknown) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : null);
 const finite = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const stringArray = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
@@ -449,8 +449,21 @@ function dedupeById<T extends { id: string }>(items: T[]) {
 
 export interface ParseResult {
   data: PersistedData;
-  /** Records that were present but could not be read. */
+  /** Every record that was present but isn't in `data`: unreadable ones plus those removed by the clean-up rules. */
   dropped: number;
+  /** Records that were present but could not be read. */
+  unreadable: number;
+  /** Readable records removed by the clean-up rules, by kind. */
+  removed: {
+    /** Milestones whose project is missing. */
+    milestones: number;
+    /** Commitment history for a commitment that doesn't exist. */
+    completions: number;
+    /** Weekly priorities whose review is missing, or beyond three per review. */
+    priorities: number;
+    /** Repeated copies: the same id twice, or a second record for one day or week. */
+    duplicates: number;
+  };
   /** The older schema version this data was upgraded from, if any. */
   migratedFrom: number | null;
 }
@@ -464,9 +477,13 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
   const rawTasks = Array.isArray(migrated.tasks) ? migrated.tasks : [];
   const rawCaptures = Array.isArray(migrated.captures) ? migrated.captures : [];
   const rawSessions = Array.isArray(migrated.sessions) ? migrated.sessions : [];
-  const tasks = assignMissingSortOrders(dedupeById(rawTasks.map(parseTask).filter((t): t is Task => t !== null)));
-  const captures = dedupeById(rawCaptures.map(parseCapture).filter((c): c is Capture => c !== null));
-  let sessions = dedupeById(rawSessions.map(parseSession).filter((x): x is SprintSession => x !== null));
+  const parsedTasks = rawTasks.map(parseTask).filter((t): t is Task => t !== null);
+  const parsedCaptures = rawCaptures.map(parseCapture).filter((c): c is Capture => c !== null);
+  const parsedSessions = rawSessions.map(parseSession).filter((x): x is SprintSession => x !== null);
+  const [parsedTaskCount, parsedCaptureCount, parsedSessionCount] = [parsedTasks.length, parsedCaptures.length, parsedSessions.length];
+  const tasks = assignMissingSortOrders(dedupeById(parsedTasks));
+  const captures = dedupeById(parsedCaptures);
+  let sessions = dedupeById(parsedSessions);
 
   // Only one session may be open; if several are, keep the newest open one.
   const open = sessions.filter((x) => x.status !== "ended").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -532,40 +549,68 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     x.allocations.every((a) => taskIds.has(a.taskId)) ? x : { ...x, allocations: x.allocations.filter((a) => taskIds.has(a.taskId)) },
   );
 
-  return {
-    data: {
-      tasks: linkedTasks,
-      captures,
-      sessions: cleanSessions,
-      // One highlight and one log per calendar day; one completion per commitment per day.
-      highlights: uniqueBy(dedupeById(highlights.parsed), (h) => h.dateKey, (h) => h.updatedAt),
-      commitments: dedupeById(commitments.parsed),
-      commitmentCompletions: uniqueBy(
-        dedupeById(completions.parsed).filter((c) => commitmentIds.has(c.commitmentId)),
-        (c) => `${c.commitmentId}|${c.dateKey}`,
-        (c) => c.completedAt,
-      ),
-      kaizenLogs: uniqueBy(dedupeById(logs.parsed), (l) => l.dateKey, (l) => l.updatedAt),
-      projects,
-      milestones,
-      recurrences,
-      weeklyReviews,
-      weeklyPriorities,
-    },
-    dropped:
-      rawTasks.length -
+  const highlightsKept = dedupeById(highlights.parsed);
+  const commitmentsKept = dedupeById(commitments.parsed);
+  const completionsKept = dedupeById(completions.parsed);
+  const completionsLinked = completionsKept.filter((c) => commitmentIds.has(c.commitmentId));
+  const logsKept = dedupeById(logs.parsed);
+  const prioritiesKept = dedupeById(prioritiesParsed.parsed);
+  const data: PersistedData = {
+    tasks: linkedTasks,
+    captures,
+    sessions: cleanSessions,
+    // One highlight and one log per calendar day; one completion per commitment per day.
+    highlights: uniqueBy(highlightsKept, (h) => h.dateKey, (h) => h.updatedAt),
+    commitments: commitmentsKept,
+    commitmentCompletions: uniqueBy(completionsLinked, (c) => `${c.commitmentId}|${c.dateKey}`, (c) => c.completedAt),
+    kaizenLogs: uniqueBy(logsKept, (l) => l.dateKey, (l) => l.updatedAt),
+    projects,
+    milestones,
+    recurrences,
+    weeklyReviews,
+    weeklyPriorities,
+  };
+
+  const unreadable =
+    rawTasks.length -
+    parsedTaskCount +
+    (rawCaptures.length - parsedCaptureCount) +
+    (rawSessions.length - parsedSessionCount) +
+    highlights.dropped +
+    commitments.dropped +
+    completions.dropped +
+    logs.dropped +
+    projectsParsed.dropped +
+    milestonesParsed.dropped +
+    recurrencesParsed.dropped +
+    reviewsParsed.dropped +
+    prioritiesParsed.dropped;
+  const removed = {
+    milestones: dedupeById(milestonesParsed.parsed).length - milestones.length,
+    completions: completionsKept.length - completionsLinked.length,
+    priorities: prioritiesKept.length - weeklyPriorities.length,
+    duplicates:
+      parsedTaskCount -
       tasks.length +
-      (rawCaptures.length - captures.length) +
-      (rawSessions.length - sessions.length) +
-      highlights.dropped +
-      commitments.dropped +
-      completions.dropped +
-      logs.dropped +
-      projectsParsed.dropped +
-      milestonesParsed.dropped +
-      recurrencesParsed.dropped +
-      reviewsParsed.dropped +
-      prioritiesParsed.dropped,
+      (parsedCaptureCount - captures.length) +
+      (parsedSessionCount - sessions.length) +
+      (highlights.parsed.length - data.highlights.length) +
+      (commitments.parsed.length - commitmentsKept.length) +
+      (completions.parsed.length - completionsKept.length) +
+      (completionsLinked.length - data.commitmentCompletions.length) +
+      (logs.parsed.length - data.kaizenLogs.length) +
+      (projectsParsed.parsed.length - projects.length) +
+      (milestonesParsed.parsed.length - dedupeById(milestonesParsed.parsed).length) +
+      (recurrencesParsed.parsed.length - recurrences.length) +
+      (reviewsParsed.parsed.length - weeklyReviews.length) +
+      (prioritiesParsed.parsed.length - prioritiesKept.length),
+  };
+
+  return {
+    data,
+    dropped: unreadable + removed.milestones + removed.completions + removed.priorities + removed.duplicates,
+    unreadable,
+    removed,
     migratedFrom: raw.schemaVersion < SCHEMA_VERSION ? raw.schemaVersion : null,
   };
 }

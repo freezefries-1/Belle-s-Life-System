@@ -1,17 +1,8 @@
-import { completionDates, fallsOn } from "@/lib/daily/commitments";
-import { addDays, localDateOf, startOfWeek } from "@/lib/date";
+import { completionDates, fallsOn, wasActiveOn } from "@/lib/daily/commitments";
+import { addDays, startOfWeek } from "@/lib/date";
 import type { CommitmentCompletion, ISODate, MicroCommitment } from "@/types";
 
-/**
- * Was the commitment switched on for this date? Uses its recorded history:
- * not before its start date, not inside a paused period, not on or after the
- * day it was archived.
- */
-export function wasActiveOn(c: MicroCommitment, date: ISODate) {
-  if (date < c.startDate) return false;
-  if (c.archivedAt && date >= localDateOf(c.archivedAt)) return false;
-  return !c.pausedPeriods.some((p) => date >= p.from && (p.to === null || date < p.to));
-}
+export { wasActiveOn };
 
 export interface Consistency {
   /** Scheduled opportunities that have closed (or were completed early). */
@@ -27,6 +18,9 @@ const pct = (done: number, scheduled: number) => (scheduled ? Math.round((done /
  * were completed. Daily/weekday commitments count each scheduled day; weekly
  * ones count each Monday–Sunday week. Unscheduled days never count as missed,
  * and today (or this week) only counts once it's done — it's still open.
+ * Only ticks inside the range count. A week cut by the range's edge that was
+ * ticked on a day outside the range is left out (it's neither done nor
+ * missed within the range).
  */
 export function getConsistency(
   c: MicroCommitment,
@@ -43,10 +37,13 @@ export function getConsistency(
   if (c.frequency === "weekly") {
     for (let week = startOfWeek(from); week <= end; week = addDays(week, 7)) {
       const days = Array.from({ length: 7 }, (_, i) => addDays(week, i));
-      if (!days.some((d) => wasActiveOn(c, d))) continue;
-      const isDone = days.some((d) => done.has(d));
-      const open = days[6] >= today;
-      if (open && !isDone) continue;
+      const inRange = days.filter((d) => d >= from && d <= to);
+      if (!inRange.some((d) => wasActiveOn(c, d))) continue;
+      const isDone = inRange.some((d) => done.has(d));
+      if (!isDone) {
+        if (days.some((d) => done.has(d))) continue; // ticked just outside the range
+        if (days[6] >= today) continue; // still open
+      }
       scheduled++;
       if (isDone) completed++;
     }

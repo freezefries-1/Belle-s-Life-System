@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SPRINTS } from "@/data/sprints";
+import { isValidISODate } from "@/lib/date";
 import { isOpenProject } from "@/lib/projects/project-model";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { TASK_PRIORITIES } from "@/lib/tasks/task-model";
@@ -50,7 +51,7 @@ export function RecurrenceEditorDialog({
     endDate: template.endDate,
   });
   const projects = workspace.projects.filter((p) => isOpenProject(p) || p.id === template.projectId);
-  const valid = title.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(rule.startDate);
+  const valid = title.trim().length > 0 && isValidISODate(rule.startDate);
 
   function submit(e?: React.FormEvent) {
     e?.preventDefault();
