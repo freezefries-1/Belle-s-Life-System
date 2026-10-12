@@ -15,32 +15,39 @@ import {
   clearLegacyLocalData,
   countRows,
   downloadText,
+  pickSample,
   previewImport,
   readLocalSnapshot,
   readMarker,
   runImport,
+  runSampleImport,
   verifyImport,
   writeMarker,
   type ImportResult,
   type LocalSnapshot,
   type PreviewRow,
+  type SampleResult,
   type VerifyResult,
 } from "@/lib/repositories/local-migration";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { TABLE_ORDER } from "@/types/database";
 
 type Step =
   | { kind: "review" }
   | { kind: "previewing" }
   | { kind: "preview"; preview: PreviewRow[] }
+  | { kind: "testing"; preview: PreviewRow[] }
+  | { kind: "tested"; preview: PreviewRow[]; test: SampleResult }
   | { kind: "importing"; done: number; total: number; label: string; preview: PreviewRow[] }
   | { kind: "done"; preview: PreviewRow[]; result: ImportResult; verify: VerifyResult }
-  | { kind: "failed"; message: string; preview: PreviewRow[] | null };
+  | { kind: "failed"; message: string; preview: PreviewRow[] | null; during: "preview" | "test" | "import" };
 
 /**
  * Move data saved in this browser (before cloud sync) into the account.
  * 1. Review what's here and download a backup. 2. Preview against the cloud.
- * 3. Confirm and import (insert-only, retryable). 4. Verify. The local copy
+ * 3. Confirm, and test with a small sample whose links are checked.
+ * 4. Import the rest (insert-only, retryable). 5. Verify. The local copy
  * stays until you choose to clear it.
  */
 export function LocalDataMigration() {
@@ -64,6 +71,8 @@ export function LocalDataMigration() {
   }
   const snap: LocalSnapshot = snapshot;
   const counts = countRows(snap.rows);
+  const sample = pickSample(snap.rows);
+  const sampleSize = Object.values(countRows(sample)).reduce((a, b) => a + b, 0);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const alreadyMigrated = marker?.userId === ctx.account.id;
   const client = getSupabaseBrowserClient();
@@ -79,7 +88,20 @@ export function LocalDataMigration() {
     try {
       setStep({ kind: "preview", preview: await previewImport(client, snap.rows) });
     } catch (e) {
-      setStep({ kind: "failed", message: (e as Error).message, preview: null });
+      setStep({ kind: "failed", message: (e as Error).message, preview: null, during: "preview" });
+    }
+  };
+
+  const doTest = async (preview: PreviewRow[]) => {
+    setStep({ kind: "testing", preview });
+    try {
+      const test = await runSampleImport(client, ctx.account.id, sample);
+      // The sample is now in the account, so the numbers left to import change.
+      const updated = await previewImport(client, snap.rows);
+      setStep({ kind: "tested", preview: updated, test });
+      await ctx.engine.refreshAll().catch(() => {});
+    } catch (e) {
+      setStep({ kind: "failed", message: (e as Error).message, preview, during: "test" });
     }
   };
 
@@ -99,7 +121,7 @@ export function LocalDataMigration() {
       setStep({ kind: "done", preview, result, verify });
       await ctx.engine.refreshAll().catch(() => {});
     } catch (e) {
-      setStep({ kind: "failed", message: (e as Error).message, preview });
+      setStep({ kind: "failed", message: (e as Error).message, preview, during: "import" });
     }
   };
 
@@ -151,7 +173,12 @@ export function LocalDataMigration() {
         </p>
       )}
 
-      {(step.kind === "preview" || step.kind === "importing" || step.kind === "done" || (step.kind === "failed" && step.preview)) && (
+      {(step.kind === "preview" ||
+        step.kind === "testing" ||
+        step.kind === "tested" ||
+        step.kind === "importing" ||
+        step.kind === "done" ||
+        (step.kind === "failed" && step.preview)) && (
         <PreviewTable preview={step.kind === "failed" ? step.preview! : step.preview} result={step.kind === "done" ? step.result : null} />
       )}
 
@@ -164,9 +191,52 @@ export function LocalDataMigration() {
               nothing will be overwritten or deleted.
             </Label>
           </div>
-          <Button size="sm" className="self-start" disabled={!confirmed} onClick={() => doImport(step.preview)}>
-            Import into my account
-          </Button>
+          {sampleSize === 0 ? (
+            <>
+              <p className="text-xs text-muted-foreground">Nothing here links to other records, so there’s nothing to test first.</p>
+              <Button size="sm" className="self-start" disabled={!confirmed} onClick={() => doImport(step.preview)}>
+                Import into my account
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                First, a test: {sampleSize} of your records — chosen to include each kind of link (projects, milestones, completed and sprint tasks,
+                recurring tasks, Highlights, commitment history, weekly priorities) — are imported and read back to check every link. They’re real records,
+                so they simply stay in your account.
+              </p>
+              <Button size="sm" className="self-start" disabled={!confirmed} onClick={() => doTest(step.preview)}>
+                Run test import ({sampleSize} records)
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {step.kind === "testing" && (
+        <p className="flex items-center gap-2 text-xs text-muted-foreground" aria-live="polite">
+          <Loader2 className="size-3.5 animate-spin" /> Importing the test sample and checking its links…
+        </p>
+      )}
+
+      {step.kind === "tested" && (
+        <div className="flex flex-col gap-3">
+          <SampleChecklist test={step.test} />
+          {step.test.ok ? (
+            <Button size="sm" className="self-start" onClick={() => doImport(step.preview)}>
+              Import everything ({step.preview.reduce((n, p) => n + p.toImport, 0)} more records)
+            </Button>
+          ) : (
+            <div className="flex flex-col gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <p>
+                The test found problems, so it’s safest to stop here: keep your backup and browser copy, and ask for help with the details above. Nothing
+                was overwritten.
+              </p>
+              <Button size="sm" variant="outline" className="self-start bg-white" onClick={() => doImport(step.preview)}>
+                Import everything anyway
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -183,7 +253,12 @@ export function LocalDataMigration() {
         <div role="alert" className="flex flex-col gap-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-800">
           <p className="font-semibold">The import stopped: {step.message}</p>
           <p>Anything already imported is safe. Retrying continues where it left off without creating duplicates.</p>
-          <Button size="sm" variant="outline" className="gap-1.5 self-start bg-white" onClick={() => (step.preview ? doImport(step.preview) : loadPreview())}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 self-start bg-white"
+            onClick={() => (!step.preview ? loadPreview() : step.during === "test" ? doTest(step.preview) : doImport(step.preview))}
+          >
             <RefreshCw className="size-3.5" />
             Retry
           </Button>
@@ -256,6 +331,36 @@ export function LocalDataMigration() {
       </Dialog>
     </div>
   );
+}
+
+function SampleChecklist({ test }: { test: SampleResult }) {
+  return (
+    <div role="status" className="rounded-md border px-3 py-2 text-xs" data-testid="sample-checklist">
+      <p className="font-semibold">
+        {test.ok ? "Test import passed" : "Test import found problems"} — {test.imported} {test.imported === 1 ? "record" : "records"} imported
+      </p>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {test.checks.map((c) => (
+          <li key={c.label} className="flex items-start gap-1.5">
+            {c.problems.length ? (
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+            ) : (
+              <CheckCircle2 className={cn("mt-0.5 size-3.5 shrink-0", c.checked ? "text-emerald-600" : "text-muted-foreground")} />
+            )}
+            <span>
+              <span className="font-medium">{c.label}:</span> {checkSummary(c)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function checkSummary(c: SampleResult["checks"][number]) {
+  if (c.problems.length) return c.problems.slice(0, 3).join("; ") + (c.problems.length > 3 ? ` (+${c.problems.length - 3} more)` : "");
+  if (!c.checked) return c.alreadyThere ? "already in your account (kept as it was)" : "nothing of this kind to check";
+  return `${c.checked} checked, all correct${c.alreadyThere ? ` (${c.alreadyThere} already in your account)` : ""}`;
 }
 
 function PreviewTable({ preview, result }: { preview: PreviewRow[]; result: ImportResult | null }) {

@@ -1,10 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AppSupabaseClient } from "@/lib/supabase/client";
 
 import { listKeys, readRaw, removeRaw, writeRaw } from "@/lib/storage/local-storage";
 import { STORAGE_KEY, parseEnvelope, type ParseResult } from "@/lib/storage/schema";
 import { TABLE_ORDER, type AnyRow, type TableName } from "@/types/database";
 
-import { dataToRows, stripManaged, type RowSet } from "./mappers";
+import { dataToRows, emptyRowSet, stripManaged, type RowSet } from "./mappers";
 
 /**
  * Moving browser-only data into the signed-in account. Read-only until the
@@ -117,7 +117,7 @@ export interface PreviewRow {
   cloudTotal: number;
 }
 
-async function existingIds(client: SupabaseClient, table: TableName, ids: string[]) {
+async function existingIds(client: AppSupabaseClient, table: TableName, ids: string[]) {
   const found = new Set<string>();
   for (let i = 0; i < ids.length; i += CHUNK) {
     const { data, error } = await client.from(table).select("id").in("id", ids.slice(i, i + CHUNK));
@@ -127,7 +127,7 @@ async function existingIds(client: SupabaseClient, table: TableName, ids: string
   return found;
 }
 
-export async function previewImport(client: SupabaseClient, rows: RowSet): Promise<PreviewRow[]> {
+export async function previewImport(client: AppSupabaseClient, rows: RowSet): Promise<PreviewRow[]> {
   return Promise.all(
     TABLE_ORDER.map(async (table) => {
       const local = [...rows[table].values()] as AnyRow[];
@@ -167,7 +167,7 @@ export type ImportResult = Record<TableName, TableImportResult>;
  * and the links are filled in at the end. Safe to run again after a failure.
  */
 export async function runImport(
-  client: SupabaseClient,
+  client: AppSupabaseClient,
   userId: string,
   rows: RowSet,
   onProgress: (done: number, total: number, table: TableName) => void,
@@ -183,7 +183,7 @@ export async function runImport(
       const chunk = list.slice(i, i + CHUNK).map((r) => stripManaged(r));
       const { data, error } = await client.rpc("import_rows", { target: table, rows: chunk, p_user: userId });
       if (error) throw new Error(`${TABLE_LABELS[table]}: ${error.message}`);
-      const r = data as TableImportResult;
+      const r = data as unknown as TableImportResult;
       if (tally) {
         result[table].inserted += r.inserted;
         result[table].existing += r.existing;
@@ -203,6 +203,187 @@ export async function runImport(
   return result;
 }
 
+/* ---------------- test import ---------------- */
+
+/**
+ * A handful of real records that between them use every kind of link the
+ * full import has to get right, plus everything they depend on (a task's
+ * project, milestone, recurring template and Brain Dump entry; a highlight's
+ * task; and so on), so nothing in the sample is missing its parent.
+ */
+export function pickSample(rows: RowSet): RowSet {
+  const out = emptyRowSet();
+  const tasks = [...rows.tasks.values()];
+  const firstWhere = <T>(xs: T[], test: (x: T) => boolean) => xs.find(test);
+  const addProject = (id: string | null | undefined) => {
+    const p = id ? rows.projects.get(id) : undefined;
+    if (p) out.projects.set(p.id, p);
+  };
+  const addTemplate = (id: string | null | undefined) => {
+    const r = id ? rows.recurrence_templates.get(id) : undefined;
+    if (!r) return;
+    out.recurrence_templates.set(r.id, r);
+    addProject(r.project_id);
+  };
+  const addCapture = (id: string | null | undefined) => {
+    const c = id ? rows.brain_dump_entries.get(id) : undefined;
+    if (!c || out.brain_dump_entries.has(c.id)) return;
+    out.brain_dump_entries.set(c.id, c);
+    addTask(c.converted_task_id);
+  };
+  const addTask = (id: string | null | undefined) => {
+    const t = id ? rows.tasks.get(id) : undefined;
+    if (!t || out.tasks.has(t.id)) return;
+    out.tasks.set(t.id, t);
+    addProject(t.project_id);
+    const m = t.milestone_id ? rows.project_milestones.get(t.milestone_id) : undefined;
+    if (m) {
+      out.project_milestones.set(m.id, m);
+      addProject(m.project_id);
+    }
+    addTemplate(t.recurrence_template_id);
+    addCapture(t.source_capture_id);
+  };
+
+  // Seeds: one record for each relationship the import must preserve.
+  addTask(firstWhere(tasks, (t) => !!t.project_id && !!t.milestone_id)?.id ?? firstWhere(tasks, (t) => !!t.project_id)?.id);
+  addTask(firstWhere(tasks, (t) => t.status === "completed" && !!t.completed_at)?.id);
+  addTask(firstWhere(tasks, (t) => !!t.sprint)?.id);
+  addTask(firstWhere(tasks, (t) => !!t.recurrence_template_id)?.id);
+  addCapture(firstWhere([...rows.brain_dump_entries.values()], (c) => !!c.converted_task_id)?.id);
+  if (out.recurrence_templates.size === 0) addTemplate([...rows.recurrence_templates.keys()][0]);
+  const highlight = firstWhere([...rows.daily_highlights.values()], (h) => !!h.task_id && rows.tasks.has(h.task_id));
+  if (highlight) {
+    out.daily_highlights.set(highlight.id, highlight);
+    addTask(highlight.task_id);
+  }
+  const completions = [...rows.micro_commitment_completions.values()];
+  const commitment = completions[0] ? rows.micro_commitments.get(completions[0].commitment_id) : [...rows.micro_commitments.values()][0];
+  if (commitment) {
+    out.micro_commitments.set(commitment.id, commitment);
+    completions.filter((c) => c.commitment_id === commitment.id).slice(0, 3).forEach((c) => out.micro_commitment_completions.set(c.id, c));
+  }
+  const priorities = [...rows.weekly_priorities.values()];
+  const priority = firstWhere(priorities, (p) => !!p.task_id || !!p.project_id) ?? priorities[0];
+  const review = priority ? rows.weekly_reviews.get(priority.weekly_review_id) : undefined;
+  if (priority && review) {
+    out.weekly_reviews.set(review.id, review);
+    out.weekly_priorities.set(priority.id, priority);
+    addTask(priority.task_id);
+    addProject(priority.project_id);
+  }
+  if (out.projects.size === 0) addProject([...rows.projects.keys()][0]);
+  return out;
+}
+
+export interface SampleCheck {
+  label: string;
+  /** How many sampled records this check looked at (0 = none of this kind in your data). */
+  checked: number;
+  /** Records already in the account before the test, which keep the account's version. */
+  alreadyThere: number;
+  problems: string[];
+}
+
+export interface SampleResult {
+  ok: boolean;
+  imported: number;
+  checks: SampleCheck[];
+}
+
+/** Ids already in the account, plus — for one-per-day records — rows for a day the account already has. */
+async function preexisting(client: AppSupabaseClient, sample: RowSet) {
+  const found = {} as Record<TableName, Set<string>>;
+  for (const table of TABLE_ORDER) {
+    const local = [...sample[table].values()] as AnyRow[];
+    found[table] = await existingIds(client, table, local.map((r) => r.id));
+    const dateCol = DATE_KEYS[table];
+    if (dateCol && local.length) {
+      const dates = local.map((r) => (r as unknown as Record<string, string>)[dateCol]);
+      const { data, error } = await client.from(table).select(`id, ${dateCol}`).in(dateCol, dates);
+      if (error) throw new Error(error.message);
+      const cloudDates = new Set((data as unknown as Record<string, string>[]).map((r) => r[dateCol]));
+      for (const r of local) if (cloudDates.has((r as unknown as Record<string, string>)[dateCol])) found[table].add(r.id);
+    }
+  }
+  return found;
+}
+
+async function fetchRows(client: AppSupabaseClient, table: TableName, ids: string[]) {
+  const out = new Map<string, Record<string, unknown>>();
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { data, error } = await client.from(table).select("*").in("id", ids.slice(i, i + CHUNK));
+    if (error) throw new Error(error.message);
+    for (const r of data as unknown as Record<string, unknown>[]) out.set(r.id as string, r);
+  }
+  return out;
+}
+
+const sameTime = (a: unknown, b: unknown) =>
+  a === b || (typeof a === "string" && typeof b === "string" && new Date(a).getTime() === new Date(b).getTime());
+
+/**
+ * Import the sample (insert-only, like the full import — these are your real
+ * records, so they simply stay), then read each one back and compare the
+ * links and history the full import depends on.
+ */
+export async function runSampleImport(client: AppSupabaseClient, userId: string, sample: RowSet): Promise<SampleResult> {
+  const before = await preexisting(client, sample);
+  const result = await runImport(client, userId, sample, () => {});
+  const skippedIds = new Set(TABLE_ORDER.flatMap((t) => result[t].skipped.map((s) => `${t}:${s.id}`)));
+
+  const check = async <T extends TableName>(
+    label: string,
+    table: T,
+    pick: (r: RowSet[T] extends Map<string, infer R> ? R : never) => boolean,
+    compare: { col: string; time?: boolean }[],
+  ): Promise<SampleCheck> => {
+    const local = ([...sample[table].values()] as never[]).filter(pick) as unknown as Record<string, unknown>[];
+    const fresh = local.filter((r) => !before[table].has(r.id as string));
+    const cloud = await fetchRows(client, table, fresh.map((r) => r.id as string));
+    const problems: string[] = [];
+    for (const r of fresh) {
+      const id = r.id as string;
+      const c = cloud.get(id);
+      if (skippedIds.has(`${table}:${id}`)) problems.push(`${TABLE_LABELS[table]} ${id} was skipped`);
+      else if (!c) problems.push(`${TABLE_LABELS[table]} ${id} isn’t in the account`);
+      else
+        for (const { col, time } of compare) {
+          if (!(time ? sameTime(r[col], c[col]) : r[col] === c[col])) problems.push(`${TABLE_LABELS[table]} ${id}: ${col} differs`);
+        }
+    }
+    return { label, checked: fresh.length, alreadyThere: local.length - fresh.length, problems };
+  };
+
+  // Project associations cover the projects themselves as well as their milestones.
+  const projects = await check("Projects", "projects", () => true, [{ col: "name" }]);
+  const milestones = await check("Project associations", "project_milestones", () => true, [{ col: "project_id" }]);
+  const checks = [
+    await check("Task relationships", "tasks", () => true, [
+      { col: "project_id" },
+      { col: "milestone_id" },
+      { col: "recurrence_template_id" },
+      { col: "source_capture_id" },
+    ]),
+    {
+      ...milestones,
+      checked: milestones.checked + projects.checked,
+      alreadyThere: milestones.alreadyThere + projects.alreadyThere,
+      problems: [...projects.problems, ...milestones.problems],
+    },
+    await check("Completed task history", "tasks", (t) => t.status === "completed", [{ col: "status" }, { col: "completed_at", time: true }]),
+    await check("Sprint assignments", "tasks", (t) => !!t.sprint, [{ col: "sprint" }]),
+    await check("Recurring task templates", "recurrence_templates", () => true, [{ col: "frequency" }, { col: "start_date" }, { col: "project_id" }]),
+    await check("Micro-commitment history", "micro_commitment_completions", () => true, [{ col: "commitment_id" }, { col: "date_key" }]),
+    await check("Daily Highlight links", "daily_highlights", () => true, [{ col: "task_id" }, { col: "date_key" }]),
+    await check("Brain Dump → task links", "brain_dump_entries", (c) => !!c.converted_task_id, [{ col: "converted_task_id" }]),
+    await check("Weekly priority links", "weekly_priorities", () => true, [{ col: "weekly_review_id" }, { col: "task_id" }, { col: "project_id" }]),
+  ];
+
+  const imported = TABLE_ORDER.reduce((n, t) => n + result[t].inserted + result[t].filled, 0);
+  return { ok: checks.every((c) => c.problems.length === 0), imported, checks };
+}
+
 /* ---------------- verification ---------------- */
 
 export interface VerifyResult {
@@ -216,7 +397,7 @@ export interface VerifyResult {
   brokenLinks: number;
 }
 
-export async function verifyImport(client: SupabaseClient, rows: RowSet, preview: PreviewRow[], result: ImportResult): Promise<VerifyResult> {
+export async function verifyImport(client: AppSupabaseClient, rows: RowSet, preview: PreviewRow[], result: ImportResult): Promise<VerifyResult> {
   const missing: { table: TableName; id: string }[] = [];
   for (const table of TABLE_ORDER) {
     const ids = [...rows[table].keys()];

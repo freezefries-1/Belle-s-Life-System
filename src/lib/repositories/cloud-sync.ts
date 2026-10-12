@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AppSupabaseClient } from "@/lib/supabase/client";
 
 import type { PersistedData } from "@/types";
 import { TABLE_ORDER, type AnyRow, type TableName, type TombstoneRow } from "@/types/database";
@@ -127,7 +127,7 @@ export class CloudSync {
   onNotice: ((message: string) => void) | null = null;
 
   constructor(
-    private readonly client: SupabaseClient,
+    private readonly client: AppSupabaseClient,
     readonly userId: string,
   ) {}
 

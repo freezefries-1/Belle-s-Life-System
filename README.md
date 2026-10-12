@@ -109,7 +109,8 @@ src/
 ├── lib/auth/                 # Account context, sync status, safe redirects
 ├── components/auth/          # Login + reset-password forms
 ├── components/cloud/         # Cloud workspace provider, sync indicator and banner
-├── types/database.ts         # Supabase row types
+├── types/supabase.ts         # Generated from the database schema (supabase/local/gen-types.sh)
+├── types/database.ts         # Supabase row types, derived from the generated ones
 └── types/index.ts            # Domain model
 
 supabase/
@@ -230,6 +231,7 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
   - a sync indicator, offline and error banners with Retry, and a load-error screen.
 - **Migration:**
   - a backup download, a preview, and explicit confirmation;
+  - a test import of a small sample first, with every kind of link read back and checked;
   - an insert-only, retryable import that preserves ids, timestamps and links;
   - verification afterwards;
   - local data kept until you choose to clear it.

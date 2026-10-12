@@ -28,6 +28,15 @@ UI → store actions (unchanged business rules) → in-memory workspace
 - `src/lib/repositories/cloud-sync.ts` is the sync engine. It loads, queues, pushes, pulls, and handles conflicts and status.
 - `src/lib/repositories/cloud-repository.ts` gives the store the same `WorkspaceRepository` interface as localStorage, so no component talks to the database directly.
 
+## Database types
+
+`src/types/supabase.ts` is generated from the schema; don't edit it by hand. After adding a migration, regenerate it:
+
+- locally: `supabase/local/gen-types.sh` (needs the local test stack from `supabase/local/start.sh`);
+- or against your Supabase project: `npx supabase gen types typescript --project-id <project-ref> --schema public > src/types/supabase.ts`.
+
+The app's row types in `src/types/database.ts` are derived from it, and the Supabase client is typed with it. So if a column is renamed or removed, `tsc` points at every place in the mappers, sync engine and import code that needs to change.
+
 ## Schema decisions (`supabase/migrations/`)
 
 - **Composite keys `(user_id, id)` with text ids.** Existing ids are preserved exactly during migration:
@@ -132,7 +141,13 @@ Duplicates across devices are prevented by:
    - shows what's already there (same id, or another entry for the same day or week, which keeps the cloud copy);
    - shows the account totals.
 3. **Confirm:** importing requires ticking a confirmation.
-4. **Import:**
+4. **Test import first:**
+   - a small sample of real records is chosen so that, between them, they use every kind of link: a task with a project and milestone, a completed task, a sprint task, a recurring task and its template, a converted Brain Dump entry, a Daily Highlight's task, a commitment's history and a weekly priority — plus every parent they need;
+   - the sample is imported the same insert-only way, then read back and compared: task relationships, project associations, completed task history, sprint assignments, recurrence templates, commitment completions, Highlight and priority links;
+   - a checklist shows the result. The full import is offered only after a passing test; if the test finds problems, the page recommends stopping (an "Import everything anyway" button remains);
+   - the sampled records are real, so they simply stay in the account, and the preview is refreshed;
+   - when nothing in the browser links to anything else, there's nothing to test and the import is offered directly.
+5. **Import:**
    - `import_rows` is insert-only (`ON CONFLICT DO NOTHING`), in dependency order, in chunks;
    - historical timestamps and ids are preserved;
    - a row whose parent is missing is skipped and reported;
@@ -140,11 +155,11 @@ Duplicates across devices are prevented by:
    - Brain Dump ↔ converted-task links are filled in a final pass.
 
    Re-running after a failure continues without duplicates.
-5. **Verify:**
+6. **Verify:**
    - every local record is checked in the cloud;
    - every task's project, milestone and template link is checked;
    - the workspace then reloads from the cloud.
-6. **Local data is kept.** "Clear browser copy" appears only after a verified import, and only on request.
+7. **Local data is kept.** "Clear browser copy" appears only after a verified import, and only on request.
 
 ## Performance
 

@@ -52,8 +52,10 @@ For local development, copy `.env.example` to `.env.local` and fill in the same 
 ## 5. Move your existing data
 1. Open the app **in the same browser you've been using** (that's where your data is) and sign in.
 2. Go to **Preferences → Your data → Move this browser's data into your account**.
-3. Click **Backup** to download a copy, then **Preview import**, tick the confirmation, and **Import into my account**.
-4. Check that everything looks right. Only then, if you like, use **Clear browser copy**. Nothing is deleted automatically.
+3. Click **Backup** to download a copy, then **Preview import** and tick the confirmation.
+4. Click **Run test import**. A few of your records are imported first and checked: every link (projects, milestones, sprints, recurring tasks, Highlights, commitment history) is read back. You'll see a checklist.
+5. If the test passed, click **Import everything**. If it found problems, stop there and ask for help — your browser copy and backup are untouched.
+6. Check that everything looks right. Only then, if you like, use **Clear browser copy**. Nothing is deleted automatically.
 
 ## Going back
 Remove the two environment variables in Vercel and redeploy. The app returns to browser-only mode, and your cloud data stays in Supabase.
