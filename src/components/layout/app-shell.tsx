@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { SessionPlannerProvider } from "@/components/sprints/session-planner-provider";
 import { TaskEditorProvider } from "@/components/tasks/task-editor-provider";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -61,36 +62,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <WorkspaceProvider>
       <TooltipProvider>
         <TaskEditorProvider>
-        <Sidebar collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
-        <MobileNav open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
+          <SessionPlannerProvider>
+            <Sidebar collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
+            <MobileNav open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
 
-        <div
-          className={cn(
-            "flex min-h-dvh flex-col transition-[padding] duration-200 ease-out",
-            collapsed ? "lg:pl-[72px]" : "lg:pl-[252px]",
-          )}
-        >
-          <Topbar
-            onOpenMobileNav={() => setMobileNavOpen(true)}
-            onQuickAdd={() => setQuickAddOpen(true)}
-            onOpenMobileSearch={() => setMobileSearchOpen(true)}
-            onShowShortcuts={() => setShortcutsOpen(true)}
-            searchInputRef={searchInputRef}
-          />
-          <main className="mx-auto w-full max-w-[1360px] flex-1 px-4 pt-6 pb-16 sm:px-6 lg:px-8 lg:pt-8">
-            {children}
-          </main>
-        </div>
+            <div
+              className={cn(
+                "flex min-h-dvh flex-col transition-[padding] duration-200 ease-out",
+                collapsed ? "lg:pl-[72px]" : "lg:pl-[252px]",
+              )}
+            >
+              <Topbar
+                onOpenMobileNav={() => setMobileNavOpen(true)}
+                onQuickAdd={() => setQuickAddOpen(true)}
+                onOpenMobileSearch={() => setMobileSearchOpen(true)}
+                onShowShortcuts={() => setShortcutsOpen(true)}
+                searchInputRef={searchInputRef}
+              />
+              <main className="mx-auto w-full max-w-[1360px] flex-1 px-4 pt-6 pb-16 sm:px-6 lg:px-8 lg:pt-8">
+                {children}
+              </main>
+            </div>
 
-        <QuickAddDialog open={quickAddOpen} onOpenChange={setQuickAddOpen} />
-        <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-        <Dialog open={mobileSearchOpen} onOpenChange={setMobileSearchOpen}>
-          <DialogContent className="top-4 translate-y-0 p-3" showCloseButton={false}>
-            <DialogTitle className="sr-only">Search</DialogTitle>
-            <GlobalSearch autoFocus onNavigate={() => setMobileSearchOpen(false)} />
-          </DialogContent>
-        </Dialog>
-          <Toaster />
+            <QuickAddDialog open={quickAddOpen} onOpenChange={setQuickAddOpen} />
+            <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+            <Dialog open={mobileSearchOpen} onOpenChange={setMobileSearchOpen}>
+              <DialogContent className="top-4 translate-y-0 p-3" showCloseButton={false}>
+                <DialogTitle className="sr-only">Search</DialogTitle>
+                <GlobalSearch autoFocus onNavigate={() => setMobileSearchOpen(false)} />
+              </DialogContent>
+            </Dialog>
+            <Toaster />
+          </SessionPlannerProvider>
         </TaskEditorProvider>
       </TooltipProvider>
     </WorkspaceProvider>

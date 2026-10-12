@@ -49,6 +49,11 @@ export interface Task {
   sourceCaptureId: string | null;
   /** When the original thought was captured (preserved on conversion). */
   capturedAt: ISODateTime | null;
+  /**
+   * Manual position on the Sprints board (lower = higher up). Only compared
+   * between tasks in the same sprint; gaps are fine.
+   */
+  sortOrder: number;
 }
 
 /** The fields a person can set from the task editor. */
@@ -89,10 +94,42 @@ export interface Capture {
 
 export type CaptureInput = Pick<Capture, "title"> & Partial<Pick<Capture, "note" | "kind">>;
 
+/* ------------------------------------------------------------------ */
+/* Sprint sessions                                                     */
+/* ------------------------------------------------------------------ */
+
+export type EnergyLevel = "low" | "moderate" | "high";
+
+/** `ready` = planned but timer not started yet. Only one non-ended session at a time. */
+export type SessionStatus = "ready" | "running" | "paused" | "ended";
+
+/**
+ * A focused work session. References tasks by id — never copies them —
+ * so the task list stays the single source of truth.
+ */
+export interface SprintSession {
+  id: string;
+  sprintId: SprintId;
+  taskIds: string[];
+  plannedMinutes: number;
+  energyLevel: EnergyLevel | null;
+  status: SessionStatus;
+  createdAt: ISODateTime;
+  startedAt: ISODateTime | null;
+  endedAt: ISODateTime | null;
+  /** Seconds banked from earlier running stretches (before the last pause). */
+  accumulatedElapsedSeconds: number;
+  /** When the current running stretch began; null unless running. */
+  lastResumedAt: ISODateTime | null;
+  /** Snapshot at the end of the session, so history stays accurate later. */
+  completedTaskIds: string[];
+}
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
   captures: Capture[];
+  sessions: SprintSession[];
 }
 
 /* ------------------------------------------------------------------ */

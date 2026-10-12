@@ -143,7 +143,7 @@ export function TaskFilters({
   );
 }
 
-function FilterSelect({
+export function FilterSelect({
   label,
   value,
   onChange,

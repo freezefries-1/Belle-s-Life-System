@@ -60,8 +60,16 @@ export function createTask(input: TaskInput, now: ISODateTime, extra?: Partial<T
     completedAt: status === "completed" ? now : null,
     sourceCaptureId: null,
     capturedAt: null,
+    // Callers normally pass an explicit position (see `nextSortOrder`); the
+    // timestamp fallback still places newer tasks after older ones.
+    sortOrder: Date.parse(now),
     ...extra,
   };
+}
+
+/** A position after every existing task, so new or moved tasks land at the bottom. */
+export function nextSortOrder(tasks: Task[]) {
+  return tasks.reduce((max, t) => Math.max(max, Number.isFinite(t.sortOrder) ? t.sortOrder : 0), 0) + 1000;
 }
 
 /**

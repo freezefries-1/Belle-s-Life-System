@@ -61,20 +61,20 @@ export function TaskActionsMenu({ task, align = "end" }: { task: Task; align?: "
         )}
 
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Sprint</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Move to sprint</DropdownMenuLabel>
         {SPRINTS.map((s) => (
           <DropdownMenuItem
             key={s.id}
             disabled={task.sprint === s.id}
-            onSelect={() => actions.updateTask(task.id, { sprint: s.id })}
+            onSelect={() => actions.moveTaskToSprint(task.id, s.id)}
           >
             <SprintDot sprintId={s.id} className="ml-1" />
             Sprint {s.number}: {s.name}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuItem disabled={task.sprint === null} onSelect={() => actions.updateTask(task.id, { sprint: null })}>
+        <DropdownMenuItem disabled={task.sprint === null} onSelect={() => actions.moveTaskToSprint(task.id, null)}>
           <span className="ml-1 size-2 rounded-full border border-dashed border-slate-400" />
-          No sprint
+          Unassigned
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

@@ -1,7 +1,7 @@
 import type { PersistedData } from "@/types";
 
 import { isStorageAvailable, listKeys, readRaw, removeRaw, writeRaw } from "./local-storage";
-import { EMPTY_DATA, STORAGE_KEY, createEnvelope, parseEnvelope } from "./schema";
+import { EMPTY_DATA, SCHEMA_VERSION, STORAGE_KEY, createEnvelope, parseEnvelope } from "./schema";
 
 export type LoadStatus =
   /** Saved data loaded (or nothing saved yet). */
@@ -34,11 +34,11 @@ export interface WorkspaceRepository {
   subscribe(onExternalChange: (data: PersistedData) => void): () => void;
 }
 
-/** Keep a copy of unreadable data so nothing is silently lost (once per distinct value). */
-function backupCorruptValue(raw: string) {
+/** Keep a copy of the raw value so nothing is silently lost (once per distinct value). */
+function backupCorruptValue(raw: string, label?: string) {
   const prefix = `${STORAGE_KEY}:backup:`;
   if (listKeys(prefix).some((key) => readRaw(key) === raw)) return;
-  writeRaw(`${prefix}${Date.now()}`, raw);
+  writeRaw(`${prefix}${label ? `${label}-` : ""}${Date.now()}`, raw);
 }
 
 function readFromStorage(): LoadResult {
@@ -80,6 +80,13 @@ function readFromStorage(): LoadResult {
       isFirstRun: false,
       message: `${parsed.dropped} saved ${parsed.dropped === 1 ? "item" : "items"} couldn’t be read and ${parsed.dropped === 1 ? "was" : "were"} skipped. A backup copy was kept.`,
     };
+  }
+
+  if (parsed.migratedFrom !== null) {
+    // Keep the pre-upgrade copy, then save in the new format straight away so
+    // the newly assigned task order is fixed from now on.
+    backupCorruptValue(raw, `pre-v${SCHEMA_VERSION}`);
+    writeRaw(STORAGE_KEY, JSON.stringify(createEnvelope(parsed.data)));
   }
 
   return { status: "ok", data: parsed.data, isFirstRun: false };

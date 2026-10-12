@@ -25,7 +25,11 @@ export function DataSettings() {
   const hasData = workspace.tasks.length > 0 || workspace.captures.length > 0;
 
   function downloadBackup() {
-    const envelope = createEnvelope({ tasks: workspace.tasks, captures: workspace.captures });
+    const envelope = createEnvelope({
+      tasks: workspace.tasks,
+      captures: workspace.captures,
+      sessions: workspace.sessions,
+    });
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

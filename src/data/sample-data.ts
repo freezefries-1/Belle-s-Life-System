@@ -49,8 +49,8 @@ export function createSampleData(today: ISODate): PersistedData {
     { title: "Photograph new grip tape stock", sprint: "build", projectId: "p_sportcraft", estimatedMinutes: 30, actualMinutes: 45, status: "completed", created: -5, done: -2 },
   ];
 
-  const tasks: Task[] = seeds.map(({ created, done, ...input }) => {
-    const task = createTask(input, at(created, 9));
+  const tasks: Task[] = seeds.map(({ created, done, ...input }, index) => {
+    const task = createTask(input, at(created, 9), { sortOrder: (index + 1) * 1000 });
     return done === undefined ? task : { ...task, completedAt: at(done, 16), updatedAt: at(done, 16) };
   });
 
@@ -65,5 +65,5 @@ export function createSampleData(today: ISODate): PersistedData {
   ];
   const captures: Capture[] = captureSeeds.map(({ offset, hour, ...input }) => createCapture(input, at(offset, hour)));
 
-  return { tasks, captures };
+  return { tasks, captures, sessions: [] };
 }

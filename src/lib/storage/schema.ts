@@ -2,8 +2,11 @@ import type {
   Capture,
   CaptureKind,
   CaptureStatus,
+  EnergyLevel,
   PersistedData,
+  SessionStatus,
   SprintId,
+  SprintSession,
   Task,
   TaskPriority,
   TaskStatus,
@@ -17,7 +20,11 @@ import type {
  * in-place migrations for smaller changes.
  */
 export const STORAGE_KEY = "belles-life-system:v1";
-export const SCHEMA_VERSION = 1;
+/**
+ * 1 — Phase 2: tasks + captures.
+ * 2 — Phase 3: tasks gain `sortOrder`; sprint `sessions` added.
+ */
+export const SCHEMA_VERSION = 2;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -25,13 +32,15 @@ export interface StorageEnvelope {
   data: PersistedData;
 }
 
-export const EMPTY_DATA: PersistedData = { tasks: [], captures: [] };
+export const EMPTY_DATA: PersistedData = { tasks: [], captures: [], sessions: [] };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
 const SPRINT_IDS: SprintId[] = ["urgent", "deadlines", "admin", "build"];
 const CAPTURE_KINDS: CaptureKind[] = ["task", "idea", "reminder", "note"];
 const CAPTURE_STATUSES: CaptureStatus[] = ["inbox", "converted"];
+const SESSION_STATUSES: SessionStatus[] = ["ready", "running", "paused", "ended"];
+const ENERGY_LEVELS: EnergyLevel[] = ["low", "moderate", "high"];
 
 type Obj = Record<string, unknown>;
 
@@ -44,6 +53,8 @@ const minutes = (v: unknown) =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 100_000 ? Math.round(v) : null;
 const isoDate = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 const timestamp = (v: unknown) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : null);
+const finite = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const stringArray = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
 /** Returns a clean Task, or null if the record is unusable. */
 export function parseTask(raw: unknown): Task | null {
@@ -71,7 +82,55 @@ export function parseTask(raw: unknown): Task | null {
     completedAt: status === "completed" ? (timestamp(raw.completedAt) ?? createdAt) : null,
     sourceCaptureId: strOrNull(raw.sourceCaptureId),
     capturedAt: timestamp(raw.capturedAt),
+    // NaN marks "missing"; parseEnvelope assigns a stable position afterwards.
+    sortOrder: finite(raw.sortOrder) ?? Number.NaN,
   };
+}
+
+export function parseSession(raw: unknown): SprintSession | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const sprintId = oneOf(raw.sprintId, SPRINT_IDS);
+  const status = oneOf(raw.status, SESSION_STATUSES);
+  const createdAt = timestamp(raw.createdAt);
+  const plannedMinutes = minutes(raw.plannedMinutes);
+  if (!id || !sprintId || !status || !createdAt || plannedMinutes === null) return null;
+
+  const lastResumedAt = timestamp(raw.lastResumedAt);
+  return {
+    id,
+    sprintId,
+    taskIds: stringArray(raw.taskIds),
+    plannedMinutes,
+    energyLevel: oneOf(raw.energyLevel, ENERGY_LEVELS),
+    // A "running" session with no resume time can't be timed — treat it as paused.
+    status: status === "running" && !lastResumedAt ? "paused" : status,
+    createdAt,
+    startedAt: timestamp(raw.startedAt),
+    endedAt: timestamp(raw.endedAt),
+    accumulatedElapsedSeconds: Math.max(0, finite(raw.accumulatedElapsedSeconds) ?? 0),
+    lastResumedAt: status === "running" ? lastResumedAt : null,
+    completedTaskIds: stringArray(raw.completedTaskIds),
+  };
+}
+
+/**
+ * Give tasks without a position a stable one, after all positioned tasks,
+ * in the order the Phase 2 board showed them (due date, then oldest first).
+ */
+function assignMissingSortOrders(tasks: Task[]): Task[] {
+  const known = tasks.filter((t) => !Number.isNaN(t.sortOrder));
+  let next = known.length ? Math.max(...known.map((t) => t.sortOrder)) + 1000 : 1000;
+  const missing = tasks
+    .filter((t) => Number.isNaN(t.sortOrder))
+    .sort(
+      (a, b) =>
+        (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") ||
+        a.createdAt.localeCompare(b.createdAt) ||
+        a.id.localeCompare(b.id),
+    );
+  const assigned = new Map(missing.map((t) => [t.id, (next += 1000)]));
+  return tasks.map((t) => (assigned.has(t.id) ? { ...t, sortOrder: assigned.get(t.id)! } : t));
 }
 
 export function parseCapture(raw: unknown): Capture | null {
@@ -102,6 +161,8 @@ export interface ParseResult {
   data: PersistedData;
   /** Records that were present but could not be read. */
   dropped: number;
+  /** The older schema version this data was upgraded from, if any. */
+  migratedFrom: number | null;
 }
 
 /** Validate a stored envelope. Returns null when the whole thing is unreadable. */
@@ -112,19 +173,35 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
 
   const rawTasks = Array.isArray(migrated.tasks) ? migrated.tasks : [];
   const rawCaptures = Array.isArray(migrated.captures) ? migrated.captures : [];
-  const tasks = dedupeById(rawTasks.map(parseTask).filter((t): t is Task => t !== null));
+  const rawSessions = Array.isArray(migrated.sessions) ? migrated.sessions : [];
+  const tasks = assignMissingSortOrders(dedupeById(rawTasks.map(parseTask).filter((t): t is Task => t !== null)));
   const captures = dedupeById(rawCaptures.map(parseCapture).filter((c): c is Capture => c !== null));
+  let sessions = dedupeById(rawSessions.map(parseSession).filter((x): x is SprintSession => x !== null));
+
+  // Only one session may be open; if several are, keep the newest open one.
+  const open = sessions.filter((x) => x.status !== "ended").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  if (open.length > 1) {
+    const extra = new Set(open.slice(1).map((x) => x.id));
+    sessions = sessions.map((x) => (extra.has(x.id) ? { ...x, status: "ended", endedAt: x.endedAt ?? x.createdAt, lastResumedAt: null } : x));
+  }
 
   return {
-    data: { tasks, captures },
-    dropped: rawTasks.length - tasks.length + (rawCaptures.length - captures.length),
+    data: { tasks, captures, sessions },
+    dropped:
+      rawTasks.length - tasks.length + (rawCaptures.length - captures.length) + (rawSessions.length - sessions.length),
+    migratedFrom: raw.schemaVersion < SCHEMA_VERSION ? raw.schemaVersion : null,
   };
 }
 
-/** Upgrade older schema versions in place. Add steps here as the schema evolves. */
+/** Upgrade older schema versions step by step. Add a step whenever the schema changes. */
 function migrate(version: number, data: Obj): Obj | null {
-  if (version > SCHEMA_VERSION) return null; // Written by a newer app version — don't guess.
-  return data;
+  if (version > SCHEMA_VERSION || version < 1) return null; // Unknown — don't guess.
+  let current = data;
+  if (version < 2) {
+    // v1 → v2: tasks get positions (assigned during parsing), sessions start empty.
+    current = { ...current, sessions: [] };
+  }
+  return current;
 }
 
 export function createEnvelope(data: PersistedData): StorageEnvelope {

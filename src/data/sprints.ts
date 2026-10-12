@@ -1,3 +1,5 @@
+import { CalendarClock, House, Sparkles, Zap, type LucideIcon } from "lucide-react";
+
 import type { Sprint, SprintId } from "@/types";
 
 /**
@@ -9,29 +11,29 @@ export const SPRINTS: Sprint[] = [
     id: "urgent",
     number: 1,
     name: "Urgent",
-    description: "Things that need attention right now.",
-    energyHint: "Quick wins — clear them to free your head.",
+    description: "Needs attention now — waiting would have a real consequence.",
+    energyHint: "Being due today doesn’t make something urgent.",
   },
   {
     id: "deadlines",
     number: 2,
     name: "Deadlines",
-    description: "Important work with a date attached.",
+    description: "Important work with a date — plan it ahead, calmly.",
     energyHint: "Best with steady focus.",
   },
   {
     id: "admin",
     number: 3,
     name: "Admin & Life",
-    description: "Organising, scheduling and the household.",
-    energyHint: "Good for lower-energy moments.",
+    description: "Routine admin, organising and the household.",
+    energyHint: "Often good in between other things.",
   },
   {
     id: "build",
     number: 4,
     name: "Build & Create",
-    description: "Creative and deep-focus work.",
-    energyHint: "Save for when your mind is fresh.",
+    description: "Creative work, deep thinking and long-term improvement.",
+    energyHint: "Protect time for fewer interruptions.",
   },
 ];
 
@@ -39,6 +41,13 @@ export const SPRINT_BY_ID = Object.fromEntries(SPRINTS.map((s) => [s.id, s])) as
   SprintId,
   Sprint
 >;
+
+export const SPRINT_ICONS: Record<SprintId, LucideIcon> = {
+  urgent: Zap,
+  deadlines: CalendarClock,
+  admin: House,
+  build: Sparkles,
+};
 
 /** Tailwind classes per sprint — kept here so colours stay consistent everywhere. */
 export const SPRINT_STYLES: Record<

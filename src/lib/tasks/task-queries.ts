@@ -154,11 +154,3 @@ export function getDailyProgress(tasks: Task[], today: ISODate) {
     percent: planned ? Math.round((completedToday.length / planned) * 100) : 0,
   };
 }
-
-export function getSprintStats(tasks: Task[], sprint: SprintId, today: ISODate) {
-  const inSprint = tasks.filter((t) => t.sprint === sprint);
-  const open = sortTasks(inSprint.filter(isActive), "due");
-  const doneToday = inSprint.filter((t) => wasCompletedOn(t, today));
-  const total = open.length + doneToday.length;
-  return { open, doneToday, total, percent: total ? Math.round((doneToday.length / total) * 100) : 0 };
-}

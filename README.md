@@ -4,7 +4,7 @@
 
 A calm, Kaizen-inspired personal productivity workspace, based on Ruri Ohama’s Kaizen method and designed to keep visual and mental clutter low. It replaces a Notion template with a faster, cleaner interface built around one daily highlight, four kinds of work (sprints), quick capture and small daily improvements.
 
-> **Phase 2 — Brain Dump & task management.** Tasks and Brain Dump entries are saved in your browser (localStorage) and survive refreshes. Other sections (projects, habits, calendar, journal, weekly review) still show preview data. Nothing syncs between devices yet.
+> **Phase 3 — Sprint management & planning.** Tasks, Brain Dump entries and focus sessions are saved in your browser (localStorage) and survive refreshes. Other sections (projects, habits, calendar, journal, weekly review) still show preview data. Nothing syncs between devices yet.
 
 ---
 
@@ -53,6 +53,7 @@ No environment variables are needed in Phase 1.
 - **Tailwind CSS v4** with design tokens in `src/app/globals.css`
 - **shadcn/ui** components (Radix primitives) in `src/components/ui`
 - **Lucide** icons, **Manrope** font, **Sonner** toasts
+- **dnd-kit** (core + sortable) for accessible drag and drop on the Sprints board
 
 ## Project structure
 
@@ -70,6 +71,7 @@ src/
 │   ├── dashboard/            # Today page sections
 │   ├── brain-dump/           # Capture form, inbox, entry row, edit dialog
 │   ├── tasks/                # TaskItem row, shared task editor, filters, summary, actions menu
+│   ├── sprints/              # Kanban board (dnd-kit), columns, Unassigned tray, session planner + session view
 │   ├── settings/             # Data controls (backup, sample data, clear)
 │   ├── pages/                # Client components for every other page
 │   └── shared/               # SprintBadge, ProjectCard, ProgressRing, task meta labels…
@@ -80,7 +82,8 @@ src/
 │   └── preview-content.ts    # In-memory preview for later-phase pages
 ├── lib/
 │   ├── storage/              # localStorage wrapper, versioned schema + validation, repository
-│   ├── tasks/                # Task model (statuses, priorities, factories) + filter/sort/summary queries
+│   ├── tasks/                # Task model, filter/sort/summary queries, sprint-board helpers (order, progress)
+│   ├── sessions/             # Session model: timestamp-based timer, start/pause/end, summaries
 │   ├── brain-dump/           # Capture model
 │   ├── store/workspace-store.tsx  # Single source of truth + actions, persists via the repository
 │   ├── selectors.ts          # Project progress, inbox…
@@ -94,7 +97,7 @@ src/
 - `WorkspaceProvider` (in the app shell) loads saved data through a `WorkspaceRepository` **in the browser only** (no hydration mismatches) and exposes `useWorkspace()` → `{ workspace, actions, storage }`.
 - Components read through `useWorkspace()` and the query helpers in `lib/tasks`, and change data only through `actions` (`addCapture`, `convertCapture`, `createTask`, `updateTask`, `toggleTaskComplete`, `deleteTask`…).
 - Every action writes through the repository. Today that's `localStorageRepository`; a Supabase repository can implement the same interface later.
-- **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures } }`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
+- **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures, sessions } }`. The current `schemaVersion` is **2**. Phase 2 (v1) data upgrades automatically: every task keeps its fields and gains a `sortOrder`, and a copy of the old data is kept under `belles-life-system:v1:backup:pre-v2-<time>`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
 - **First run** starts empty. Sample data is only loaded when you choose “Explore with sample data”, and it never overwrites saved data without asking.
 
 ### Task rules
@@ -111,6 +114,14 @@ src/
 - Converting a Brain Dump entry creates **one** task (repeat attempts are ignored). The new task stores `sourceCaptureId` and the original `capturedAt`, and the entry leaves the inbox (marked `converted`).
 - Deleting a task or entry shows an **Undo** toast.
 
+### Sprint rules
+
+- Tasks are never sorted into a sprint automatically. Brain Dump conversions stay **Unassigned** until you choose.
+- Manual order uses `sortOrder`, which is compared only within a sprint. Dragging changes only `sprint` and `sortOrder` (plus `updatedAt` when the sprint changes). Tasks moved with the menu go to the bottom of the new sprint.
+- Sprint completion % = completed ÷ all tasks in that sprint. An empty sprint shows "No tasks yet", not 100%.
+- Drag-to-reorder pauses while filters or a non-manual sort are on, and the board says so. The ⋯ menu and quick-assign buttons always work.
+- **Sessions** reference tasks by id; tasks are never copied. Only one session can be open at a time. Elapsed time = `accumulatedElapsedSeconds` + (now − `lastResumedAt`) while running, so it survives refreshes and background tabs. Ending a session records a snapshot (`completedTaskIds`, actual time) and never moves or reschedules tasks.
+
 ### Design tokens
 
 Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-ink`, `text-ink-muted`, `bg-sprint-urgent`, …):
@@ -126,6 +137,23 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 | `ink-border`     | `#334155` | Borders on dark surfaces    |
 
 ---
+
+## Phase 3 — what’s included
+
+- **Sprints board:**
+  - Four columns, each with an icon, description, active and completed counts, time remaining, progress % and next deadline.
+  - Add Task in every column, and a collapsible Completed section.
+  - On phones, the columns become tabs.
+- **Drag and drop (dnd-kit):** move tasks between sprints and reorder within a sprint using the grip handle, with mouse, touch or keyboard (space to pick up, arrow keys to move, space to drop). The new order saves automatically.
+- **Other ways to organise:** the ⋯ menu's **Move to sprint** and one-tap **Assign 1-2-3-4** buttons on unassigned tasks, so dragging is never required.
+- **Unassigned tray:** a count, the task list, quick assign, and click a title to open the task.
+- **Filters and sorting:** status, priority, due date and project; Manual order (default), due date, priority or shortest first.
+- **Plan a session:**
+  - An optional energy check-in shows gentle guidance only.
+  - Pick a sprint, a length (15, 30, 45, 60 or 90 minutes, or custom) and some tasks. It shows the combined estimate and a soft warning if the tasks may need more time.
+  - The session page has Start, Pause and Resume, tick-off controls and progress. Ending it shows a summary of planned vs actual time and completed vs remaining tasks.
+  - Sessions survive a refresh, and a history of finished sessions is kept.
+- **Today:** a current-session widget with a Resume button. Sprint cards show the active count, next deadline and progress, and link to that sprint on the board.
 
 ## Phase 2 — what’s included
 
@@ -151,12 +179,14 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 - Data lives in one browser on one device. Clearing site data removes it, so use **Download a backup**. There's no import yet.
 - Projects are a fixed list of four. Tasks can link to them, but projects can't be created or edited yet.
 - Highlight, Micro-Commitments, Calendar events, Kaizen Log and Weekly Review are still previews and aren't saved.
-- Drag-and-drop sprint planning, recurring tasks and time tracking come in later phases.
+- On phones you can reorder within a sprint by dragging, but you move tasks between sprints with the menu or quick-assign buttons (one column shows at a time).
+- Session time isn't yet copied into a task's "actual time". Time Estimation and Weekly Review will use the session history in later phases.
+- The Today's Highlight card still has its own preview timer, separate from Sprint sessions.
+- Recurring tasks come in a later phase.
 
 ## Next phases (suggested)
 
-1. **Phase 3:** Sprint planning board with drag and drop.
-2. **Phase 4:** Daily Highlight selection, saved per day.
-3. Micro-Commitment tracking, Kaizen Log and Weekly Review saving.
+1. **Phase 4:** Daily Highlight selection, saved per day.
+2. Micro-Commitment tracking, Kaizen Log and Weekly Review saving (session history is already stored for Time Estimation and Weekly Review).
 4. Supabase + sign-in, implementing `WorkspaceRepository` (with a one-time import from localStorage).
 5. Projects CRUD, recurring tasks, calendar sync, Notion import, dark mode.

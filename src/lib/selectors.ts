@@ -1,4 +1,5 @@
 import { isInInbox, sortCaptures } from "@/lib/brain-dump/capture-model";
+import { isOpenSession } from "@/lib/sessions/session-model";
 import { isCompleted, isSkipped } from "@/lib/tasks/task-model";
 import type { ISODate, MicroCommitment, Project, Workspace } from "@/types";
 
@@ -25,4 +26,16 @@ export function getInbox(ws: Workspace) {
 
 export function isCommitmentDone(c: MicroCommitment, date: ISODate) {
   return c.completedDates.includes(date);
+}
+
+/** The one session that is planned, running or paused, if any. */
+export function getOpenSession(ws: Workspace) {
+  return ws.sessions.find(isOpenSession) ?? null;
+}
+
+/** Finished sessions, newest first. */
+export function getSessionHistory(ws: Workspace) {
+  return ws.sessions
+    .filter((s) => s.status === "ended")
+    .sort((a, b) => (b.endedAt ?? b.createdAt).localeCompare(a.endedAt ?? a.createdAt));
 }

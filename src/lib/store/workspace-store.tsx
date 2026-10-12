@@ -13,13 +13,24 @@ import {
   type LoadStatus,
   type WorkspaceRepository,
 } from "@/lib/storage/workspace-repository";
-import { applyTaskChanges, createTask } from "@/lib/tasks/task-model";
+import {
+  createSession,
+  endSession,
+  isOpenSession,
+  pauseSession,
+  runSession,
+  type NewSession,
+} from "@/lib/sessions/session-model";
+import type { OrderUpdate } from "@/lib/tasks/sprint-board";
+import { applyTaskChanges, createTask, nextSortOrder } from "@/lib/tasks/task-model";
 import { useToday } from "@/lib/use-today";
 import type {
   Capture,
   CaptureInput,
   MicroCommitment,
   PersistedData,
+  SprintId,
+  SprintSession,
   Task,
   TaskInput,
   TaskStatus,
@@ -51,6 +62,19 @@ export interface WorkspaceActions {
   toggleTaskComplete: (id: string) => Task | null;
   deleteTask: (id: string) => Task | null;
   restoreTask: (task: Task) => void;
+
+  // Sprints
+  /** Assign (or unassign) a sprint; the task goes to the bottom of that sprint. */
+  moveTaskToSprint: (id: string, sprint: SprintId | null) => void;
+  /** Save a drag-and-drop arrangement. Only `sprint` and `sortOrder` change. */
+  applyBoardOrder: (updates: OrderUpdate[]) => void;
+
+  // Sessions (one open session at a time)
+  /** Returns null if another session is still open. */
+  createSession: (input: NewSession) => SprintSession | null;
+  startSession: (id: string) => void;
+  pauseSession: (id: string) => void;
+  endSession: (id: string) => SprintSession | null;
 
   // Data
   loadSampleData: () => void;
@@ -183,8 +207,13 @@ export function WorkspaceProvider({
           return null;
         }
         const now = nowISO();
-        const task = createTask(input, now, { sourceCaptureId: capture.id, capturedAt: capture.createdAt });
+        const task = createTask(input, now, {
+          sourceCaptureId: capture.id,
+          capturedAt: capture.createdAt,
+          sortOrder: nextSortOrder(current.tasks),
+        });
         commit((d) => ({
+          ...d,
           tasks: [task, ...d.tasks],
           captures: d.captures.map((c) =>
             c.id === id ? { ...c, status: "converted", convertedTaskId: task.id, updatedAt: now } : c,
@@ -194,13 +223,22 @@ export function WorkspaceProvider({
       },
 
       createTask: (input) => {
-        if (!input.title.trim()) return null;
-        const task = createTask(input, nowISO());
+        if (!input.title.trim() || !dataRef.current) return null;
+        const task = createTask(input, nowISO(), { sortOrder: nextSortOrder(dataRef.current.tasks) });
         commit((d) => ({ ...d, tasks: [task, ...d.tasks] }));
         return task;
       },
 
-      updateTask: (id, changes) => updateTaskWhere(id, (t, now) => applyTaskChanges(t, changes, now)),
+      updateTask: (id, changes) =>
+        commit((d) => {
+          const task = d.tasks.find((t) => t.id === id);
+          if (!task) return d;
+          const now = nowISO();
+          const movedSprint = changes.sprint !== undefined && changes.sprint !== task.sprint;
+          const updated = applyTaskChanges(task, changes, now);
+          if (movedSprint) updated.sortOrder = nextSortOrder(d.tasks);
+          return { ...d, tasks: d.tasks.map((t) => (t.id === id ? updated : t)) };
+        }),
 
       setTaskStatus: (id, status) => updateTaskWhere(id, (t, now) => applyTaskChanges(t, { status }, now)),
 
@@ -219,6 +257,51 @@ export function WorkspaceProvider({
 
       restoreTask: (task) =>
         commit((d) => (d.tasks.some((t) => t.id === task.id) ? d : { ...d, tasks: [task, ...d.tasks] })),
+
+      moveTaskToSprint: (id, sprint) =>
+        commit((d) => {
+          const task = d.tasks.find((t) => t.id === id);
+          if (!task || task.sprint === sprint) return d;
+          const moved = { ...task, sprint, sortOrder: nextSortOrder(d.tasks), updatedAt: nowISO() };
+          return { ...d, tasks: d.tasks.map((t) => (t.id === id ? moved : t)) };
+        }),
+
+      applyBoardOrder: (updates) =>
+        commit((d) => {
+          const byId = new Map(updates.map((u) => [u.id, u]));
+          let changed = false;
+          const now = nowISO();
+          const tasks = d.tasks.map((t) => {
+            const u = byId.get(t.id);
+            if (!u || (u.sprint === t.sprint && u.sortOrder === t.sortOrder)) return t;
+            changed = true;
+            // Reordering alone isn't an edit; changing sprint is.
+            return { ...t, sprint: u.sprint, sortOrder: u.sortOrder, updatedAt: u.sprint !== t.sprint ? now : t.updatedAt };
+          });
+          return changed ? { ...d, tasks } : d;
+        }),
+
+      createSession: (input) => {
+        const current = dataRef.current;
+        if (!current || current.sessions.some(isOpenSession)) return null;
+        const session = createSession(input, nowISO());
+        commit((d) => ({ ...d, sessions: [session, ...d.sessions] }));
+        return session;
+      },
+
+      startSession: (id) =>
+        commit((d) => ({ ...d, sessions: d.sessions.map((x) => (x.id === id ? runSession(x, nowISO()) : x)) })),
+
+      pauseSession: (id) =>
+        commit((d) => ({ ...d, sessions: d.sessions.map((x) => (x.id === id ? pauseSession(x, nowISO()) : x)) })),
+
+      endSession: (id) => {
+        commit((d) => ({
+          ...d,
+          sessions: d.sessions.map((x) => (x.id === id ? endSession(x, d.tasks, nowISO()) : x)),
+        }));
+        return dataRef.current?.sessions.find((x) => x.id === id) ?? null;
+      },
 
       loadSampleData: () => {
         if (!today) return;
