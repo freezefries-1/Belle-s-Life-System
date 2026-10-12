@@ -50,6 +50,7 @@ export function LocalDataMigration() {
   const [step, setStep] = React.useState<Step>({ kind: "review" });
   const [confirmed, setConfirmed] = React.useState(false);
   const [clearing, setClearing] = React.useState(false);
+  const [backedUp, setBackedUp] = React.useState(false);
   const [marker, setMarker] = React.useState(() => readMarker());
 
   if (!ctx) return null;
@@ -69,6 +70,7 @@ export function LocalDataMigration() {
 
   const backup = () => {
     downloadText(`belles-life-system-browser-backup-${new Date().toISOString().slice(0, 10)}.json`, snap.raw);
+    setBackedUp(true);
     toast("Backup downloaded");
   };
 
@@ -84,7 +86,7 @@ export function LocalDataMigration() {
   const doImport = async (preview: PreviewRow[]) => {
     setStep({ kind: "importing", done: 0, total, label: "", preview });
     try {
-      const result = await runImport(client, snap.rows, (done, all, table) =>
+      const result = await runImport(client, ctx.account.id, snap.rows, (done, all, table) =>
         setStep({ kind: "importing", done, total: all, label: TABLE_LABELS[table], preview }),
       );
       const verify = await verifyImport(client, snap.rows, preview, result);
@@ -197,15 +199,22 @@ export function LocalDataMigration() {
           ) : (
             <>
               <p className="font-semibold">Import finished, but verification found gaps.</p>
+              {step.verify.skipped.length > 0 && (
+                <p>
+                  {step.verify.skipped.length} {step.verify.skipped.length === 1 ? "record was" : "records were"} skipped (for example, a link to something
+                  that wasn’t imported): {step.verify.skipped.slice(0, 3).map((s) => TABLE_LABELS[s.table]).join(", ")}
+                  {step.verify.skipped.length > 3 ? "…" : ""}. They’re still in your browser and in the backup.
+                </p>
+              )}
               {step.verify.missing.length > 0 && <p>{step.verify.missing.length} records weren’t found in the cloud.</p>}
               {step.verify.brokenLinks > 0 && <p>{step.verify.brokenLinks} tasks have different links in the cloud.</p>}
-              <p>Your browser copy is untouched. Retry, or keep the backup.</p>
+              <p>Your browser copy is untouched — keep it, and the backup, until this is sorted out.</p>
             </>
           )}
         </div>
       )}
 
-      {(alreadyMigrated || (step.kind === "done" && step.verify.ok)) && (
+      {((alreadyMigrated && step.kind !== "done") || (step.kind === "done" && step.verify.ok)) && (
         <div className="flex items-center justify-between gap-3 border-t pt-3">
           <p className="text-xs text-muted-foreground">Checked everything in the app? You can remove the old browser copy.</p>
           <Button variant="outline" size="sm" className="shrink-0 gap-1.5 text-rose-600" onClick={() => setClearing(true)}>
@@ -220,8 +229,8 @@ export function LocalDataMigration() {
           <DialogHeader>
             <DialogTitle>Clear the browser copy?</DialogTitle>
             <DialogDescription>
-              This removes the old, pre-sync data (and its local backups) from this browser only. Your account isn’t affected. Download a backup first if you
-              might want it.
+              This removes the old, pre-sync data (and its local backups) from this browser only. Your account isn’t affected. Download the backup first —
+              clearing is only possible after that.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -231,6 +240,8 @@ export function LocalDataMigration() {
             </Button>
             <Button
               className="bg-rose-600 hover:bg-rose-700"
+              disabled={!backedUp}
+              title={backedUp ? undefined : "Download the backup first"}
               onClick={() => {
                 clearLegacyLocalData();
                 setClearing(false);

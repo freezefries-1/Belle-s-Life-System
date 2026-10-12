@@ -21,6 +21,10 @@ async function account(label) {
   const email = `${label}-${stamp}@belle.test`;
   const { data, error } = await client.auth.signUp({ email, password: "correct horse battery 9" });
   if (error) throw error;
+  // The app always names the account a save is for (p_user); do the same here unless a test overrides it.
+  const rpc = client.rpc.bind(client);
+  client.rpc = (fn, args) =>
+    rpc(fn, (fn === "apply_changes" || fn === "import_rows") && args && !("p_user" in args) ? { ...args, p_user: data.user.id } : args);
   return { client, id: data.user.id, email };
 }
 
@@ -29,6 +33,8 @@ const a = await account("alice");
 const b = await account("bob");
 
 const project = (id, extra = {}) => ({ id, name: `Project ${id}`, status: "active", created_at: now, updated_at: now, ...extra });
+const stripMeta = ({ user_id, version, synced_at, ...rest }) => (void user_id, void version, void synced_at, rest);
+const apply = (acc, changes) => acc.client.rpc("apply_changes", { changes });
 const task = (id, extra = {}) => ({ id, title: `Task ${id}`, status: "todo", created_at: now, updated_at: now, ...extra });
 
 // ---------- ownership & RLS ----------
@@ -175,6 +181,62 @@ check("Import fills an empty same-day cloud log instead of losing local words", 
 r = await b.client.rpc("import_rows", { target: "tasks", rows: [task("imp1", { title: "bob's" })] });
 const aliceImp = await a.client.from("tasks").select("title").eq("id", "imp1").single();
 check("Import is scoped to the caller", r.data?.inserted === 1 && aliceImp.data.title === "Task imp1");
+
+// ---------- Stage A: account binding, conflict judging, rejections, duplicates ----------
+r = await a.client.rpc("apply_changes", { changes: [], p_user: b.id });
+check("A save naming a different account is refused", !!r.error && /account mismatch/.test(r.error.message), r.error?.message);
+r = await a.client.rpc("import_rows", { target: "tasks", rows: [], p_user: b.id });
+check("An import naming a different account is refused", !!r.error);
+{
+  const raw = createClient(url, anonKey, { auth: { persistSession: false } });
+  await raw.auth.signInWithPassword({ email: a.email, password: "correct horse battery 9" });
+  const old = await raw.rpc("apply_changes", { changes: [] });
+  check("The old function without the account check can no longer be called", !!old.error, old.error?.message);
+}
+// Deleting a project and unlinking its tasks in one batch is not a conflict.
+await a.client.from("projects").insert(project("pd"));
+await a.client.from("tasks").insert([task("pd1", { project_id: "pd" }), task("pd2", { project_id: "pd" })]);
+const pdv = (await a.client.from("projects").select("version").eq("id", "pd").single()).data.version;
+const pdt = (await a.client.from("tasks").select("*").in("id", ["pd1", "pd2"])).data;
+r = await apply(a, [
+  { table: "projects", op: "delete", id: "pd", expected_version: pdv },
+  ...pdt.map((t) => ({ table: "tasks", op: "upsert", id: t.id, row: { ...stripMeta(t), project_id: null, updated_at: new Date().toISOString() }, expected_version: t.version })),
+]);
+check("Deleting a project with tasks saves without a false conflict", r.data?.ok === true, JSON.stringify(r.data?.conflicts ?? r.error));
+// A change that depends on something deleted elsewhere is rejected cleanly (not an error that blocks saving).
+r = await apply(a, [
+  { table: "tasks", op: "upsert", id: "fk1", row: task("fk1"), expected_version: null },
+  { table: "tasks", op: "upsert", id: "fk2", row: task("fk2", { project_id: "gone-project" }), expected_version: null },
+]);
+const fk1 = await a.client.from("tasks").select("id").eq("id", "fk1");
+check("A change pointing at a deleted record is reported as rejected", r.data?.ok === false && r.data.conflicts[0].reason === "rejected" && r.data.conflicts[0].id === "fk2", JSON.stringify(r.data ?? r.error));
+check("…and the whole batch is rolled back", fk1.data.length === 0);
+r = await apply(a, [{ table: "brain_dump_entries", op: "upsert", id: "cap-x", row: { id: "cap-x", title: "x", kind: "task", status: "converted", converted_task_id: "no-such-task", created_at: now, updated_at: now }, expected_version: null }]);
+check("A delayed link check is also reported as rejected", r.data?.ok === false && r.data.conflicts[0].reason === "rejected", JSON.stringify(r.data ?? r.error));
+// Same-day duplicates come back with the existing record so text can be merged.
+await a.client.from("kaizen_logs").insert({ id: "phone-log", date_key: "2026-10-20", reflection_went_well: "From phone", created_at: now, updated_at: now });
+r = await apply(a, [{ table: "kaizen_logs", op: "upsert", id: "laptop-log", row: { id: "laptop-log", date_key: "2026-10-20", reflection_went_well: "From laptop", reflection_improve: "", reflection_learned: "", notes: "", created_at: now, updated_at: now }, expected_version: null }]);
+check("A second log for the same day returns the existing one", r.data?.ok === false && r.data.conflicts[0].reason === "duplicate" && r.data.conflicts[0].server?.id === "phone-log", JSON.stringify(r.data?.conflicts));
+await a.client.from("micro_commitment_completions").insert({ id: "cc-first", commitment_id: "c1", date_key: "2026-10-12", completed_at: now });
+r = await apply(a, [{ table: "micro_commitment_completions", op: "upsert", id: "cc-dup", row: { id: "cc-dup", commitment_id: "c1", date_key: "2026-10-12", completed_at: now }, expected_version: null }]);
+check("A second tick for the same commitment and day returns the existing one", r.data?.ok === false && r.data.conflicts[0].reason === "duplicate" && !!r.data.conflicts[0].server);
+// Malformed input is refused with a clear error.
+for (const [label, changes] of [
+  ["missing op", [{ table: "tasks", id: "x", row: task("x") }]],
+  ["missing table", [{ op: "upsert", id: "x", row: task("x") }]],
+  ["row with no columns", [{ table: "tasks", op: "upsert", id: "x", row: { nonsense: 1 } }]],
+  ["not an array", { table: "tasks" }],
+]) {
+  r = await apply(a, changes);
+  check(`Malformed input refused: ${label}`, !!r.error);
+}
+// Profiles: only the display name can be changed.
+r = await a.client.from("profiles").update({ display_name: "Belle" }).eq("id", a.id).select("display_name");
+check("Profile display name can be updated", !r.error && r.data[0]?.display_name === "Belle", r.error?.message);
+r = await a.client.from("profiles").update({ created_at: "2000-01-01T00:00:00Z" }).eq("id", a.id).select();
+check("Other profile fields can't be changed", !!r.error);
+r = await b.client.from("profiles").select("*").eq("id", a.id);
+check("Profiles are private", !r.error && r.data.length === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -11,10 +11,18 @@ You do this once. Until it's done, the app keeps saving to your browser exactly 
    Never copy the **service_role / secret** key into the app.
 
 ## 2. Create the tables and security rules
-1. In Supabase, open **SQL Editor → New query**.
-2. Paste the whole file `supabase/migrations/20261012000000_initial_schema.sql` and press **Run**. It creates every table, constraint, index, Row Level Security policy and function. It only creates things; it doesn't delete anything.
+Run each file in `supabase/migrations/` **once, in order** (the file names start with the date):
 
-   (With the Supabase CLI: `supabase link` then `supabase db push`.)
+1. `20261012000000_initial_schema.sql` creates every table, constraint, index, Row Level Security policy and function.
+2. `20261013000000_stage_a_sync_safety.sql` updates the save and import functions, and adds the account check.
+
+For each file:
+1. On GitHub, open the file and click **Raw**. Select everything (Cmd/Ctrl+A) and copy it.
+2. In Supabase, open **SQL Editor → New query**, paste, and click **Run**.
+3. **If Supabase asks about Row Level Security, choose "Run without RLS".** The files set RLS themselves, and the other option adds lines that break them.
+4. You should see "Success. No rows returned."
+
+Every file only adds or updates things. None deletes data, and each is safe to run again. (With the Supabase CLI: `supabase link` then `supabase db push`.)
 
 ## 3. Set up sign-in
 1. **Authentication → Sign In / Providers → Email**: keep Email enabled.
@@ -25,6 +33,7 @@ You do this once. Until it's done, the app keeps saving to your browser exactly 
    - open the app after step 4 and choose **Create an account** (confirm the email if Supabase asks), or
    - use **Authentication → Users → Add user**.
 4. Optional but recommended for a personal app: after your account exists, turn off **Allow new users to sign up**, so nobody else can create an account.
+5. Recommended: turn on **Secure password change** (Authentication → Providers → Email). Changing your password will then require a recent sign-in.
 
 Supabase's built-in email sender is limited to a few emails per hour, which is fine for password resets. Add your own SMTP under **Authentication → Emails** if you need more.
 

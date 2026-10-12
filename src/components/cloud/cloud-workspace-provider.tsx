@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 
 import { AccountContext, type Account } from "@/lib/auth/account";
 import { createCloudRepository } from "@/lib/repositories/cloud-repository";
@@ -19,9 +20,12 @@ export function CloudWorkspaceProvider({ children }: { children: React.ReactNode
 
   React.useEffect(() => {
     let active = true;
-    client.auth.getUser().then(({ data }) => {
+    // Read the session stored in this browser. A network problem is not the same
+    // as being signed out, so only a missing session sends you to sign in.
+    client.auth.getSession().then(({ data }) => {
       if (!active) return;
-      setAccount(data.user ? { id: data.user.id, email: data.user.email ?? "" } : null);
+      const user = data.session?.user;
+      setAccount(user ? { id: user.id, email: user.email ?? "" } : null);
     });
     const { data: sub } = client.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session) return setAccount(null);
@@ -45,7 +49,13 @@ export function CloudWorkspaceProvider({ children }: { children: React.ReactNode
   }, [account]);
 
   const accountId = account?.id;
-  const engine = React.useMemo(() => (accountId ? new CloudSync(client, accountId) : null), [client, accountId]);
+  const engine = React.useMemo(() => {
+    if (!accountId) return null;
+    const e = new CloudSync(client, accountId);
+    // Things the engine settled by itself (e.g. merging two copies of today's log).
+    e.onNotice = (message) => toast(message, { duration: 7000 });
+    return e;
+  }, [client, accountId]);
   React.useEffect(() => () => engine?.dispose(), [engine]);
   const repository = React.useMemo(() => (engine ? createCloudRepository(engine) : null), [engine]);
 
@@ -60,9 +70,19 @@ export function CloudWorkspaceProvider({ children }: { children: React.ReactNode
   }, [engine]);
 
   const signOut = React.useCallback(async () => {
-    await client.auth.signOut();
+    // Signing out on purpose (after any unsaved-changes warning) forgets changes kept on this device.
+    engine?.discardPending();
+    const { error } = await client.auth.signOut();
+    if (error) {
+      // Couldn't reach the server: still end the session in this browser.
+      const local = await client.auth.signOut({ scope: "local" });
+      if (local.error) {
+        toast.error("Couldn’t sign out. Check your connection and try again.");
+        return;
+      }
+    }
     window.location.replace("/login");
-  }, [client]);
+  }, [client, engine]);
 
   const value = React.useMemo(
     () => (account && engine ? { account, engine, signOut } : null),

@@ -9,6 +9,7 @@ import { createCommitment } from "@/lib/daily/commitments";
 import { createHighlight, createLog } from "@/lib/daily/day";
 import { addDays } from "@/lib/date";
 import { MAX_PRIORITIES, createWeeklyReview } from "@/lib/review/weekly";
+import { hasAnyData } from "@/lib/workspace-data";
 import { createMilestone, createProject, nextProjectSortOrder } from "@/lib/projects/project-model";
 import { createTemplate, generateOccurrences, normalizeRule, templateTaskFields } from "@/lib/recurrence/recurrence";
 import { createId, nowISO } from "@/lib/id";
@@ -162,7 +163,8 @@ export interface WorkspaceActions {
   /** Give a finished session's minutes to its tasks (adds to their actual time). */
   allocateSessionTime: (sessionId: string, allocations: SessionAllocation[]) => boolean;
 
-  loadSampleData: () => void;
+  /** Fill an empty workspace with sample data. Refuses to replace existing data unless `replace` is set (browser-only mode, after confirmation). */
+  loadSampleData: (options?: { replace?: boolean }) => void;
   clearAllData: () => void;
 }
 
@@ -831,8 +833,9 @@ export function WorkspaceProvider({
         return true;
       },
 
-      loadSampleData: () => {
+      loadSampleData: (options) => {
         if (!today) return;
+        if (dataRef.current && hasAnyData(dataRef.current) && !options?.replace) return;
         commit(() => generateOccurrences(createSampleData(today), today, nowISO()));
       },
 

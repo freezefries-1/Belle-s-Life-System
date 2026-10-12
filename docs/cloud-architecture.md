@@ -100,6 +100,18 @@ UI → store actions (unchanged business rules) → in-memory workspace
   - If the first load fails, an error page with "Try again" is shown, never an empty workspace.
 - **Realtime.** Supabase Realtime isn't used yet. Focus/online/visible-polling pulls cover the cross-device case without a subscription per table. Realtime could later replace the 30-second poll.
 
+## Stage A safety rules (Oct 2026)
+
+- **Saves name their account.** `apply_changes(changes, p_user)` and `import_rows(target, rows, p_user)` refuse to run unless `p_user` is the signed-in account. The client also checks the browser's session before every save. A change queued for one account can never land in another, even if someone signs into a different account in another tab. The older function versions can no longer be called.
+- **Conflicts are judged against the state before the batch.** The function records every target row's version before writing anything. Side effects of earlier steps in the same batch (such as tasks unlinked when their project is deleted) never count as edits from another device.
+- **Rejected changes don't block saving.** Foreign-key, check and not-null failures come back as a `rejected` item, and deferred links are checked inside the function. The banner explains it and offers to set it aside. Anything that depended on it (for example a new milestone of a project that couldn't be saved) is set aside with it. Everything else keeps saving.
+- **Same-day duplicates are settled without losing words:**
+  - Kaizen Logs and weekly reviews: the existing record gets both devices' text, and this device's priorities move into free slots.
+  - Highlights, commitment ticks and a second open focus session: the other device's record is kept, with a short notice.
+- **Unsaved changes are kept on the device.** They're stored in localStorage under `belles-life-system:cloud-pending:<account id>`, together with the version each one was based on. Closing the tab or having the session expire therefore doesn't lose them: they're re-applied and saved after the next sign-in, and stale ones are reported as conflicts. Signing out on purpose (after the warning) discards them.
+- **Server time only.** The "changed since" cursor is the newest server `synced_at`/`deleted_at` seen, never the device clock. Pages are read with keyset paging (by id).
+- **Browser-only mode** never writes over saved data it couldn't read, couldn't back up, or that came from a newer app version. It stays read-only for that visit and says why.
+
 ## Recurring tasks
 
 Generation still runs when the app opens or the day changes, with the same 14-day window, cap and missed-date policy as before. There is **no background scheduler**; adding one (for example a scheduled Edge Function) would be new infrastructure and needs approval first.

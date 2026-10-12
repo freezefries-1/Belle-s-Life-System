@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     const url = new URL("/login", origin);
-    url.searchParams.set("error", "That link has expired or was already used. Please try again.");
+    url.searchParams.set("error", "link-expired");
     return NextResponse.redirect(url);
   }
   return NextResponse.redirect(new URL(next, origin));

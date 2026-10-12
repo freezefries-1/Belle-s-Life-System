@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { safeNextPath } from "@/lib/auth/redirect";
+import { AUTH_LINK_ERRORS, safeNextPath } from "@/lib/auth/redirect";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isCloudEnabled } from "@/lib/supabase/config";
 
@@ -41,7 +41,8 @@ export function LoginForm() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(params.get("error"));
+  // Only known messages are shown — never arbitrary text from the address bar.
+  const [error, setError] = React.useState<string | null>(AUTH_LINK_ERRORS[params.get("error") ?? ""] ?? null);
   const [notice, setNotice] = React.useState<string | null>(null);
 
   if (!isCloudEnabled) {

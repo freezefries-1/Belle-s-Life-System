@@ -167,6 +167,7 @@ export type ImportResult = Record<TableName, TableImportResult>;
  */
 export async function runImport(
   client: SupabaseClient,
+  userId: string,
   rows: RowSet,
   onProgress: (done: number, total: number, table: TableName) => void,
 ): Promise<ImportResult> {
@@ -179,7 +180,7 @@ export async function runImport(
   const send = async (table: TableName, list: AnyRow[], tally: boolean) => {
     for (let i = 0; i < list.length; i += CHUNK) {
       const chunk = list.slice(i, i + CHUNK).map((r) => stripManaged(r));
-      const { data, error } = await client.rpc("import_rows", { target: table, rows: chunk });
+      const { data, error } = await client.rpc("import_rows", { target: table, rows: chunk, p_user: userId });
       if (error) throw new Error(`${TABLE_LABELS[table]}: ${error.message}`);
       const r = data as TableImportResult;
       if (tally) {
@@ -204,7 +205,10 @@ export async function runImport(
 /* ---------------- verification ---------------- */
 
 export interface VerifyResult {
+  /** True only when every local record is in the account and nothing was skipped. */
   ok: boolean;
+  /** Records the import had to skip (e.g. their parent wasn't imported). */
+  skipped: { table: TableName; id: string; reason: string }[];
   /** Local records not found in the cloud (excluding ones kept from the cloud by date). */
   missing: { table: TableName; id: string }[];
   /** Imported tasks whose project/milestone/template link didn't arrive intact. */
@@ -233,7 +237,8 @@ export async function verifyImport(client: SupabaseClient, rows: RowSet, preview
       if (c.project_id !== l.project_id || c.milestone_id !== l.milestone_id || c.recurrence_template_id !== l.recurrence_template_id) brokenLinks++;
     }
   }
-  return { ok: missing.length === 0 && brokenLinks === 0, missing, brokenLinks };
+  const skipped = TABLE_ORDER.flatMap((table) => result[table].skipped.map((s) => ({ table, ...s })));
+  return { ok: missing.length === 0 && brokenLinks === 0 && skipped.length === 0, skipped, missing, brokenLinks };
 }
 
 /* ---------------- after migration ---------------- */

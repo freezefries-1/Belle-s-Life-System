@@ -331,7 +331,7 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 ## Known limitations
 
 - Browser-only mode keeps data in one browser. Cloud mode needs a Supabase project (see the setup guide).
-- Cloud mode needs a connection. Changes made offline are kept in memory with a clear "not saved" banner and saved when you're back online, but they're lost if the tab is closed before then (you're warned). There's no offline-first queue.
+- Cloud mode needs a connection to save. Changes made offline (or when a session expires) are kept on that device with a clear "not saved" banner, and saved when you're back online or signed in again. They live only on that device until then. There's no full offline-first mode.
 - Sync is near-real-time: on focus, on reconnect and every 30 s, not instant push. Realtime subscriptions could replace the poll later.
 - Recurring occurrences are still generated when the app opens. There's no server-side scheduler.
 - The whole workspace loads at sign-in (paged), and analytics run in the browser. That's fast for one person's history, but very large histories may eventually want on-demand loading of old records.

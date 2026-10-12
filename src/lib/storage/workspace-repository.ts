@@ -35,12 +35,23 @@ export interface WorkspaceRepository {
   subscribe(onExternalChange: (data: PersistedData) => void): () => void;
 }
 
-/** Keep a copy of the raw value so nothing is silently lost (once per distinct value). */
-function backupCorruptValue(raw: string, label?: string) {
+/**
+ * When set, saving is refused: the stored data couldn't be read or backed
+ * up, or it came from a newer version of the app. Overwriting it could lose
+ * data, so the app stays read-only for this visit instead.
+ */
+let writeBlockedReason: string | null = null;
+
+/** Keep a copy of the raw value so nothing is silently lost (once per distinct value). Returns whether a copy exists. */
+function backupCorruptValue(raw: string, label?: string): boolean {
   const prefix = `${STORAGE_KEY}:backup:`;
-  if (listKeys(prefix).some((key) => readRaw(key) === raw)) return;
-  writeRaw(`${prefix}${label ? `${label}-` : ""}${Date.now()}`, raw);
+  if (listKeys(prefix).some((key) => readRaw(key) === raw)) return true;
+  const k = `${prefix}${label ? `${label}-` : ""}${Date.now()}`;
+  return writeRaw(k, raw).ok && readRaw(k) === raw;
 }
+
+const NOT_BACKED_UP =
+  "Your saved data couldn’t be fully read, and there wasn’t room to keep a backup copy — so nothing will be saved over it. Free up browser storage, then reload.";
 
 function readFromStorage(): LoadResult {
   if (!isStorageAvailable()) {
@@ -52,6 +63,7 @@ function readFromStorage(): LoadResult {
     };
   }
 
+  writeBlockedReason = null;
   const raw = readRaw(STORAGE_KEY);
   if (raw === null) return { status: "ok", data: EMPTY_DATA, isFirstRun: true };
 
@@ -62,9 +74,19 @@ function readFromStorage(): LoadResult {
     json = undefined;
   }
 
+  // Saved by a newer version of the app: never overwrite it with an older format.
+  const version = typeof json === "object" && json !== null ? (json as { schemaVersion?: unknown }).schemaVersion : undefined;
+  if (typeof version === "number" && version > SCHEMA_VERSION) {
+    writeBlockedReason = "Your data was saved by a newer version of the app. Reload the page to update — nothing here will be changed until then.";
+    return { status: "unavailable", data: EMPTY_DATA, isFirstRun: false, message: writeBlockedReason };
+  }
+
   const parsed = json === undefined ? null : parseEnvelope(json);
   if (!parsed) {
-    backupCorruptValue(raw);
+    if (!backupCorruptValue(raw)) {
+      writeBlockedReason = NOT_BACKED_UP;
+      return { status: "unavailable", data: EMPTY_DATA, isFirstRun: false, message: NOT_BACKED_UP };
+    }
     return {
       status: "recovered",
       data: EMPTY_DATA,
@@ -74,7 +96,10 @@ function readFromStorage(): LoadResult {
   }
 
   if (parsed.dropped > 0) {
-    backupCorruptValue(raw);
+    if (!backupCorruptValue(raw)) {
+      writeBlockedReason = NOT_BACKED_UP;
+      return { status: "unavailable", data: parsed.data, isFirstRun: false, message: NOT_BACKED_UP };
+    }
     return {
       status: "recovered",
       data: parsed.data,
@@ -86,7 +111,10 @@ function readFromStorage(): LoadResult {
   if (parsed.migratedFrom !== null) {
     // Keep the pre-upgrade copy, then save in the new format straight away so
     // the newly assigned task order is fixed from now on.
-    backupCorruptValue(raw, `pre-v${SCHEMA_VERSION}`);
+    if (!backupCorruptValue(raw, `pre-v${SCHEMA_VERSION}`)) {
+      writeBlockedReason = NOT_BACKED_UP;
+      return { status: "unavailable", data: parsed.data, isFirstRun: false, message: NOT_BACKED_UP };
+    }
     writeRaw(STORAGE_KEY, JSON.stringify(createEnvelope(parsed.data)));
   }
 
@@ -99,6 +127,7 @@ export const localStorageRepository: WorkspaceRepository = {
   },
 
   async save(data) {
+    if (writeBlockedReason) return { ok: false, message: writeBlockedReason };
     const result = writeRaw(STORAGE_KEY, JSON.stringify(createEnvelope(data)));
     if (result.ok) return { ok: true };
     return {

@@ -78,6 +78,8 @@ export function SyncBanner() {
   };
 
   if (status.state === "conflict") {
+    // Only edits clashing with newer edits can be forced; the rest can only be set aside.
+    const forceable = status.conflicts.some((c) => c.reason === "changed" || c.reason === "deleted");
     return (
       <div role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-950">
         <p className="flex items-center gap-2 font-semibold">
@@ -92,17 +94,25 @@ export function SyncBanner() {
             <li key={`${c.table}:${c.id}`}>
               • {TABLE_LABEL[c.table] ?? c.table}
               {conflictTitle(c) && `: ${conflictTitle(c)}`} —{" "}
-              {c.reason === "deleted" ? "deleted elsewhere" : c.reason === "duplicate" ? "already exists for that day" : "edited elsewhere"}
+              {c.reason === "deleted"
+                ? "deleted elsewhere"
+                : c.reason === "duplicate"
+                  ? "already exists for that day"
+                  : c.reason === "rejected"
+                    ? "can’t be saved — something it belongs to was removed on another device"
+                    : "edited elsewhere"}
             </li>
           ))}
         </ul>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" disabled={busy} onClick={() => run(() => ctx.engine.resolve("theirs"))}>
-            Load the latest version
+            {forceable ? "Load the latest version" : "Set these aside and continue"}
           </Button>
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => ctx.engine.resolve("mine"))}>
-            Keep my changes
-          </Button>
+          {forceable && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => ctx.engine.resolve("mine"))}>
+              Keep my changes
+            </Button>
+          )}
         </div>
       </div>
     );

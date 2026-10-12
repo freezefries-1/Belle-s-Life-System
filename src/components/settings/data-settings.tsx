@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useAccount } from "@/lib/auth/account";
+import { hasAnyData } from "@/lib/workspace-data";
 import { createEnvelope } from "@/lib/storage/schema";
 
 import { LocalDataMigration } from "./local-data-migration";
@@ -28,14 +29,7 @@ export function DataSettings() {
   const [pending, setPending] = React.useState<Pending>(null);
   const cloud = useAccount();
   const [typed, setTyped] = React.useState("");
-  const hasData =
-    workspace.tasks.length > 0 ||
-    workspace.captures.length > 0 ||
-    workspace.commitments.length > 0 ||
-    workspace.projects.length > 0 ||
-    workspace.recurrences.length > 0 ||
-    workspace.highlights.length > 0 ||
-    workspace.kaizenLogs.some((l) => l.notes || l.reflectionWentWell || l.reflectionImprove || l.reflectionLearned);
+  const hasData = hasAnyData(workspace);
 
   function downloadBackup() {
     const {
@@ -78,11 +72,12 @@ export function DataSettings() {
 
   function confirm() {
     if (pending === "sample") {
-      actions.loadSampleData();
+      // Only reachable in browser-only mode, after confirming.
+      actions.loadSampleData({ replace: !cloud });
       toast("Sample data loaded");
     } else if (pending === "clear") {
       actions.clearAllData();
-      toast(cloud ? "All data in your account is being deleted" : "All tasks and Brain Dump entries cleared");
+      toast(cloud ? "All data in your account is being deleted" : "All data in this browser was cleared");
     }
     setPending(null);
     setTyped("");
@@ -164,8 +159,8 @@ export function DataSettings() {
               {pending === "clear"
                 ? cloud
                   ? "This permanently deletes every record in your account, on every device. It can’t be undone. Download a backup first. Type DELETE to confirm."
-                  : "This permanently deletes every task, Brain Dump entry, session, highlight, commitment and Kaizen Log entry in this browser. Download a backup first if you might want them."
-                : "Everything you’ve saved — tasks, Brain Dump, sessions, highlights, commitments and your Kaizen Log — will be replaced. Download a backup first if you want to keep it."}
+                  : "This permanently deletes everything saved in this browser — tasks, Brain Dump, focus sessions, highlights, commitments, Kaizen Logs, projects, milestones, recurring tasks and weekly reviews. Download a backup first if you might want them."
+                : "Everything saved in this browser — tasks, Brain Dump, focus sessions, highlights, commitments, Kaizen Logs, projects, milestones, recurring tasks and weekly reviews — will be replaced. Download a backup first if you want to keep it."}
             </DialogDescription>
           </DialogHeader>
           {pending === "clear" && cloud && (
