@@ -6,7 +6,9 @@ import { toast } from "sonner";
 import { createPreviewContent } from "@/data/preview-content";
 import { createSampleData } from "@/data/sample-data";
 import { createCapture } from "@/lib/brain-dump/capture-model";
-import { nowISO } from "@/lib/id";
+import { createCommitment } from "@/lib/daily/commitments";
+import { createHighlight, createLog } from "@/lib/daily/day";
+import { createId, nowISO } from "@/lib/id";
 import { EMPTY_DATA } from "@/lib/storage/schema";
 import {
   localStorageRepository,
@@ -27,6 +29,11 @@ import { useToday } from "@/lib/use-today";
 import type {
   Capture,
   CaptureInput,
+  CommitmentInput,
+  CommitmentStatus,
+  DailyHighlight,
+  ISODate,
+  KaizenLogInput,
   MicroCommitment,
   PersistedData,
   SprintId,
@@ -38,7 +45,8 @@ import type {
 } from "@/types";
 
 /**
- * The single source of truth for tasks and Brain Dump entries.
+ * The single source of truth for everything saved: tasks, Brain Dump,
+ * sessions, daily highlights, micro-commitments and the Kaizen Log.
  *
  * Components read through `useWorkspace()` and change data only through
  * `actions`. Every change is written through the repository, which is
@@ -76,12 +84,30 @@ export interface WorkspaceActions {
   pauseSession: (id: string) => void;
   endSession: (id: string) => SprintSession | null;
 
+  // Daily Highlight (one per local calendar day, always today's)
+  /** Make an existing task today's highlight (replaces any current one). */
+  setHighlight: (taskId: string) => DailyHighlight | null;
+  /** Create a task and make it today's highlight in one step. */
+  createHighlightTask: (input: TaskInput) => Task | null;
+  removeHighlight: () => void;
+
+  // Micro-commitments
+  createCommitment: (input: CommitmentInput) => MicroCommitment | null;
+  updateCommitment: (id: string, changes: Partial<CommitmentInput>) => void;
+  setCommitmentStatus: (id: string, status: CommitmentStatus) => void;
+  /** Deletes the commitment and its completion history. */
+  deleteCommitment: (id: string) => void;
+  /** Tick or untick one day. Returns true if it's now done. */
+  toggleCommitmentDone: (id: string, date: ISODate) => boolean;
+
+  // Kaizen Log
+  /** Create the day's log if it doesn't exist yet (idempotent). */
+  ensureLog: (date: ISODate) => void;
+  updateLog: (date: ISODate, changes: KaizenLogInput) => void;
+
   // Data
   loadSampleData: () => void;
   clearAllData: () => void;
-
-  // Preview only (in memory, Phase 5)
-  toggleCommitment: (id: string) => void;
 }
 
 export interface StorageInfo {
@@ -107,7 +133,6 @@ export function WorkspaceProvider({
   const today = useToday();
   const [data, setData] = React.useState<PersistedData | null>(null);
   const [storage, setStorage] = React.useState<StorageInfo>({ status: "ok", isFirstRun: false });
-  const [commitments, setCommitments] = React.useState<MicroCommitment[] | null>(null);
   const dataRef = React.useRef<PersistedData | null>(null);
   const saveErrorShown = React.useRef(false);
 
@@ -237,7 +262,15 @@ export function WorkspaceProvider({
           const movedSprint = changes.sprint !== undefined && changes.sprint !== task.sprint;
           const updated = applyTaskChanges(task, changes, now);
           if (movedSprint) updated.sortOrder = nextSortOrder(d.tasks);
-          return { ...d, tasks: d.tasks.map((t) => (t.id === id ? updated : t)) };
+          // Keep highlight snapshots readable if the task is later deleted.
+          const renamed = updated.title !== task.title;
+          return {
+            ...d,
+            tasks: d.tasks.map((t) => (t.id === id ? updated : t)),
+            highlights: renamed
+              ? d.highlights.map((h) => (h.taskId === id ? { ...h, titleSnapshot: updated.title } : h))
+              : d.highlights,
+          };
         }),
 
       setTaskStatus: (id, status) => updateTaskWhere(id, (t, now) => applyTaskChanges(t, { status }, now)),
@@ -303,39 +336,143 @@ export function WorkspaceProvider({
         return dataRef.current?.sessions.find((x) => x.id === id) ?? null;
       },
 
+      setHighlight: (taskId) => {
+        const current = dataRef.current;
+        const task = current?.tasks.find((t) => t.id === taskId);
+        if (!current || !task || !today) return null;
+        const now = nowISO();
+        const existing = current.highlights.find((h) => h.dateKey === today);
+        if (existing?.taskId === taskId) return existing;
+        // Only today's record changes; earlier days keep their own highlight.
+        const highlight: DailyHighlight = existing
+          ? { ...existing, taskId, titleSnapshot: task.title, selectedAt: now, updatedAt: now }
+          : createHighlight(today, task, now);
+        commit((d) => ({
+          ...d,
+          highlights: [highlight, ...d.highlights.filter((h) => h.dateKey !== today)],
+        }));
+        return highlight;
+      },
+
+      createHighlightTask: (input) => {
+        const current = dataRef.current;
+        if (!current || !today || !input.title.trim()) return null;
+        const now = nowISO();
+        const task = createTask(input, now, { sortOrder: nextSortOrder(current.tasks) });
+        const existing = current.highlights.find((h) => h.dateKey === today);
+        const highlight: DailyHighlight = existing
+          ? { ...existing, taskId: task.id, titleSnapshot: task.title, selectedAt: now, updatedAt: now }
+          : createHighlight(today, task, now);
+        commit((d) => ({
+          ...d,
+          tasks: [task, ...d.tasks],
+          highlights: [highlight, ...d.highlights.filter((h) => h.dateKey !== today)],
+        }));
+        return task;
+      },
+
+      removeHighlight: () =>
+        commit((d) =>
+          d.highlights.some((h) => h.dateKey === today)
+            ? { ...d, highlights: d.highlights.filter((h) => h.dateKey !== today) }
+            : d,
+        ),
+
+      createCommitment: (input) => {
+        if (!today || !input.title.trim()) return null;
+        const commitment = createCommitment(input, today, nowISO());
+        commit((d) => ({ ...d, commitments: [...d.commitments, commitment] }));
+        return commitment;
+      },
+
+      updateCommitment: (id, changes) =>
+        commit((d) => ({
+          ...d,
+          commitments: d.commitments.map((c) => {
+            if (c.id !== id) return c;
+            const next = {
+              ...c,
+              ...changes,
+              title: changes.title?.trim() || c.title,
+              description: changes.description !== undefined ? changes.description.trim() : c.description,
+              updatedAt: nowISO(),
+            };
+            if (next.frequency === "weekdays" && next.selectedWeekdays.length === 0) next.frequency = "daily";
+            return next;
+          }),
+        })),
+
+      setCommitmentStatus: (id, status) =>
+        commit((d) => ({
+          ...d,
+          commitments: d.commitments.map((c) =>
+            c.id === id && c.status !== status
+              ? { ...c, status, archivedAt: status === "archived" ? nowISO() : null, updatedAt: nowISO() }
+              : c,
+          ),
+        })),
+
+      deleteCommitment: (id) =>
+        commit((d) => ({
+          ...d,
+          commitments: d.commitments.filter((c) => c.id !== id),
+          commitmentCompletions: d.commitmentCompletions.filter((c) => c.commitmentId !== id),
+        })),
+
+      toggleCommitmentDone: (id, date) => {
+        const current = dataRef.current;
+        if (!current || (today && date > today)) return false;
+        const existing = current.commitmentCompletions.find((c) => c.commitmentId === id && c.dateKey === date);
+        commit((d) => ({
+          ...d,
+          // At most one record per commitment per day — add or remove, never duplicate.
+          commitmentCompletions: existing
+            ? d.commitmentCompletions.filter((c) => c !== existing)
+            : [...d.commitmentCompletions, { id: createId(), commitmentId: id, dateKey: date, completedAt: nowISO() }],
+        }));
+        return !existing;
+      },
+
+      ensureLog: (date) =>
+        commit((d) => (d.kaizenLogs.some((l) => l.dateKey === date) ? d : { ...d, kaizenLogs: [...d.kaizenLogs, createLog(date, nowISO())] })),
+
+      updateLog: (date, changes) =>
+        commit((d) => {
+          if (today && date > today) return d;
+          const now = nowISO();
+          const existing = d.kaizenLogs.find((l) => l.dateKey === date);
+          const base = existing ?? createLog(date, now);
+          const updated = { ...base, ...changes, updatedAt: now };
+          return {
+            ...d,
+            kaizenLogs: existing ? d.kaizenLogs.map((l) => (l === existing ? updated : l)) : [...d.kaizenLogs, updated],
+          };
+        }),
+
       loadSampleData: () => {
         if (!today) return;
         commit(() => createSampleData(today));
       },
 
       clearAllData: () => commit(() => EMPTY_DATA),
-
-      toggleCommitment: (id) =>
-        setCommitments((prev) => {
-          const list = prev ?? preview?.commitments ?? [];
-          if (!today) return list;
-          return list.map((c) => {
-            if (c.id !== id) return c;
-            const done = c.completedDates.includes(today);
-            return {
-              ...c,
-              completedDates: done
-                ? c.completedDates.filter((date) => date !== today)
-                : [...c.completedDates, today],
-            };
-          });
-        }),
     };
-  }, [repository, today, preview]);
+  }, [repository, today]);
+
+  // A new day gets its (empty) Kaizen Log as soon as the app is open on it —
+  // on load, after midnight in an open tab, or when returning to the tab.
+  // No background job needed, and earlier days are never touched.
+  React.useEffect(() => {
+    if (today && data && !data.kaizenLogs.some((l) => l.dateKey === today)) actions.ensureLog(today);
+  }, [today, data, actions]);
 
   const value = React.useMemo<WorkspaceContextValue | null>(() => {
     if (!today || !data || !preview) return null;
     return {
-      workspace: { ...preview, commitments: commitments ?? preview.commitments, ...data, today },
+      workspace: { ...preview, ...data, today },
       actions,
       storage,
     };
-  }, [today, data, preview, commitments, actions, storage]);
+  }, [today, data, preview, actions, storage]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

@@ -1,7 +1,7 @@
 import { isInInbox, sortCaptures } from "@/lib/brain-dump/capture-model";
 import { isOpenSession } from "@/lib/sessions/session-model";
 import { isCompleted, isSkipped } from "@/lib/tasks/task-model";
-import type { ISODate, MicroCommitment, Project, Workspace } from "@/types";
+import type { Project, Workspace } from "@/types";
 
 export function getProject(ws: Workspace, id: string | null): Project | null {
   return id ? (ws.projects.find((p) => p.id === id) ?? null) : null;
@@ -24,9 +24,6 @@ export function getInbox(ws: Workspace) {
   return sortCaptures(ws.captures.filter(isInInbox));
 }
 
-export function isCommitmentDone(c: MicroCommitment, date: ISODate) {
-  return c.completedDates.includes(date);
-}
 
 /** The one session that is planned, running or paused, if any. */
 export function getOpenSession(ws: Workspace) {

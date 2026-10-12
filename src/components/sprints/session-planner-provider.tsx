@@ -8,20 +8,23 @@ import type { SprintId } from "@/types";
 import { PlanSessionDialog } from "./plan-session-dialog";
 
 interface SessionPlannerValue {
-  open: (options?: { sprintId?: SprintId }) => void;
+  open: (options?: { sprintId?: SprintId; taskIds?: string[] }) => void;
 }
 
 const SessionPlannerContext = React.createContext<SessionPlannerValue | null>(null);
 
 /** "Plan a Session" can be opened from the Sprints board, a column or the Today page. */
 export function SessionPlannerProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = React.useState<{ open: boolean; sprintId?: SprintId; key: number }>({
+  const [state, setState] = React.useState<{ open: boolean; sprintId?: SprintId; taskIds?: string[]; key: number }>({
     open: false,
     key: 0,
   });
 
   const value = React.useMemo<SessionPlannerValue>(
-    () => ({ open: (options) => setState((s) => ({ open: true, sprintId: options?.sprintId, key: s.key + 1 })) }),
+    () => ({
+      open: (options) =>
+        setState((s) => ({ open: true, sprintId: options?.sprintId, taskIds: options?.taskIds, key: s.key + 1 })),
+    }),
     [],
   );
 
@@ -34,6 +37,7 @@ export function SessionPlannerProvider({ children }: { children: React.ReactNode
             key={state.key}
             open={state.open}
             initialSprint={state.sprintId}
+            initialTaskIds={state.taskIds}
             onOpenChange={(open) => setState((s) => ({ ...s, open }))}
           />
         </WorkspaceReady>

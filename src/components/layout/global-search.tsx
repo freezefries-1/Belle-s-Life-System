@@ -38,7 +38,7 @@ function search(ws: Workspace, query: string): SearchResult[] {
       .filter((c) => c.status === "inbox" && (match(c.title) || match(c.note)))
       .map((c) => ({ id: c.id, label: c.title, meta: "Brain Dump", href: "/brain-dump", icon: Inbox })),
     ...ws.commitments
-      .filter((c) => match(c.title))
+      .filter((c) => c.status !== "archived" && match(c.title))
       .map((c) => ({ id: c.id, label: c.title, meta: "Micro-commitment", href: "/micro-commitments", icon: Sprout })),
   ].slice(0, 8);
 }

@@ -125,11 +125,88 @@ export interface SprintSession {
   completedTaskIds: string[];
 }
 
+/* ------------------------------------------------------------------ */
+/* Daily: highlight, micro-commitments, Kaizen Log                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The one priority for a calendar day. Points at an existing task (never a
+ * copy); `titleSnapshot` keeps history readable if that task is deleted.
+ * Completion is always read from the task itself.
+ */
+export interface DailyHighlight {
+  id: string;
+  /** Local calendar date, YYYY-MM-DD. Unique — one highlight per day. */
+  dateKey: ISODate;
+  taskId: string;
+  titleSnapshot: string;
+  selectedAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+/**
+ * - `daily`: every day.
+ * - `weekdays`: only on `selectedWeekdays`.
+ * - `weekly`: once per week (Mon–Sun), on whichever day suits.
+ */
+export type CommitmentFrequency = "daily" | "weekdays" | "weekly";
+export type CommitmentStatus = "active" | "paused" | "archived";
+
+export interface MicroCommitment {
+  id: string;
+  title: string;
+  description: string;
+  targetMinutes: number | null;
+  frequency: CommitmentFrequency;
+  /** 0 = Sunday … 6 = Saturday. Used when frequency is `weekdays`. */
+  selectedWeekdays: number[];
+  startDate: ISODate;
+  status: CommitmentStatus;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  archivedAt: ISODateTime | null;
+}
+
+export type CommitmentInput = Pick<MicroCommitment, "title"> &
+  Partial<Pick<MicroCommitment, "description" | "targetMinutes" | "frequency" | "selectedWeekdays" | "startDate">>;
+
+/** One record per commitment per day it was done. Unique by (commitmentId, dateKey). */
+export interface CommitmentCompletion {
+  id: string;
+  commitmentId: string;
+  dateKey: ISODate;
+  completedAt: ISODateTime;
+}
+
+/**
+ * A day's journal. Only the words are stored here — the highlight,
+ * commitments and completed tasks for that day are read from their own
+ * records so nothing is duplicated.
+ */
+export interface KaizenLog {
+  id: string;
+  dateKey: ISODate;
+  reflectionWentWell: string;
+  reflectionImprove: string;
+  reflectionLearned: string;
+  notes: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type KaizenLogInput = Partial<
+  Pick<KaizenLog, "reflectionWentWell" | "reflectionImprove" | "reflectionLearned" | "notes">
+>;
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
   captures: Capture[];
   sessions: SprintSession[];
+  highlights: DailyHighlight[];
+  commitments: MicroCommitment[];
+  commitmentCompletions: CommitmentCompletion[];
+  kaizenLogs: KaizenLog[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -147,15 +224,6 @@ export interface Project {
   targetDate: ISODate | null;
 }
 
-export interface MicroCommitment {
-  id: string;
-  title: string;
-  description?: string;
-  /** The moment in the day that prompts this habit. */
-  cue?: string;
-  completedDates: ISODate[];
-}
-
 export type EventKind = "coaching" | "ladder" | "business" | "personal";
 
 export interface CalendarEvent {
@@ -166,21 +234,6 @@ export interface CalendarEvent {
   start: string;
   end: string;
   kind: EventKind;
-}
-
-export interface KaizenEntry {
-  id: string;
-  date: ISODate;
-  highlight: string;
-  highlightDone: boolean;
-  brainDump: string[];
-  commitments: { title: string; done: boolean }[];
-  reflection: {
-    wentWell: string;
-    improve: string;
-    oneSmallStep: string;
-  };
-  energy: 1 | 2 | 3 | 4 | 5;
 }
 
 export interface WeeklyReview {
@@ -195,17 +248,8 @@ export interface WeeklyReview {
 /** Sample content shown on pages whose real functionality arrives later. */
 export interface PreviewContent {
   projects: Project[];
-  commitments: MicroCommitment[];
   events: CalendarEvent[];
-  kaizenEntries: KaizenEntry[];
   weeklyReview: WeeklyReview;
-  /** Static stand-in for the Daily Highlight (Phase 4). */
-  highlightPreview: {
-    title: string;
-    sprint: SprintId;
-    projectId: string;
-    estimatedMinutes: number;
-  };
 }
 
 /** What components read: saved data + preview content + today's date. */

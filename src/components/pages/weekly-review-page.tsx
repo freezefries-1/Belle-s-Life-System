@@ -8,6 +8,7 @@ import { SprintBadge } from "@/components/shared/sprint-badge";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { addDays, formatShortDate, localDateOf } from "@/lib/date";
+import { resolveHighlight } from "@/lib/daily/day";
 import { isActive } from "@/lib/tasks/task-model";
 import { sortTasks } from "@/lib/tasks/task-queries";
 import { useWorkspace } from "@/lib/store/workspace-store";
@@ -28,10 +29,12 @@ export function WeeklyReviewPage() {
     workspace.tasks.filter((t) => isActive(t) && t.dueDate !== null && t.dueDate <= weekEnd),
     "due",
   );
-  const commitmentChecks = workspace.commitments.reduce(
-    (sum, c) => sum + c.completedDates.filter((d) => d > addDays(workspace.today, -7) && d <= workspace.today).length,
-    0,
-  );
+  const inRange = (d: string) => d >= review.weekStart && d <= weekEnd;
+  const commitmentChecks = workspace.commitmentCompletions.filter((c) => inRange(c.dateKey)).length;
+  const highlightsDone = workspace.highlights.filter(
+    (h) => inRange(h.dateKey) && resolveHighlight(workspace, h.dateKey)?.completed,
+  ).length;
+  const highlightsSet = workspace.highlights.filter((h) => inRange(h.dateKey)).length;
 
   return (
     <>
@@ -44,8 +47,8 @@ export function WeeklyReviewPage() {
         {[
           { label: "Tasks completed", value: completed.length, sub: "this week" },
           { label: "Still open", value: incomplete.length, sub: "due by today" },
-          { label: "Commitment check-ins", value: commitmentChecks, sub: `of ${workspace.commitments.length * 7} possible` },
-          { label: "Highlights done", value: workspace.kaizenEntries.filter((e) => e.highlightDone).length, sub: "this week" },
+          { label: "Commitment check-ins", value: commitmentChecks, sub: "this week" },
+          { label: "Highlights done", value: highlightsDone, sub: `of ${highlightsSet} chosen` },
         ].map((s) => (
           <Card key={s.label} className="p-4">
             <dt className="text-[11px] font-semibold text-muted-foreground">{s.label}</dt>

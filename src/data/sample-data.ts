@@ -1,7 +1,20 @@
 import { addDays, parseISODate } from "@/lib/date";
 import { createCapture } from "@/lib/brain-dump/capture-model";
+import { createCommitment } from "@/lib/daily/commitments";
+import { createHighlight, createLog } from "@/lib/daily/day";
+import { createId } from "@/lib/id";
 import { createTask } from "@/lib/tasks/task-model";
-import type { Capture, CaptureInput, ISODate, PersistedData, Task, TaskInput } from "@/types";
+import type {
+  Capture,
+  CaptureInput,
+  CommitmentCompletion,
+  DailyHighlight,
+  ISODate,
+  KaizenLog,
+  PersistedData,
+  Task,
+  TaskInput,
+} from "@/types";
 
 /**
  * Optional sample tasks and Brain Dump entries — a realistic week in
@@ -65,5 +78,53 @@ export function createSampleData(today: ISODate): PersistedData {
   ];
   const captures: Capture[] = captureSeeds.map(({ offset, hour, ...input }) => createCapture(input, at(offset, hour)));
 
-  return { tasks, captures, sessions: [] };
+  const byTitle = (title: string) => tasks.find((t) => t.title === title)!;
+
+  // Micro-commitments, started a fortnight ago, with a lived-in history.
+  const commitments = [
+    createCommitment({ title: "Read 5 pages", description: "Any book counts. Five pages is enough.", targetMinutes: 10, frequency: "daily", startDate: d(-14) }, d(-14), at(-14, 8)),
+    createCommitment({ title: "10-minute home reset", description: "Set a timer. Reset one space. Stop when it rings.", targetMinutes: 10, frequency: "daily", startDate: d(-14) }, d(-14), at(-14, 8)),
+    createCommitment({ title: "Practise Thai", targetMinutes: 5, frequency: "weekdays", selectedWeekdays: [1, 2, 3, 4, 5], startDate: d(-14) }, d(-14), at(-14, 8)),
+    createCommitment({ title: "Review the ladder standings", frequency: "weekly", startDate: d(-21) }, d(-21), at(-21, 8)),
+  ];
+  const [read, reset, thai, ladder] = commitments;
+  const tick = (commitmentId: string, offsets: number[]): CommitmentCompletion[] =>
+    offsets.map((o) => ({ id: createId(), commitmentId, dateKey: d(-o), completedAt: at(-o, 20) }));
+  const weekdayOffsets = Array.from({ length: 14 }, (_, i) => i + 1).filter((o) => {
+    const day = parseISODate(d(-o)).getDay();
+    return day >= 1 && day <= 5;
+  });
+  const commitmentCompletions = [
+    ...tick(read.id, [0, 1, 2, 3, 5, 6, 7, 9, 10]),
+    ...tick(reset.id, [1, 2, 4, 5, 6, 8, 9, 11]),
+    ...tick(thai.id, weekdayOffsets.filter((_, i) => i % 3 !== 2)),
+    ...tick(ladder.id, [8, 15]),
+  ];
+
+  // Past highlights (all completed) — today's is left for Belle to choose.
+  const highlights: DailyHighlight[] = [
+    createHighlight(d(-1), byTitle("Weekly grocery shop"), at(-1, 8)),
+    createHighlight(d(-2), byTitle("Photograph new grip tape stock"), at(-2, 8)),
+    createHighlight(d(-3), byTitle("Set up SportCraft product catalogue"), at(-3, 8)),
+  ];
+
+  const log = (offset: number, words: Partial<KaizenLog>): KaizenLog => ({ ...createLog(d(offset), at(offset, 21)), ...words });
+  const kaizenLogs: KaizenLog[] = [
+    log(-1, {
+      reflectionWentWell: "Did the shop straight after morning lessons — no decision fatigue later.",
+      reflectionImprove: "Started the evening scrolling instead of the shutdown routine.",
+      reflectionLearned: "Phone on charge in the kitchen helps me wind down.",
+      notes: "Had a productive drilling session today. Need to work on making decisions earlier during transition.",
+    }),
+    log(-2, {
+      reflectionWentWell: "Photos look great and are ready for the website.",
+      reflectionImprove: "It took 45 minutes, not 30 — light setup takes time.",
+    }),
+    log(-3, {
+      reflectionWentWell: "Deep work in the morning before lessons was really productive.",
+      reflectionLearned: "90-minute blocks suit build work.",
+    }),
+  ];
+
+  return { tasks, captures, sessions: [], highlights, commitments, commitmentCompletions, kaizenLogs };
 }

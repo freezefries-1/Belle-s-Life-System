@@ -22,14 +22,16 @@ type Pending = "sample" | "clear" | null;
 export function DataSettings() {
   const { workspace, actions, storage } = useWorkspace();
   const [pending, setPending] = React.useState<Pending>(null);
-  const hasData = workspace.tasks.length > 0 || workspace.captures.length > 0;
+  const hasData =
+    workspace.tasks.length > 0 ||
+    workspace.captures.length > 0 ||
+    workspace.commitments.length > 0 ||
+    workspace.highlights.length > 0 ||
+    workspace.kaizenLogs.some((l) => l.notes || l.reflectionWentWell || l.reflectionImprove || l.reflectionLearned);
 
   function downloadBackup() {
-    const envelope = createEnvelope({
-      tasks: workspace.tasks,
-      captures: workspace.captures,
-      sessions: workspace.sessions,
-    });
+    const { tasks, captures, sessions, highlights, commitments, commitmentCompletions, kaizenLogs } = workspace;
+    const envelope = createEnvelope({ tasks, captures, sessions, highlights, commitments, commitmentCompletions, kaizenLogs });
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -60,7 +62,8 @@ export function DataSettings() {
             {storage.status === "unavailable" ? "Storage unavailable" : "Saved in this browser"}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {workspace.tasks.length} tasks · {workspace.captures.length} Brain Dump entries.{" "}
+            {workspace.tasks.length} tasks · {workspace.captures.length} Brain Dump entries ·{" "}
+            {workspace.commitments.length} commitments · {workspace.kaizenLogs.length} log days.{" "}
             {storage.status === "unavailable"
               ? "This browser is blocking storage, so changes won’t survive closing the tab."
               : "Data stays on this device and browser until cloud sync arrives."}
@@ -81,7 +84,7 @@ export function DataSettings() {
         />
         <DataAction
           title="Explore with sample data"
-          body={hasData ? "Replaces your current tasks and Brain Dump with a sample week." : "Fill the app with a realistic sample week."}
+          body={hasData ? "Replaces everything you’ve saved with a sample week." : "Fill the app with a realistic sample week."}
           action={
             <Button
               variant="outline"
@@ -96,7 +99,7 @@ export function DataSettings() {
         />
         <DataAction
           title="Clear all data"
-          body="Delete every task and Brain Dump entry in this browser."
+          body="Delete everything saved in this browser."
           action={
             <Button
               variant="outline"
@@ -118,8 +121,8 @@ export function DataSettings() {
             <DialogTitle>{pending === "clear" ? "Clear all data?" : "Replace with sample data?"}</DialogTitle>
             <DialogDescription>
               {pending === "clear"
-                ? `This permanently deletes ${workspace.tasks.length} tasks and ${workspace.captures.length} Brain Dump entries from this browser. Download a backup first if you might want them.`
-                : `Your ${workspace.tasks.length} tasks and ${workspace.captures.length} Brain Dump entries will be replaced. Download a backup first if you want to keep them.`}
+                ? "This permanently deletes every task, Brain Dump entry, session, highlight, commitment and Kaizen Log entry in this browser. Download a backup first if you might want them."
+                : "Everything you’ve saved — tasks, Brain Dump, sessions, highlights, commitments and your Kaizen Log — will be replaced. Download a backup first if you want to keep it."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -6,9 +6,16 @@ import { toISODate } from "@/lib/date";
 import type { ISODate } from "@/types";
 
 function subscribe(onChange: () => void) {
-  // Re-check once a minute so the app rolls over at midnight.
+  // Re-check once a minute so the app rolls over at midnight, and straight
+  // away when returning to a tab or window that sat open overnight.
   const id = window.setInterval(onChange, 60_000);
-  return () => window.clearInterval(id);
+  document.addEventListener("visibilitychange", onChange);
+  window.addEventListener("focus", onChange);
+  return () => {
+    window.clearInterval(id);
+    document.removeEventListener("visibilitychange", onChange);
+    window.removeEventListener("focus", onChange);
+  };
 }
 
 const getSnapshot = () => toISODate(new Date());

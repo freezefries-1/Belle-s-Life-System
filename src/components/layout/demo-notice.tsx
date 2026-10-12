@@ -26,8 +26,8 @@ export function DemoNotice({ className }: { className?: string }) {
         </span>
       ) : (
         <span>
-          <span className="font-semibold text-ink-foreground">Saved in this browser.</span> Tasks and Brain Dump stay on
-          this device. Other sections show preview data.
+          <span className="font-semibold text-ink-foreground">Saved in this browser.</span> Your data stays on this
+          device. Projects, Calendar and Weekly Review show preview data.
         </span>
       )}
     </div>

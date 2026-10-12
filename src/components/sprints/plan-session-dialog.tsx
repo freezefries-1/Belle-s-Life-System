@@ -28,10 +28,12 @@ export function PlanSessionDialog({
   open,
   onOpenChange,
   initialSprint,
+  initialTaskIds,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialSprint?: SprintId;
+  initialTaskIds?: string[];
 }) {
   const { workspace, actions } = useWorkspace();
   const router = useRouter();
@@ -42,7 +44,7 @@ export function PlanSessionDialog({
   const [energy, setEnergy] = React.useState<EnergyLevel | null>(null);
   const [minutes, setMinutes] = React.useState(30);
   const [custom, setCustom] = React.useState("");
-  const [selected, setSelected] = React.useState<string[]>([]);
+  const [selected, setSelected] = React.useState<string[]>(initialTaskIds ?? []);
 
   const candidates = getManualOrder(workspace.tasks, sprintId);
   const chosen = candidates.filter((t) => selected.includes(t.id));

@@ -2,7 +2,13 @@ import type {
   Capture,
   CaptureKind,
   CaptureStatus,
+  CommitmentCompletion,
+  CommitmentFrequency,
+  CommitmentStatus,
+  DailyHighlight,
   EnergyLevel,
+  KaizenLog,
+  MicroCommitment,
   PersistedData,
   SessionStatus,
   SprintId,
@@ -23,8 +29,9 @@ export const STORAGE_KEY = "belles-life-system:v1";
 /**
  * 1 — Phase 2: tasks + captures.
  * 2 — Phase 3: tasks gain `sortOrder`; sprint `sessions` added.
+ * 3 — Phase 4: daily `highlights`, `commitments`, `commitmentCompletions`, `kaizenLogs`.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -32,7 +39,15 @@ export interface StorageEnvelope {
   data: PersistedData;
 }
 
-export const EMPTY_DATA: PersistedData = { tasks: [], captures: [], sessions: [] };
+export const EMPTY_DATA: PersistedData = {
+  tasks: [],
+  captures: [],
+  sessions: [],
+  highlights: [],
+  commitments: [],
+  commitmentCompletions: [],
+  kaizenLogs: [],
+};
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
@@ -41,6 +56,8 @@ const CAPTURE_KINDS: CaptureKind[] = ["task", "idea", "reminder", "note"];
 const CAPTURE_STATUSES: CaptureStatus[] = ["inbox", "converted"];
 const SESSION_STATUSES: SessionStatus[] = ["ready", "running", "paused", "ended"];
 const ENERGY_LEVELS: EnergyLevel[] = ["low", "moderate", "high"];
+const FREQUENCIES: CommitmentFrequency[] = ["daily", "weekdays", "weekly"];
+const COMMITMENT_STATUSES: CommitmentStatus[] = ["active", "paused", "archived"];
 
 type Obj = Record<string, unknown>;
 
@@ -114,6 +131,97 @@ export function parseSession(raw: unknown): SprintSession | null {
   };
 }
 
+export function parseHighlight(raw: unknown): DailyHighlight | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const dateKey = isoDate(raw.dateKey);
+  const taskId = str(raw.taskId);
+  const selectedAt = timestamp(raw.selectedAt);
+  if (!id || !dateKey || !taskId || !selectedAt) return null;
+  return {
+    id,
+    dateKey,
+    taskId,
+    titleSnapshot: str(raw.titleSnapshot)?.trim() || "Untitled task",
+    selectedAt,
+    updatedAt: timestamp(raw.updatedAt) ?? selectedAt,
+  };
+}
+
+export function parseCommitment(raw: unknown): MicroCommitment | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const title = str(raw.title)?.trim();
+  const createdAt = timestamp(raw.createdAt);
+  const startDate = isoDate(raw.startDate);
+  if (!id || !title || !createdAt || !startDate) return null;
+  const weekdays = Array.isArray(raw.selectedWeekdays)
+    ? [...new Set(raw.selectedWeekdays.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+    : [];
+  let frequency = oneOf(raw.frequency, FREQUENCIES) ?? "daily";
+  // "Selected weekdays" with no days chosen would never be scheduled — treat as daily.
+  if (frequency === "weekdays" && weekdays.length === 0) frequency = "daily";
+  const status = oneOf(raw.status, COMMITMENT_STATUSES) ?? "active";
+  return {
+    id,
+    title,
+    description: str(raw.description) ?? "",
+    targetMinutes: minutes(raw.targetMinutes),
+    frequency,
+    selectedWeekdays: weekdays,
+    startDate,
+    status,
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+    archivedAt: status === "archived" ? (timestamp(raw.archivedAt) ?? createdAt) : null,
+  };
+}
+
+export function parseCompletion(raw: unknown): CommitmentCompletion | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const commitmentId = str(raw.commitmentId);
+  const dateKey = isoDate(raw.dateKey);
+  const completedAt = timestamp(raw.completedAt);
+  if (!id || !commitmentId || !dateKey || !completedAt) return null;
+  return { id, commitmentId, dateKey, completedAt };
+}
+
+export function parseKaizenLog(raw: unknown): KaizenLog | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const dateKey = isoDate(raw.dateKey);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !dateKey || !createdAt) return null;
+  return {
+    id,
+    dateKey,
+    reflectionWentWell: str(raw.reflectionWentWell) ?? "",
+    reflectionImprove: str(raw.reflectionImprove) ?? "",
+    reflectionLearned: str(raw.reflectionLearned) ?? "",
+    notes: str(raw.notes) ?? "",
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+  };
+}
+
+/** Keep one record per key — the most recently updated wins. */
+function uniqueBy<T>(items: T[], key: (item: T) => string, updated: (item: T) => string) {
+  const best = new Map<string, T>();
+  for (const item of items) {
+    const k = key(item);
+    const current = best.get(k);
+    if (!current || updated(item) > updated(current)) best.set(k, item);
+  }
+  return items.filter((item) => best.get(key(item)) === item);
+}
+
+function parseList<T>(raw: unknown, parse: (x: unknown) => T | null) {
+  const list = Array.isArray(raw) ? raw : [];
+  const parsed = list.map(parse).filter((x): x is T => x !== null);
+  return { parsed, dropped: list.length - parsed.length };
+}
+
 /**
  * Give tasks without a position a stable one, after all positioned tasks,
  * in the order the Phase 2 board showed them (due date, then oldest first).
@@ -185,10 +293,36 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     sessions = sessions.map((x) => (extra.has(x.id) ? { ...x, status: "ended", endedAt: x.endedAt ?? x.createdAt, lastResumedAt: null } : x));
   }
 
+  const highlights = parseList(migrated.highlights, parseHighlight);
+  const commitments = parseList(migrated.commitments, parseCommitment);
+  const completions = parseList(migrated.commitmentCompletions, parseCompletion);
+  const logs = parseList(migrated.kaizenLogs, parseKaizenLog);
+  const commitmentIds = new Set(commitments.parsed.map((c) => c.id));
+
   return {
-    data: { tasks, captures, sessions },
+    data: {
+      tasks,
+      captures,
+      sessions,
+      // One highlight and one log per calendar day; one completion per commitment per day.
+      highlights: uniqueBy(dedupeById(highlights.parsed), (h) => h.dateKey, (h) => h.updatedAt),
+      commitments: dedupeById(commitments.parsed),
+      commitmentCompletions: uniqueBy(
+        dedupeById(completions.parsed).filter((c) => commitmentIds.has(c.commitmentId)),
+        (c) => `${c.commitmentId}|${c.dateKey}`,
+        (c) => c.completedAt,
+      ),
+      kaizenLogs: uniqueBy(dedupeById(logs.parsed), (l) => l.dateKey, (l) => l.updatedAt),
+    },
     dropped:
-      rawTasks.length - tasks.length + (rawCaptures.length - captures.length) + (rawSessions.length - sessions.length),
+      rawTasks.length -
+      tasks.length +
+      (rawCaptures.length - captures.length) +
+      (rawSessions.length - sessions.length) +
+      highlights.dropped +
+      commitments.dropped +
+      completions.dropped +
+      logs.dropped,
     migratedFrom: raw.schemaVersion < SCHEMA_VERSION ? raw.schemaVersion : null,
   };
 }
@@ -200,6 +334,10 @@ function migrate(version: number, data: Obj): Obj | null {
   if (version < 2) {
     // v1 → v2: tasks get positions (assigned during parsing), sessions start empty.
     current = { ...current, sessions: [] };
+  }
+  if (version < 3) {
+    // v2 → v3: daily records start empty. Nothing existing is touched.
+    current = { ...current, highlights: [], commitments: [], commitmentCompletions: [], kaizenLogs: [] };
   }
   return current;
 }

@@ -1,23 +1,41 @@
 "use client";
 
-import { CalendarClock, CircleCheck, CircleDot, Gauge } from "lucide-react";
+import { CalendarClock, CircleCheck, Sprout, Star } from "lucide-react";
 
 import { SectionHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { getCommitmentProgress } from "@/lib/daily/commitments";
+import { resolveHighlight } from "@/lib/daily/day";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { getDailyProgress } from "@/lib/tasks/task-queries";
 import { cn } from "@/lib/utils";
 
+/**
+ * Four separate signals — tasks, highlight, commitments, what's still due.
+ * They're deliberately not blended into one score.
+ */
 export function DailyProgress({ className }: { className?: string }) {
   const { workspace } = useWorkspace();
-  const p = getDailyProgress(workspace.tasks, workspace.today);
+  const tasks = getDailyProgress(workspace.tasks, workspace.today);
+  const highlight = resolveHighlight(workspace, workspace.today);
+  const commitments = getCommitmentProgress(workspace.commitments, workspace.today, workspace.commitmentCompletions);
 
   const stats = [
-    { label: "Completed today", value: String(p.completedToday), icon: CircleCheck, tone: "text-emerald-600" },
-    { label: "Due today", value: String(p.activeDueToday), icon: CalendarClock, tone: "text-amber-600" },
-    { label: "Outstanding", value: String(p.outstanding), icon: CircleDot, tone: "text-muted-foreground" },
-    { label: "Progress", value: p.planned ? `${p.percent}%` : "—", icon: Gauge, tone: "text-primary" },
+    { label: "Tasks completed", value: String(tasks.completedToday), icon: CircleCheck, tone: "text-emerald-600" },
+    {
+      label: "Highlight",
+      value: highlight ? (highlight.completed ? "Done" : "In focus") : "Not set",
+      icon: Star,
+      tone: cn("text-amber-500", highlight?.completed && "fill-amber-400"),
+    },
+    {
+      label: "Commitments",
+      value: commitments.scheduled ? `${commitments.done}/${commitments.scheduled}` : "—",
+      icon: Sprout,
+      tone: "text-primary",
+    },
+    { label: "Still due today", value: String(tasks.activeDueToday), icon: CalendarClock, tone: "text-amber-600" },
   ];
 
   return (
@@ -34,17 +52,19 @@ export function DailyProgress({ className }: { className?: string }) {
           </div>
         ))}
       </dl>
-      <Progress
-        value={p.percent}
-        className="mt-4"
-        indicatorClassName="bg-emerald-500"
-        aria-label={`${p.completedToday} of ${p.planned} of today’s tasks complete`}
-      />
-      <p className="mt-2 text-xs text-muted-foreground">
-        {p.planned
-          ? `${p.completedToday} of ${p.planned} of today’s tasks done.`
-          : "Nothing is due today. Anything you finish still counts."}
-      </p>
+      {tasks.planned > 0 && (
+        <>
+          <Progress
+            value={tasks.percent}
+            className="mt-4"
+            indicatorClassName="bg-emerald-500"
+            aria-label={`${tasks.completedToday} of ${tasks.planned} of today’s tasks complete`}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Today’s tasks: {tasks.completedToday} of {tasks.planned} done (due today, plus anything finished today).
+          </p>
+        </>
+      )}
     </Card>
   );
 }

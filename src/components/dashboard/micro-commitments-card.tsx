@@ -1,69 +1,65 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { Sprout } from "lucide-react";
+import { Plus, Sprout } from "lucide-react";
 
-import { CommitmentWeek } from "@/components/shared/commitment-week";
+import { CommitmentCheck } from "@/components/commitments/commitment-check";
+import { CommitmentEditorDialog } from "@/components/commitments/commitment-editor-dialog";
 import { SectionHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { isCommitmentDone } from "@/lib/selectors";
+import { getCommitmentProgress, getScheduledFor } from "@/lib/daily/commitments";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 
 export function MicroCommitmentsCard({ className }: { className?: string }) {
-  const { workspace, actions } = useWorkspace();
-  const doneCount = workspace.commitments.filter((c) => isCommitmentDone(c, workspace.today)).length;
+  const { workspace } = useWorkspace();
+  const [creating, setCreating] = React.useState(false);
+  const { commitments, commitmentCompletions, today } = workspace;
+  const scheduled = getScheduledFor(commitments, today, commitmentCompletions);
+  const progress = getCommitmentProgress(commitments, today, commitmentCompletions);
 
   return (
     <Card className={cn("p-5", className)}>
       <SectionHeader
         title="Micro-commitments"
-        description="Tiny actions. Done most days."
+        description="Small actions, repeated."
         icon={<Sprout className="size-4" />}
         action={
-          <span className="flex items-center gap-1.5">
-            <span
-              className="rounded-md border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase"
-              title="Habit tracking is saved from a later phase. Ticks here reset on refresh."
-            >
-              Preview
-            </span>
+          progress.scheduled > 0 && (
             <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
-              {doneCount}/{workspace.commitments.length}
+              {progress.done}/{progress.scheduled}
             </span>
-          </span>
+          )
         }
       />
-      <ul className="mt-4 flex flex-col gap-1">
-        {workspace.commitments.map((c) => {
-          const done = isCommitmentDone(c, workspace.today);
-          const id = `commit-${c.id}`;
-          return (
-            <li key={c.id} className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/60">
-              <Checkbox id={id} checked={done} onCheckedChange={() => actions.toggleCommitment(c.id)} className="mt-[3px]" />
-              <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer">
-                <span
-                  className={cn(
-                    "block text-[13.5px] leading-snug font-medium",
-                    done && "text-muted-foreground line-through decoration-slate-300",
-                  )}
-                >
-                  {c.title}
-                </span>
-                {c.cue && <span className="mt-0.5 block text-xs text-muted-foreground">{c.cue}</span>}
-              </label>
-              <CommitmentWeek commitment={c} today={workspace.today} className="mt-1.5" />
-            </li>
-          );
-        })}
-      </ul>
-      <Link
-        href="/micro-commitments"
-        className="mt-3 self-start text-xs font-semibold text-primary hover:text-primary-hover"
-      >
-        View all commitments
+      {scheduled.length === 0 ? (
+        <div className="mt-4 rounded-lg border border-dashed px-3 py-4 text-center">
+          <p className="text-[13px] text-muted-foreground">
+            {commitments.some((c) => c.status === "active") ? "Nothing scheduled today. Enjoy the space." : "No commitments yet."}
+          </p>
+          {commitments.length === 0 && (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="mt-2 inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              <Plus className="size-3.5" />
+              Add a small one
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="-mx-2 mt-3 flex flex-col">
+          {scheduled.map((c) => (
+            <CommitmentCheck key={c.id} commitment={c} date={today} />
+          ))}
+        </div>
+      )}
+      <Link href="/micro-commitments" className="mt-3 self-start text-xs font-semibold text-primary hover:text-primary-hover">
+        Manage commitments
       </Link>
+      {creating && <CommitmentEditorDialog open={creating} onOpenChange={setCreating} />}
     </Card>
   );
 }

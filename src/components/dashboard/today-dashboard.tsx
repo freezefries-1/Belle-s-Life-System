@@ -8,12 +8,13 @@ import { GettingStarted } from "./getting-started";
 import { HighlightCard } from "./highlight-card";
 import { MicroCommitmentsCard } from "./micro-commitments-card";
 import { QuickCaptureCard } from "./quick-capture-card";
+import { ReflectionShortcut } from "./reflection-shortcut";
 import { SprintOverview } from "./sprint-overview";
 import { WelcomeHeader } from "./welcome-header";
 
 /**
  * The command centre. DOM order is the mobile reading order:
- * highlight → capture → commitments → sprints → progress → projects.
+ * highlight → capture → commitments → sprints → progress → reflection → projects.
  * On large screens a 3-column grid places them side by side.
  */
 export function TodayDashboard() {
@@ -26,8 +27,9 @@ export function TodayDashboard() {
         <HighlightCard className="lg:col-span-2 lg:col-start-1 lg:row-start-1" />
         <QuickCaptureCard className="lg:col-start-3 lg:row-start-1" />
         <MicroCommitmentsCard className="lg:col-start-3 lg:row-start-2" />
-        <SprintOverview className="lg:col-span-2 lg:col-start-1 lg:row-span-2 lg:row-start-2" />
+        <SprintOverview className="lg:col-span-2 lg:col-start-1 lg:row-span-3 lg:row-start-2" />
         <DailyProgress className="lg:col-start-3 lg:row-start-3 lg:self-start" />
+        <ReflectionShortcut className="lg:col-start-3 lg:row-start-4 lg:self-start" />
       </div>
       <ActiveProjects />
     </div>

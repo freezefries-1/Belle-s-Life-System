@@ -4,7 +4,7 @@
 
 A calm, Kaizen-inspired personal productivity workspace, based on Ruri Ohama’s Kaizen method and designed to keep visual and mental clutter low. It replaces a Notion template with a faster, cleaner interface built around one daily highlight, four kinds of work (sprints), quick capture and small daily improvements.
 
-> **Phase 3 — Sprint management & planning.** Tasks, Brain Dump entries and focus sessions are saved in your browser (localStorage) and survive refreshes. Other sections (projects, habits, calendar, journal, weekly review) still show preview data. Nothing syncs between devices yet.
+> **Phase 4 — Daily Highlight, Micro-Commitments & Kaizen Log.** Tasks, Brain Dump, focus sessions, daily highlights, micro-commitments and the Kaizen Log are saved in your browser (localStorage) and survive refreshes. Projects, Calendar events and the Weekly Review still show preview data. Nothing syncs between devices yet.
 
 ---
 
@@ -72,6 +72,8 @@ src/
 │   ├── brain-dump/           # Capture form, inbox, entry row, edit dialog
 │   ├── tasks/                # TaskItem row, shared task editor, filters, summary, actions menu
 │   ├── sprints/              # Kanban board (dnd-kit), columns, Unassigned tray, session planner + session view
+│   ├── daily/                # Highlight picker, reflection/notes editor, day history
+│   ├── commitments/          # Commitment editor, tick row, management card
 │   ├── settings/             # Data controls (backup, sample data, clear)
 │   ├── pages/                # Client components for every other page
 │   └── shared/               # SprintBadge, ProjectCard, ProgressRing, task meta labels…
@@ -84,6 +86,7 @@ src/
 │   ├── storage/              # localStorage wrapper, versioned schema + validation, repository
 │   ├── tasks/                # Task model, filter/sort/summary queries, sprint-board helpers (order, progress)
 │   ├── sessions/             # Session model: timestamp-based timer, start/pause/end, summaries
+│   ├── daily/                # Commitment scheduling + streaks; highlight, log and day-summary helpers
 │   ├── brain-dump/           # Capture model
 │   ├── store/workspace-store.tsx  # Single source of truth + actions, persists via the repository
 │   ├── selectors.ts          # Project progress, inbox…
@@ -97,7 +100,7 @@ src/
 - `WorkspaceProvider` (in the app shell) loads saved data through a `WorkspaceRepository` **in the browser only** (no hydration mismatches) and exposes `useWorkspace()` → `{ workspace, actions, storage }`.
 - Components read through `useWorkspace()` and the query helpers in `lib/tasks`, and change data only through `actions` (`addCapture`, `convertCapture`, `createTask`, `updateTask`, `toggleTaskComplete`, `deleteTask`…).
 - Every action writes through the repository. Today that's `localStorageRepository`; a Supabase repository can implement the same interface later.
-- **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures, sessions } }`. The current `schemaVersion` is **2**. Phase 2 (v1) data upgrades automatically: every task keeps its fields and gains a `sortOrder`, and a copy of the old data is kept under `belles-life-system:v1:backup:pre-v2-<time>`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
+- **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures, sessions } }`. The current `schemaVersion` is **3**: v3 adds `highlights`, `commitments`, `commitmentCompletions` and `kaizenLogs`, and older data upgrades step by step, with a `pre-vN` backup kept first. Phase 2 (v1) data upgrades automatically: every task keeps its fields and gains a `sortOrder`, and a copy of the old data is kept under `belles-life-system:v1:backup:pre-v2-<time>`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
 - **First run** starts empty. Sample data is only loaded when you choose “Explore with sample data”, and it never overwrites saved data without asking.
 
 ### Task rules
@@ -122,6 +125,13 @@ src/
 - Drag-to-reorder pauses while filters or a non-manual sort are on, and the board says so. The ⋯ menu and quick-assign buttons always work.
 - **Sessions** reference tasks by id; tasks are never copied. Only one session can be open at a time. Elapsed time = `accumulatedElapsedSeconds` + (now − `lastResumedAt`) while running, so it survives refreshes and background tabs. Ending a session records a snapshot (`completedTaskIds`, actual time) and never moves or reschedules tasks.
 
+### Daily rules
+
+- **Daily Highlight:** one record per local date (`dateKey`, YYYY-MM-DD). It points at an existing task by `taskId`, so completing the highlight completes that task and reopening the task reopens the highlight. There's no separate completion flag. `titleSnapshot` keeps history readable if the task is later deleted. Only today's record ever changes. Yesterday's unfinished highlight is offered as a suggestion, never carried forward.
+- **Micro-commitments:** a frequency of **daily**, **selected weekdays**, or **weekly** (once in each Monday–Sunday week, on any day). Completions are separate records, unique per `(commitmentId, dateKey)`, so ticking today never affects another day. Pausing and archiving keep the history; deleting removes it (after confirmation).
+- **Streaks** count consecutive *scheduled* days (or weeks, for weekly commitments). Unscheduled days are skipped, and an open today or this week doesn't break a streak.
+- **Kaizen Log:** one entry per local date, holding only the reflection answers and notes. The highlight, commitments, completed tasks and sessions for that day are read from their own records. Today's entry is created the first time the app opens that day, including after midnight in an open tab or when you return to the tab; no background job is needed. Future dates are read-only and never create records.
+
 ### Design tokens
 
 Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-ink`, `text-ink-muted`, `bg-sprint-urgent`, …):
@@ -137,6 +147,26 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 | `ink-border`     | `#334155` | Borders on dark surfaces    |
 
 ---
+
+## Phase 4 — what’s included
+
+- **Today's Highlight:**
+  - Pick an open task, or type a new one, as today's single priority.
+  - Change or remove it, edit the task, tick it complete (this completes the real task), or plan a focus session for it.
+  - If yesterday's highlight is unfinished, it's offered with one tap, never added automatically.
+- **Micro-Commitments page:**
+  - Create and edit commitments (title, description, target time, every day / selected days / once a week, start date).
+  - Pause, resume, archive, restore and delete them.
+  - Tick or untick today. Each card shows the last 14 days (or 8 weeks), "Done X of the last Y scheduled days" and a gentle streak.
+  - When the list is empty, one-tap suggestions help you start.
+- **Kaizen Log:**
+  - Previous / Today / Next controls and a date picker.
+  - Each day shows its highlight, commitments (tickable, including past days), completed tasks and focus sessions, three optional reflection prompts and free-form daily notes, all saved as you type.
+  - A "Recent days" history shows highlight, task, commitment and reflection indicators.
+- **Today page:**
+  - The highlight card, today's commitments with tick boxes, and a reflection shortcut.
+  - Daily Progress shows tasks completed, highlight status, commitments done and tasks still due as separate numbers, not blended into one score.
+  - The date rolls over correctly in an open tab.
 
 ## Phase 3 — what’s included
 
@@ -178,15 +208,15 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 
 - Data lives in one browser on one device. Clearing site data removes it, so use **Download a backup**. There's no import yet.
 - Projects are a fixed list of four. Tasks can link to them, but projects can't be created or edited yet.
-- Highlight, Micro-Commitments, Calendar events, Kaizen Log and Weekly Review are still previews and aren't saved.
+- Calendar events and the Weekly Review (wins, challenges, priorities) are still previews and aren't saved.
+- The app doesn't record *when* a commitment was paused. For past days, the Kaizen Log lists commitments that had started and weren't archived yet, plus anything actually ticked that day.
 - On phones you can reorder within a sprint by dragging, but you move tasks between sprints with the menu or quick-assign buttons (one column shows at a time).
 - Session time isn't yet copied into a task's "actual time". Time Estimation and Weekly Review will use the session history in later phases.
-- The Today's Highlight card still has its own preview timer, separate from Sprint sessions.
 - Recurring tasks come in a later phase.
 
 ## Next phases (suggested)
 
-1. **Phase 4:** Daily Highlight selection, saved per day.
-2. Micro-Commitment tracking, Kaizen Log and Weekly Review saving (session history is already stored for Time Estimation and Weekly Review).
+1. Weekly Review saving and gentle trends (session, highlight and commitment history are already stored).
+2. Time Estimation from session history.
 4. Supabase + sign-in, implementing `WorkspaceRepository` (with a one-time import from localStorage).
 5. Projects CRUD, recurring tasks, calendar sync, Notion import, dark mode.
