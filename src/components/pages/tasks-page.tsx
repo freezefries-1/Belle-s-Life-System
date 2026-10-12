@@ -27,6 +27,8 @@ import {
 } from "@/lib/tasks/task-queries";
 import { formatMinutes } from "@/lib/utils";
 
+const PAGE_SIZE = 100;
+
 const SUMMARY_QUERIES: Record<SummaryKey, Partial<TaskQuery>> = {
   active: { view: "all", status: "open", due: "any" },
   dueToday: { view: "today", status: "open", due: "any" },
@@ -41,6 +43,10 @@ export function TasksPage() {
   const update = (patch: Partial<TaskQuery>) =>
     setQuery((q) => ({ ...q, ...patch }));
   const [section, setSection] = useHashSection();
+  // Long histories render a page at a time; changing the view starts again at the top.
+  const [limit, setLimit] = React.useState({ key: "", count: PAGE_SIZE });
+  const queryKey = JSON.stringify(query);
+  const shown = limit.key === queryKey ? limit.count : PAGE_SIZE;
 
   const summary = getTaskSummary(workspace.tasks, workspace.today);
   const filtered = filterTasks(workspace.tasks, query, workspace.today);
@@ -181,12 +187,19 @@ export function TasksPage() {
               </div>
             ) : (
               <ul className="flex flex-col divide-y p-1.5">
-                {tasks.map((t) => (
+                {tasks.slice(0, shown).map((t) => (
                   <li key={t.id}>
                     <TaskItem task={t} showProject />
                   </li>
                 ))}
               </ul>
+            )}
+            {tasks.length > shown && (
+              <div className="border-t px-4 py-3 text-center">
+                <Button variant="outline" size="sm" onClick={() => setLimit({ key: queryKey, count: shown + PAGE_SIZE })}>
+                  Show {Math.min(PAGE_SIZE, tasks.length - shown)} more of {tasks.length - shown}
+                </Button>
+              </div>
             )}
           </Card>
         </>

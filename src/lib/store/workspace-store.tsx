@@ -189,19 +189,27 @@ export function WorkspaceProvider({
   const today = useToday();
   const [data, setData] = React.useState<PersistedData | null>(null);
   const [storage, setStorage] = React.useState<StorageInfo>({ status: "ok", isFirstRun: false });
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = React.useState(0);
   const dataRef = React.useRef<PersistedData | null>(null);
   const saveErrorShown = React.useRef(false);
 
   // Load once, in the browser only (avoids hydration mismatches).
   React.useEffect(() => {
     let cancelled = false;
-    repository.load().then((result) => {
-      if (cancelled) return;
-      dataRef.current = result.data;
-      setData(result.data);
-      setStorage({ status: result.status, isFirstRun: result.isFirstRun });
-      if (result.message) toast(result.message, { duration: 8000 });
-    });
+    repository
+      .load()
+      .then((result) => {
+        if (cancelled) return;
+        dataRef.current = result.data;
+        setData(result.data);
+        setStorage({ status: result.status, isFirstRun: result.isFirstRun });
+        if (result.message) toast(result.message, { duration: 8000 });
+      })
+      .catch((error: unknown) => {
+        // Never fall back to an empty workspace: that could look like data loss.
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : "Your data couldn’t be loaded.");
+      });
     const unsubscribe = repository.subscribe((external) => {
       dataRef.current = external;
       setData(external);
@@ -210,7 +218,7 @@ export function WorkspaceProvider({
       cancelled = true;
       unsubscribe();
     };
-  }, [repository]);
+  }, [repository, loadAttempt]);
 
   const actions = React.useMemo<WorkspaceActions>(() => {
     /** Apply a change, then persist it. Synchronous so callers get results back. */
@@ -222,7 +230,7 @@ export function WorkspaceProvider({
       dataRef.current = next;
       setData(next);
       setStorage((s) => (s.isFirstRun ? { ...s, isFirstRun: false } : s));
-      repository.save(next).then((result) => {
+      repository.save(next, current).then((result) => {
         if (!result.ok && !saveErrorShown.current) {
           saveErrorShown.current = true;
           toast.error(result.message);
@@ -856,7 +864,29 @@ export function WorkspaceProvider({
     };
   }, [today, data, actions, storage]);
 
-  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
+  const loadState = React.useMemo(
+    () => ({
+      error: loadError,
+      retry: () => {
+        setLoadError(null);
+        setLoadAttempt((n) => n + 1);
+      },
+    }),
+    [loadError],
+  );
+
+  return (
+    <WorkspaceLoadContext.Provider value={loadState}>
+      <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
+    </WorkspaceLoadContext.Provider>
+  );
+}
+
+const WorkspaceLoadContext = React.createContext<{ error: string | null; retry: () => void } | null>(null);
+
+/** Load failures (e.g. offline at sign-in), with a way to try again. */
+export function useWorkspaceLoadState() {
+  return React.useContext(WorkspaceLoadContext);
 }
 
 /** Returns null until the workspace has loaded in the browser. */

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { formatLongDate } from "@/lib/date";
 import { useToday } from "@/lib/use-today";
 
+import { SyncIndicator } from "@/components/cloud/sync-status";
+
 import { GlobalSearch } from "./global-search";
 import { getNavItem } from "./nav-config";
 import { UserMenu } from "./user-menu";
@@ -50,6 +52,8 @@ export function Topbar({
           {today ? formatLongDate(today) : ""}
         </p>
       </div>
+
+      <SyncIndicator />
 
       <GlobalSearch inputRef={searchInputRef} className="hidden w-64 md:block xl:w-80" />
 

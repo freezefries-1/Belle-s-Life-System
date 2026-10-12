@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Database, FileInput, Lock } from "lucide-react";
 
+import { AccountSettings } from "@/components/settings/account-settings";
 import { DataSettings } from "@/components/settings/data-settings";
 import { PageHeader } from "@/components/shared/page-header";
 import { SprintDot } from "@/components/shared/sprint-badge";
@@ -111,7 +112,9 @@ export function SettingsPage() {
           </ul>
         </SettingsSection>
 
-        <SettingsSection title="Your data" description="Tasks and Brain Dump entries.">
+        <AccountSettings />
+
+        <SettingsSection title="Your data" description="Backups, sample data and moving data between places.">
           <DataSettings />
         </SettingsSection>
 

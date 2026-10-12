@@ -7,7 +7,9 @@ import { TaskEditorProvider } from "@/components/tasks/task-editor-provider";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { CloudWorkspaceProvider } from "@/components/cloud/cloud-workspace-provider";
 import { WorkspaceProvider } from "@/lib/store/workspace-store";
+import { isCloudEnabled } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 
 import { GlobalSearch } from "./global-search";
@@ -58,8 +60,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [focusSearch]);
 
+  // Cloud mode when Supabase is configured; otherwise browser-only storage as before.
+  const DataProvider = isCloudEnabled ? CloudWorkspaceProvider : WorkspaceProvider;
+
   return (
-    <WorkspaceProvider>
+    <DataProvider>
       <TooltipProvider>
         <TaskEditorProvider>
           <SessionPlannerProvider>
@@ -98,6 +103,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </SessionPlannerProvider>
         </TaskEditorProvider>
       </TooltipProvider>
-    </WorkspaceProvider>
+    </DataProvider>
   );
 }

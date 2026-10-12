@@ -1,15 +1,18 @@
 "use client";
 
-import { HardDrive, TriangleAlert } from "lucide-react";
+import { Cloud, HardDrive, TriangleAlert } from "lucide-react";
+
+import { useAccount } from "@/lib/auth/account";
 
 import { useWorkspaceOptional } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 
-/** Says plainly where data lives — this browser only, until cloud sync arrives. */
+/** Says plainly where data lives — your account (cloud mode) or this browser. */
 export function DemoNotice({ className }: { className?: string }) {
   const ctx = useWorkspaceOptional();
-  const unavailable = ctx?.storage.status === "unavailable";
-  const Icon = unavailable ? TriangleAlert : HardDrive;
+  const cloud = useAccount();
+  const unavailable = !cloud && ctx?.storage.status === "unavailable";
+  const Icon = cloud ? Cloud : unavailable ? TriangleAlert : HardDrive;
 
   return (
     <div
@@ -19,7 +22,12 @@ export function DemoNotice({ className }: { className?: string }) {
       )}
     >
       <Icon className={cn("mt-px size-3.5 shrink-0", unavailable && "text-amber-400")} />
-      {unavailable ? (
+      {cloud ? (
+        <span>
+          <span className="font-semibold text-ink-foreground">Synced to your account.</span> Available on any device
+          you sign in to.
+        </span>
+      ) : unavailable ? (
         <span>
           <span className="font-semibold text-ink-foreground">Not saving.</span> This browser is blocking storage, so
           changes last until you close the tab.

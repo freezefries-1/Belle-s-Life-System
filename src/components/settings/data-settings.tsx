@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download, HardDrive, RotateCcw, Sparkles } from "lucide-react";
+import { Cloud, Download, HardDrive, RotateCcw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useAccount } from "@/lib/auth/account";
 import { createEnvelope } from "@/lib/storage/schema";
+
+import { LocalDataMigration } from "./local-data-migration";
 import { useWorkspace } from "@/lib/store/workspace-store";
 
 type Pending = "sample" | "clear" | null;
@@ -22,6 +26,8 @@ type Pending = "sample" | "clear" | null;
 export function DataSettings() {
   const { workspace, actions, storage } = useWorkspace();
   const [pending, setPending] = React.useState<Pending>(null);
+  const cloud = useAccount();
+  const [typed, setTyped] = React.useState("");
   const hasData =
     workspace.tasks.length > 0 ||
     workspace.captures.length > 0 ||
@@ -76,26 +82,29 @@ export function DataSettings() {
       toast("Sample data loaded");
     } else if (pending === "clear") {
       actions.clearAllData();
-      toast("All tasks and Brain Dump entries cleared");
+      toast(cloud ? "All data in your account is being deleted" : "All tasks and Brain Dump entries cleared");
     }
     setPending(null);
+    setTyped("");
   }
 
   return (
     <>
       <div className="flex items-start gap-3 rounded-lg bg-muted/60 px-3.5 py-3">
-        <HardDrive className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        {cloud ? <Cloud className="mt-0.5 size-4 shrink-0 text-primary" /> : <HardDrive className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
         <div className="text-[13px]">
           <p className="font-semibold">
-            {storage.status === "unavailable" ? "Storage unavailable" : "Saved in this browser"}
+            {cloud ? `Synced to ${cloud.account.email}` : storage.status === "unavailable" ? "Storage unavailable" : "Saved in this browser"}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {workspace.tasks.length} tasks · {workspace.captures.length} Brain Dump entries ·{" "}
             {workspace.commitments.length} commitments · {workspace.projects.length} projects ·{" "}
             {workspace.recurrences.length} recurring · {workspace.kaizenLogs.length} log days.{" "}
-            {storage.status === "unavailable"
-              ? "This browser is blocking storage, so changes won’t survive closing the tab."
-              : "Data stays on this device and browser until cloud sync arrives."}
+            {cloud
+              ? "Saved securely in your account and available on every device you sign in to."
+              : storage.status === "unavailable"
+                ? "This browser is blocking storage, so changes won’t survive closing the tab."
+                : "Data stays on this device and browser."}
           </p>
         </div>
       </div>
@@ -111,6 +120,8 @@ export function DataSettings() {
             </Button>
           }
         />
+        {cloud && <LocalDataMigration />}
+        {(!cloud || !hasData) && (
         <DataAction
           title="Explore with sample data"
           body={hasData ? "Replaces everything you’ve saved with a sample week." : "Fill the app with a realistic sample week."}
@@ -126,9 +137,10 @@ export function DataSettings() {
             </Button>
           }
         />
+        )}
         <DataAction
-          title="Clear all data"
-          body="Delete everything saved in this browser."
+          title={cloud ? "Delete all data in your account" : "Clear all data"}
+          body={cloud ? "Permanently deletes everything in your account, on every device." : "Delete everything saved in this browser."}
           action={
             <Button
               variant="outline"
@@ -147,19 +159,25 @@ export function DataSettings() {
       <Dialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{pending === "clear" ? "Clear all data?" : "Replace with sample data?"}</DialogTitle>
+            <DialogTitle>{pending === "clear" ? (cloud ? "Delete all data in your account?" : "Clear all data?") : "Replace with sample data?"}</DialogTitle>
             <DialogDescription>
               {pending === "clear"
-                ? "This permanently deletes every task, Brain Dump entry, session, highlight, commitment and Kaizen Log entry in this browser. Download a backup first if you might want them."
+                ? cloud
+                  ? "This permanently deletes every record in your account, on every device. It can’t be undone. Download a backup first. Type DELETE to confirm."
+                  : "This permanently deletes every task, Brain Dump entry, session, highlight, commitment and Kaizen Log entry in this browser. Download a backup first if you might want them."
                 : "Everything you’ve saved — tasks, Brain Dump, sessions, highlights, commitments and your Kaizen Log — will be replaced. Download a backup first if you want to keep it."}
             </DialogDescription>
           </DialogHeader>
+          {pending === "clear" && cloud && (
+            <Input aria-label="Type DELETE to confirm" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="DELETE" />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setPending(null)}>
               Cancel
             </Button>
             <Button
               onClick={confirm}
+              disabled={pending === "clear" && !!cloud && typed !== "DELETE"}
               className={pending === "clear" ? "bg-rose-600 hover:bg-rose-700" : undefined}
             >
               {pending === "clear" ? "Delete everything" : "Replace with sample"}

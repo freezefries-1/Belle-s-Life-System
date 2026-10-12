@@ -4,7 +4,7 @@
 
 A calm, Kaizen-inspired personal productivity workspace, based on Ruri Ohama’s Kaizen method and designed to keep visual and mental clutter low. It replaces a Notion template with a faster, cleaner interface built around one daily highlight, four kinds of work (sprints), quick capture and small daily improvements.
 
-> **Phase 6 — Weekly Reviews, Time Estimation & Progress.** Everything is saved in your browser (localStorage) and survives refreshes: tasks, Brain Dump, focus sessions, daily highlights, micro-commitments, the Kaizen Log, projects, milestones, recurring tasks and weekly reviews. Calendar, Weekly Review numbers, Time Estimation and Progress are all calculated from those records. Nothing syncs between devices yet.
+> **Phase 7 — Supabase, sign-in & cloud sync.** With Supabase configured, everything is saved to your account (Postgres with Row Level Security), you sign in with email and password, and changes appear on every device. Without it, the app saves to this browser exactly as before. See [docs/supabase-setup.md](docs/supabase-setup.md) to turn it on, and [docs/cloud-architecture.md](docs/cloud-architecture.md) for how it works.
 
 ---
 
@@ -32,7 +32,7 @@ Open <http://localhost:3000>.
 2. Keep the detected defaults (Framework: Next.js) and click **Deploy**.
 3. From then on, every push to the production branch redeploys automatically, and other branches get preview URLs.
 
-No environment variables are needed in Phase 1.
+Without environment variables the app runs in browser-only mode. To turn on sign-in and cloud sync, follow [docs/supabase-setup.md](docs/supabase-setup.md): create a Supabase project, run the SQL in `supabase/migrations/`, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in Vercel (see `.env.example`), then redeploy. Never add a service-role or secret key.
 
 ## Keyboard shortcuts
 
@@ -54,6 +54,7 @@ No environment variables are needed in Phase 1.
 - **shadcn/ui** components (Radix primitives) in `src/components/ui`
 - **Lucide** icons, **Manrope** font, **Sonner** toasts
 - **dnd-kit** (core + sortable) for accessible drag and drop on the Sprints board
+- **Supabase** (`@supabase/supabase-js`, `@supabase/ssr`): Postgres, Row Level Security and email auth, with SQL migrations in `supabase/migrations/`
 
 ## Project structure
 
@@ -102,14 +103,26 @@ src/
 │   ├── selectors.ts          # Project progress, inbox…
 │   ├── date.ts               # Local-date helpers (no time zone surprises)
 │   └── use-today.ts          # Viewer’s local date, hydration-safe
-└── types/index.ts            # Domain model — each type maps to a future table
+├── proxy.ts                  # Refreshes the auth session; signed-out visitors go to /login (cloud mode only)
+├── lib/supabase/             # Browser/server clients, config, proxy session helper
+├── lib/repositories/         # Cloud repository, sync engine, row mappers, local-data migration
+├── lib/auth/                 # Account context, sync status, safe redirects
+├── components/auth/          # Login + reset-password forms
+├── components/cloud/         # Cloud workspace provider, sync indicator and banner
+├── types/database.ts         # Supabase row types
+└── types/index.ts            # Domain model
+
+supabase/
+├── migrations/               # Schema, constraints, indexes, RLS, functions (version-controlled)
+├── tests/                    # Database security tests (two accounts)
+└── local/                    # Local test stack (Docker) — development only
 ```
 
 ### How data flows
 
 - `WorkspaceProvider` (in the app shell) loads saved data through a `WorkspaceRepository` **in the browser only** (no hydration mismatches) and exposes `useWorkspace()` → `{ workspace, actions, storage }`.
 - Components read through `useWorkspace()` and the query helpers in `lib/tasks`, and change data only through `actions` (`addCapture`, `convertCapture`, `createTask`, `updateTask`, `toggleTaskComplete`, `deleteTask`…).
-- Every action writes through the repository. Today that's `localStorageRepository`; a Supabase repository can implement the same interface later.
+- Every action writes through the repository: `localStorageRepository` in browser-only mode, or the cloud repository (Supabase) when it's configured. Both share one interface, so components never touch storage or the database directly.
 - **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures, sessions } }`. The current `schemaVersion` is **5**: v5 adds `weeklyReviews` and `weeklyPriorities`, records commitment `pausedPeriods`, milestone `completedAt` and session `allocations` (filled from existing timestamps when upgrading). v4 added `projects`, `milestones` and `recurrences`, plus four task fields (`projectSortOrder`, `milestoneId`, `recurrenceTemplateId`, `occurrenceDate`). v3 added `highlights`, `commitments`, `commitmentCompletions` and `kaizenLogs`, and older data upgrades step by step, with a `pre-vN` backup kept first. Phase 2 (v1) data upgrades automatically: every task keeps its fields and gains a `sortOrder`, and a copy of the old data is kept under `belles-life-system:v1:backup:pre-v2-<time>`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
 - **First run** starts empty. Sample data is only loaded when you choose “Explore with sample data”, and it never overwrites saved data without asking.
 
@@ -194,6 +207,36 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 | `ink-border`     | `#334155` | Borders on dark surfaces    |
 
 ---
+
+## Phase 7 — what’s included
+
+- **Supabase schema** (`supabase/migrations/20261012000000_initial_schema.sql`):
+  - 13 user-owned tables plus profiles and sync tombstones;
+  - composite `(user_id, id)` keys that keep existing ids;
+  - ownership-aware foreign keys (no cross-account links);
+  - `date` vs `timestamptz` used properly;
+  - uniqueness for highlights, commitment ticks, weekly reviews, recurring occurrences and the one open session;
+  - indexes, version and sync triggers, and RLS on everything.
+- **Auth:**
+  - email + password sign-in, account creation, and password reset by email;
+  - protected routes through `src/proxy.ts`;
+  - sessions that persist across refreshes and refresh themselves when they expire;
+  - sign-out that clears all in-memory data.
+- **Cloud data layer:**
+  - the same store and actions as before, now saving row-level changes through a transactional `apply_changes` function;
+  - versioned concurrency, so stale edits are reported and never silently overwritten;
+  - automatic handling of routine multi-device cases;
+  - incremental sync on focus, on reconnect and every 30 s;
+  - a sync indicator, offline and error banners with Retry, and a load-error screen.
+- **Migration:**
+  - a backup download, a preview, and explicit confirmation;
+  - an insert-only, retryable import that preserves ids, timestamps and links;
+  - verification afterwards;
+  - local data kept until you choose to clear it.
+- **Tasks page:** long lists render 100 at a time.
+- **Tests:**
+  - `supabase/tests/db-security.test.mjs`: 41 checks with two real accounts against the local stack;
+  - an end-to-end browser suite: auth, password reset email, every record type, two-device sync, conflicts, recurring de-duplication, offline, isolation, migration with a simulated failure, mobile.
 
 ## Phase 6 — what’s included
 
@@ -287,17 +330,21 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 
 ## Known limitations
 
-- Data lives in one browser on one device. Clearing site data removes it, so use **Download a backup**. There's no import yet.
+- Browser-only mode keeps data in one browser. Cloud mode needs a Supabase project (see the setup guide).
+- Cloud mode needs a connection. Changes made offline are kept in memory with a clear "not saved" banner and saved when you're back online, but they're lost if the tab is closed before then (you're warned). There's no offline-first queue.
+- Sync is near-real-time: on focus, on reconnect and every 30 s, not instant push. Realtime subscriptions could replace the poll later.
+- Recurring occurrences are still generated when the app opens. There's no server-side scheduler.
+- The whole workspace loads at sign-in (paged), and analytics run in the browser. That's fast for one person's history, but very large histories may eventually want on-demand loading of old records.
+- Sign-in is email + password only, and there's no account deletion screen yet (delete the user in the Supabase dashboard).
 - Task due-date changes and skips aren't dated, so past weeks' unfinished lists use current due dates and leave out skipped tasks (the page says so). Commitments paused before this update get a pause start of their last edit. Milestones completed before it use their last update as the completion date.
 - Charts are deliberately simple. There's no history of project progress, and no export of analytics.
 - There are no reminders or notifications for deadlines or preparation dates, and no external calendar sync. Dates are shown inside the app only.
 - Recurring occurrences are created when the app is opened. If it isn't opened for a while, only the most recent missed occurrence appears. Projects and milestones can't be duplicated or templated yet.
 - Project notes are plain text (no rich formatting or links preview). Milestones reorder with arrow buttons rather than drag and drop.
-- The app doesn't record *when* a commitment was paused. For past days, the Kaizen Log lists commitments that had started and weren't archived yet, plus anything actually ticked that day.
 - On phones you can reorder within a sprint by dragging, but you move tasks between sprints with the menu or quick-assign buttons (one column shows at a time).
 - Session time reaches a task's actual time only when you allocate it. The timer doesn't track individual tasks.
 
 ## Next phases (suggested)
 
-1. Supabase + sign-in, implementing `WorkspaceRepository` (with a one-time import from localStorage).
+1. Realtime updates, saved preferences and a profile/account page.
 2. Calendar sync, reminders, Notion import, dark mode.

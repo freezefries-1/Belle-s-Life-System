@@ -1,0 +1,60 @@
+# Minimal local Supabase stack for development and automated tests:
+# Postgres + Auth (GoTrue) + REST (PostgREST) + Mailpit, behind gateway.mjs on :54321.
+# Uses throwaway local secrets from .env (created by ./start.sh). Never use these values in production.
+name: belle-supabase-local
+services:
+  db:
+    image: supabase/postgres:17.6.1.054
+    ports: ["54322:5432"]
+    environment:
+      POSTGRES_PASSWORD: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: 3600
+    volumes:
+      - ./roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 2s
+      retries: 60
+  auth:
+    image: supabase/gotrue:v2.180.0
+    depends_on: { db: { condition: service_healthy } }
+    ports: ["54329:9999"]
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:54321/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:postgres@db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_URI_ALLOW_LIST: http://localhost:3000/**,http://localhost:3001/**
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${JWT_EXP:-3600}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_HOST: mailpit
+      GOTRUE_SMTP_PORT: 1025
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@belle.local
+      GOTRUE_SMTP_SENDER_NAME: Belle's Life System
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: 1000
+  rest:
+    image: postgrest/postgrest:v13.0.7
+    depends_on: { db: { condition: service_healthy } }
+    ports: ["54330:3000"]
+    environment:
+      PGRST_DB_URI: postgres://authenticator:postgres@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports: ["54324:8025"]

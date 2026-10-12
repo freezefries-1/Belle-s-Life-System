@@ -28,7 +28,8 @@ export type SaveResult = { ok: true } | { ok: false; message: string };
  */
 export interface WorkspaceRepository {
   load(): Promise<LoadResult>;
-  save(data: PersistedData): Promise<SaveResult>;
+  /** `previous` lets a cloud repository send only what changed. */
+  save(data: PersistedData, previous: PersistedData | null): Promise<SaveResult>;
   clear(): Promise<void>;
   /** Notify when data changes elsewhere (e.g. another browser tab). */
   subscribe(onExternalChange: (data: PersistedData) => void): () => void;
