@@ -1,22 +1,22 @@
 -- =====================================================================
--- Belle's Life System — initial cloud schema (Phase 7)
+-- Belles Life System — initial cloud schema (Phase 7)
 --
 -- Design notes (see docs/cloud-architecture.md for the full write-up):
 -- * Every user-owned table has a composite primary key (user_id, id).
 --   Ids are text so existing local ids (UUIDs, legacy ids such as
---   "p_ladder", deterministic recurring ids "rec_<template>_<date>") are
+--   p_ladder, deterministic recurring ids rec_<template>_<date>) are
 --   preserved exactly during migration.
 -- * Foreign keys include user_id, so a row can only ever point at rows
 --   owned by the same user — cross-account links are impossible at the
 --   database level, independent of Row Level Security.
--- * Calendar dates are `date`; real events are `timestamptz`.
--- * `version` (bumped on every update) gives optimistic concurrency;
---   `synced_at` (server time) drives incremental sync; deletions leave a
+-- * Calendar dates are date, real events are timestamptz.
+-- * version (bumped on every update) gives optimistic concurrency,
+--   synced_at (server time) drives incremental sync, deletions leave a
 --   row in sync_tombstones so other devices can catch up.
 -- * Nothing here deletes or rewrites existing data.
 -- * Safe to run again (e.g. after a partial run): every statement is
---   "if not exists" / "or replace", and it runs as one transaction.
---   Function bodies use named delimiters ($fn$, $do$).
+--   if not exists / or replace, and it runs as one transaction.
+--   Function bodies use named delimiters (fn, do).
 -- =====================================================================
 
 begin;
@@ -92,10 +92,10 @@ create table if not exists public.project_milestones (
   version integer not null default 1,
   synced_at timestamptz not null default now(),
   primary key (user_id, id),
-  -- Lets tasks reference (project, milestone) together so a task's milestone
-  -- always belongs to the task's own project.
+  -- Lets tasks reference (project, milestone) together so a task milestone
+  -- always belongs to the task own project.
   unique (user_id, project_id, id),
-  -- Milestones belong to their project; deleting the project removes them
+  -- Milestones belong to their project, deleting the project removes them
   -- (tasks are only unlinked — see tasks below).
   foreign key (user_id, project_id) references public.projects (user_id, id) on delete cascade
 );
@@ -171,7 +171,7 @@ create table if not exists public.tasks (
   foreign key (user_id, project_id, milestone_id) references public.project_milestones (user_id, project_id, id) on delete set null (milestone_id),
   foreign key (user_id, recurrence_template_id) references public.recurrence_templates (user_id, id) on delete set null (recurrence_template_id),
   foreign key (user_id, source_capture_id) references public.brain_dump_entries (user_id, id) on delete set null (source_capture_id)
-  -- (A milestone link is cleared with its milestone; deleting a project
+  -- (A milestone link is cleared with its milestone, deleting a project
   -- deletes its milestones, which unlinks their tasks.)
 );
 
@@ -199,7 +199,7 @@ create unique index if not exists tasks_one_occurrence_per_date
   on public.tasks (user_id, recurrence_template_id, occurrence_date)
   where recurrence_template_id is not null and occurrence_date is not null;
 
--- Brain Dump entry ↔ converted task point at each other; checked at commit so
+-- Brain Dump entry ↔ converted task point at each other, checked at commit so
 -- both can be written in one transaction.
 alter table public.brain_dump_entries drop constraint if exists brain_dump_entries_converted_task_fkey;
 alter table public.brain_dump_entries
@@ -231,7 +231,7 @@ create unique index if not exists sprint_sessions_one_open
 -- Which tasks a session covered — references, never copies.
 create table if not exists public.sprint_session_tasks (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  id text not null, -- "<session_id>:<task_id>"
+  id text not null, -- <session_id>:<task_id>
   session_id text not null,
   task_id text not null,
   position integer not null default 0,
@@ -271,7 +271,7 @@ create table if not exists public.micro_commitments (
   selected_weekdays smallint[] not null default '{}',
   start_date date not null,
   status text not null check (status in ('active', 'paused', 'archived')),
-  -- [{ "from": "YYYY-MM-DD", "to": "YYYY-MM-DD" | null }] — a small value list, read with the commitment.
+  -- [{ from: YYYY-MM-DD, to: YYYY-MM-DD | null }] — a small value list, read with the commitment.
   paused_periods jsonb not null default '[]'::jsonb check (jsonb_typeof(paused_periods) = 'array'),
   created_at timestamptz not null,
   updated_at timestamptz not null,
@@ -382,7 +382,7 @@ create index if not exists priorities_user_task_idx on public.weekly_priorities 
 create index if not exists priorities_user_project_idx on public.weekly_priorities (user_id, project_id) where project_id is not null;
 create index if not exists tombstones_user_deleted_idx on public.sync_tombstones (user_id, deleted_at);
 
--- Incremental sync reads "what changed since" per table.
+-- Incremental sync reads what changed since per table.
 do $do$
 declare t text;
 begin
@@ -491,7 +491,7 @@ end $do$;
 alter table public.sync_tombstones enable row level security;
 drop policy if exists "Owner can read" on public.sync_tombstones;
 create policy "Owner can read" on public.sync_tombstones for select to authenticated using ((select auth.uid()) = user_id);
--- Tombstones are written only by the trigger (security definer); clients can't insert or change them.
+-- Tombstones are written only by the trigger (security definer), clients cannot insert or change them.
 
 -- Anonymous users get nothing at all.
 revoke all on all tables in schema public from anon;
@@ -502,9 +502,9 @@ revoke insert, delete on public.profiles from authenticated;
 -- ---------------------------------------------------------------------
 -- apply_changes: one transaction per batch of app changes.
 --
--- changes: [{ "table": "...", "op": "upsert" | "delete", "id": "...",
---             "row": {...snake_case columns...}, "expected_version": int | null,
---             "if_exists": "conflict" | "ignore" }]
+-- changes: [{ table: ..., op: upsert | delete, id: ...,
+--             row: {...snake_case columns...}, expected_version: int | null,
+--             if_exists: conflict | ignore }]
 --
 -- * expected_version null  → the client thinks the row is new (insert).
 -- * expected_version n     → only update/delete if the row is still at n.
@@ -632,7 +632,7 @@ begin
         continue;
       end if;
 
-      -- Only the columns the client sent are written; the rest keep their defaults / values.
+      -- Only the columns the client sent are written, the rest keep their defaults / values.
       if current_version is null then
         select string_agg(quote_ident(x), ', '), string_agg('r.' || quote_ident(x), ', ') into col_list, sel_list from unnest(cols) x;
         execute format('insert into public.%1$I (user_id, id, %2$s) select $1, $2, %3$s from jsonb_populate_record(null::public.%1$I, $3) r returning version',
@@ -667,8 +667,8 @@ grant execute on function public.apply_changes(jsonb) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- import_rows: idempotent, resumable import of local data.
--- Inserts rows that don't exist yet and never overwrites cloud data.
--- Returns per-row outcome counts. A row whose parent wasn't imported
+-- Inserts rows that do not exist yet and never overwrites cloud data.
+-- Returns per-row outcome counts. A row whose parent wasnt imported
 -- (foreign key) is skipped and reported, not fatal.
 -- Exception: an *empty* cloud Kaizen Log for the same day (auto-created
 -- when the app opened) is filled with the local words.
