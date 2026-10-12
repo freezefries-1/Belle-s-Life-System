@@ -132,6 +132,17 @@ export interface SprintSession {
   lastResumedAt: ISODateTime | null;
   /** Snapshot at the end of the session, so history stays accurate later. */
   completedTaskIds: string[];
+  /**
+   * Session minutes the user chose to give to individual tasks (added to each
+   * task's `actualMinutes`). Never more than the session's elapsed time, so
+   * the same minutes can't be counted twice.
+   */
+  allocations: SessionAllocation[];
+}
+
+export interface SessionAllocation {
+  taskId: string;
+  minutes: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -174,6 +185,16 @@ export interface MicroCommitment {
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
   archivedAt: ISODateTime | null;
+  /**
+   * When the commitment was paused (local dates). `from` is the first paused
+   * day; `to` is the day it resumed (scheduled again), or null while paused.
+   */
+  pausedPeriods: PausedPeriod[];
+}
+
+export interface PausedPeriod {
+  from: ISODate;
+  to: ISODate | null;
 }
 
 export type CommitmentInput = Pick<MicroCommitment, "title"> &
@@ -257,6 +278,8 @@ export interface Milestone {
   sortOrder: number;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
+  /** Set when marked completed, cleared when reopened. */
+  completedAt: ISODateTime | null;
 }
 
 export type MilestoneInput = Pick<Milestone, "title"> &
@@ -303,6 +326,49 @@ export type RecurrenceInput = Pick<RecurrenceTemplate, "title"> &
   RecurrenceRule &
   Partial<Pick<RecurrenceTemplate, "description" | "sprintId" | "projectId" | "priority" | "estimatedMinutes">>;
 
+/* ------------------------------------------------------------------ */
+/* Weekly reviews                                                      */
+/* ------------------------------------------------------------------ */
+
+/** "Not started" is simply the absence of a record for that week. */
+export type WeeklyReviewStatus = "in_progress" | "completed";
+
+/**
+ * One per Monday–Sunday week. Only the user's words are stored — the week's
+ * numbers are always calculated from tasks, sessions and commitments.
+ */
+export interface WeeklyReview {
+  id: string;
+  /** Monday, local date. Unique. */
+  weekStartDate: ISODate;
+  /** Sunday, local date. */
+  weekEndDate: ISODate;
+  status: WeeklyReviewStatus;
+  wentWell: string;
+  challenges: string;
+  improvements: string;
+  lessonsLearned: string;
+  nextWeekFocus: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  completedAt: ISODateTime | null;
+}
+
+export type WeeklyReviewInput = Partial<
+  Pick<WeeklyReview, "wentWell" | "challenges" | "improvements" | "lessonsLearned" | "nextWeekFocus">
+>;
+
+/** Up to three per review. Points at a task or project, or is free text; `title` keeps it readable if those are deleted. */
+export interface WeeklyPriority {
+  id: string;
+  weeklyReviewId: string;
+  taskId: string | null;
+  projectId: string | null;
+  title: string;
+  sortOrder: number;
+  createdAt: ISODateTime;
+}
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
@@ -315,27 +381,11 @@ export interface PersistedData {
   projects: Project[];
   milestones: Milestone[];
   recurrences: RecurrenceTemplate[];
+  weeklyReviews: WeeklyReview[];
+  weeklyPriorities: WeeklyPriority[];
 }
 
-/* ------------------------------------------------------------------ */
-/* Preview content (not yet persisted — later phases)                  */
-/* ------------------------------------------------------------------ */
-
-export interface WeeklyReview {
-  id: string;
-  weekStart: ISODate;
-  wins: string[];
-  challenges: string[];
-  lessons: string;
-  nextWeekPriorities: string[];
-}
-
-/** Sample content shown on pages whose real functionality arrives later. */
-export interface PreviewContent {
-  weeklyReview: WeeklyReview;
-}
-
-/** What components read: saved data + preview content + today's date. */
-export interface Workspace extends PersistedData, PreviewContent {
+/** What components read: saved data + today's date. */
+export interface Workspace extends PersistedData {
   today: ISODate;
 }

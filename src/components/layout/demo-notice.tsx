@@ -27,7 +27,7 @@ export function DemoNotice({ className }: { className?: string }) {
       ) : (
         <span>
           <span className="font-semibold text-ink-foreground">Saved in this browser.</span> Your data stays on this
-          device. Weekly Review still shows preview data.
+          device. Download a backup from Preferences now and then.
         </span>
       )}
     </div>

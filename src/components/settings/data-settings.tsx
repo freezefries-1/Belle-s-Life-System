@@ -32,8 +32,20 @@ export function DataSettings() {
     workspace.kaizenLogs.some((l) => l.notes || l.reflectionWentWell || l.reflectionImprove || l.reflectionLearned);
 
   function downloadBackup() {
-    const { tasks, captures, sessions, highlights, commitments, commitmentCompletions, kaizenLogs, projects, milestones, recurrences } =
-      workspace;
+    const {
+      tasks,
+      captures,
+      sessions,
+      highlights,
+      commitments,
+      commitmentCompletions,
+      kaizenLogs,
+      projects,
+      milestones,
+      recurrences,
+      weeklyReviews,
+      weeklyPriorities,
+    } = workspace;
     const envelope = createEnvelope({
       tasks,
       captures,
@@ -45,6 +57,8 @@ export function DataSettings() {
       projects,
       milestones,
       recurrences,
+      weeklyReviews,
+      weeklyPriorities,
     });
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);

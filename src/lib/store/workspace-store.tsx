@@ -3,12 +3,12 @@
 import * as React from "react";
 import { toast } from "sonner";
 
-import { createPreviewContent } from "@/data/preview-content";
 import { createSampleData } from "@/data/sample-data";
 import { createCapture } from "@/lib/brain-dump/capture-model";
 import { createCommitment } from "@/lib/daily/commitments";
 import { createHighlight, createLog } from "@/lib/daily/day";
 import { addDays } from "@/lib/date";
+import { MAX_PRIORITIES, createWeeklyReview } from "@/lib/review/weekly";
 import { createMilestone, createProject, nextProjectSortOrder } from "@/lib/projects/project-model";
 import { createTemplate, generateOccurrences, normalizeRule, templateTaskFields } from "@/lib/recurrence/recurrence";
 import { createId, nowISO } from "@/lib/id";
@@ -47,11 +47,16 @@ import type {
   RecurrenceInput,
   RecurrenceStatus,
   RecurrenceTemplate,
+  SessionAllocation,
   SprintId,
   SprintSession,
   Task,
   TaskInput,
   TaskStatus,
+  WeeklyPriority,
+  WeeklyReview,
+  WeeklyReviewInput,
+  WeeklyReviewStatus,
   Workspace,
 } from "@/types";
 
@@ -147,6 +152,16 @@ export interface WorkspaceActions {
   syncRecurrences: () => void;
 
   // Data
+  // Weekly reviews (keyed by the week's Monday; created on first save)
+  updateWeeklyReview: (weekStart: ISODate, changes: WeeklyReviewInput) => void;
+  setWeeklyReviewStatus: (weekStart: ISODate, status: WeeklyReviewStatus) => void;
+  /** Replaces the week's priorities (max three, in order). */
+  setWeeklyPriorities: (weekStart: ISODate, items: Pick<WeeklyPriority, "taskId" | "projectId" | "title">[]) => void;
+
+  // Time
+  /** Give a finished session's minutes to its tasks (adds to their actual time). */
+  allocateSessionTime: (sessionId: string, allocations: SessionAllocation[]) => boolean;
+
   loadSampleData: () => void;
   clearAllData: () => void;
 }
@@ -196,8 +211,6 @@ export function WorkspaceProvider({
       unsubscribe();
     };
   }, [repository]);
-
-  const preview = React.useMemo(() => (today ? createPreviewContent(today) : null), [today]);
 
   const actions = React.useMemo<WorkspaceActions>(() => {
     /** Apply a change, then persist it. Synchronous so callers get results back. */
@@ -455,14 +468,20 @@ export function WorkspaceProvider({
         })),
 
       setCommitmentStatus: (id, status) =>
-        commit((d) => ({
-          ...d,
-          commitments: d.commitments.map((c) =>
-            c.id === id && c.status !== status
-              ? { ...c, status, archivedAt: status === "archived" ? nowISO() : null, updatedAt: nowISO() }
-              : c,
-          ),
-        })),
+        commit((d) => {
+          if (!today) return d;
+          const now = nowISO();
+          return {
+            ...d,
+            commitments: d.commitments.map((c) => {
+              if (c.id !== id || c.status === status) return c;
+              // Keep a record of paused stretches so past consistency stays honest.
+              const closeOpen = c.pausedPeriods.map((p) => (p.to === null ? { ...p, to: today } : p));
+              const pausedPeriods = status === "paused" ? [...closeOpen, { from: today, to: null }] : closeOpen;
+              return { ...c, status, pausedPeriods, archivedAt: status === "archived" ? now : null, updatedAt: now };
+            }),
+          };
+        }),
 
       deleteCommitment: (id) =>
         commit((d) => ({
@@ -593,6 +612,12 @@ export function WorkspaceProvider({
                   title: changes.title?.trim() || m.title,
                   description: changes.description !== undefined ? changes.description.trim() : m.description,
                   updatedAt: nowISO(),
+                  completedAt:
+                    changes.status === undefined
+                      ? m.completedAt
+                      : changes.status === "completed"
+                        ? (m.completedAt ?? nowISO())
+                        : null,
                 }
               : m,
           ),
@@ -717,6 +742,87 @@ export function WorkspaceProvider({
         if (today) commit((d) => generateOccurrences(d, today, nowISO()));
       },
 
+      updateWeeklyReview: (weekStart, changes) =>
+        commit((d) => {
+          const now = nowISO();
+          const existing = d.weeklyReviews.find((r) => r.weekStartDate === weekStart);
+          const base = existing ?? createWeeklyReview(weekStart, now);
+          const updated: WeeklyReview = { ...base, ...changes, updatedAt: now };
+          return {
+            ...d,
+            weeklyReviews: existing ? d.weeklyReviews.map((r) => (r.id === existing.id ? updated : r)) : [...d.weeklyReviews, updated],
+          };
+        }),
+
+      setWeeklyReviewStatus: (weekStart, status) =>
+        commit((d) => {
+          const now = nowISO();
+          const existing = d.weeklyReviews.find((r) => r.weekStartDate === weekStart);
+          const base = existing ?? createWeeklyReview(weekStart, now);
+          const updated: WeeklyReview = { ...base, status, completedAt: status === "completed" ? now : null, updatedAt: now };
+          return {
+            ...d,
+            weeklyReviews: existing ? d.weeklyReviews.map((r) => (r.id === existing.id ? updated : r)) : [...d.weeklyReviews, updated],
+          };
+        }),
+
+      setWeeklyPriorities: (weekStart, items) =>
+        commit((d) => {
+          const now = nowISO();
+          let reviews = d.weeklyReviews;
+          let review = reviews.find((r) => r.weekStartDate === weekStart);
+          if (!review) {
+            review = createWeeklyReview(weekStart, now);
+            reviews = [...reviews, review];
+          } else {
+            reviews = reviews.map((r) => (r.id === review!.id ? { ...r, updatedAt: now } : r));
+          }
+          const id = review.id;
+          const priorities: WeeklyPriority[] = items
+            .filter((i) => i.title.trim())
+            .slice(0, MAX_PRIORITIES)
+            .map((i, index) => ({
+              id: createId(),
+              weeklyReviewId: id,
+              taskId: i.taskId,
+              projectId: i.projectId,
+              title: i.title.trim(),
+              sortOrder: index,
+              createdAt: now,
+            }));
+          return { ...d, weeklyReviews: reviews, weeklyPriorities: [...d.weeklyPriorities.filter((p) => p.weeklyReviewId !== id), ...priorities] };
+        }),
+
+      allocateSessionTime: (sessionId, allocations) => {
+        const current = dataRef.current;
+        const session = current?.sessions.find((s) => s.id === sessionId);
+        if (!current || !session || session.status !== "ended") return false;
+        const clean = allocations
+          .map((a) => ({ taskId: a.taskId, minutes: Math.max(0, Math.round(a.minutes)) }))
+          .filter((a) => a.minutes > 0 && current.tasks.some((t) => t.id === a.taskId));
+        const total = clean.reduce((s, a) => s + a.minutes, 0);
+        // Never give away more time than the session actually ran.
+        if (total > Math.round(session.accumulatedElapsedSeconds / 60)) return false;
+        const before = new Map(session.allocations.map((a) => [a.taskId, a.minutes]));
+        const after = new Map(clean.map((a) => [a.taskId, a.minutes]));
+        const touched = new Set([...before.keys(), ...after.keys()]);
+        commit((d) => {
+          const now = nowISO();
+          return {
+            ...d,
+            sessions: d.sessions.map((s) => (s.id === sessionId ? { ...s, allocations: clean } : s)),
+            tasks: d.tasks.map((t) => {
+              if (!touched.has(t.id)) return t;
+              const delta = (after.get(t.id) ?? 0) - (before.get(t.id) ?? 0);
+              if (!delta) return t;
+              const next = (t.actualMinutes ?? 0) + delta;
+              return { ...t, actualMinutes: next > 0 ? next : null, updatedAt: now };
+            }),
+          };
+        });
+        return true;
+      },
+
       loadSampleData: () => {
         if (!today) return;
         commit(() => generateOccurrences(createSampleData(today), today, nowISO()));
@@ -742,13 +848,13 @@ export function WorkspaceProvider({
   }, [today, data, actions]);
 
   const value = React.useMemo<WorkspaceContextValue | null>(() => {
-    if (!today || !data || !preview) return null;
+    if (!today || !data) return null;
     return {
-      workspace: { ...preview, ...data, today },
+      workspace: { ...data, today },
       actions,
       storage,
     };
-  }, [today, data, preview, actions, storage]);
+  }, [today, data, actions, storage]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

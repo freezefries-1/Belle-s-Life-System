@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  ChartColumn,
   ClipboardList,
   FolderKanban,
   Inbox,
@@ -45,6 +46,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Micro-Commitments", href: "/micro-commitments", icon: Sprout },
       { title: "Weekly Review", href: "/weekly-review", icon: ClipboardList },
       { title: "Time Estimation", href: "/time-estimation", icon: Timer },
+      { title: "Progress", href: "/progress", icon: ChartColumn },
     ],
   },
   {

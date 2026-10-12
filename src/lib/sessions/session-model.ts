@@ -32,6 +32,7 @@ export function createSession(input: NewSession, now: ISODateTime): SprintSessio
     accumulatedElapsedSeconds: 0,
     lastResumedAt: null,
     completedTaskIds: [],
+    allocations: [],
   };
 }
 

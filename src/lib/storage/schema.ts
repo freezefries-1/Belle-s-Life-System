@@ -1,4 +1,5 @@
 import { LEGACY_PROJECTS } from "@/data/legacy-projects";
+import { addDays, localDateOf, startOfWeek } from "@/lib/date";
 import type {
   Capture,
   CaptureKind,
@@ -12,6 +13,7 @@ import type {
   MicroCommitment,
   Milestone,
   MilestoneStatus,
+  PausedPeriod,
   Project,
   ProjectColour,
   ProjectIcon,
@@ -26,6 +28,8 @@ import type {
   Task,
   TaskPriority,
   TaskStatus,
+  WeeklyPriority,
+  WeeklyReview,
 } from "@/types";
 
 /**
@@ -42,8 +46,10 @@ export const STORAGE_KEY = "belles-life-system:v1";
  * 3 — Phase 4: daily `highlights`, `commitments`, `commitmentCompletions`, `kaizenLogs`.
  * 4 — Phase 5: `projects`, `milestones`, `recurrences`; tasks gain milestone,
  *     recurrence and project-order fields.
+ * 5 — Phase 6: `weeklyReviews`, `weeklyPriorities`; commitments gain
+ *     `pausedPeriods`, milestones `completedAt`, sessions `allocations`.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -62,6 +68,8 @@ export const EMPTY_DATA: PersistedData = {
   projects: [],
   milestones: [],
   recurrences: [],
+  weeklyReviews: [],
+  weeklyPriorities: [],
 };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
@@ -173,6 +181,8 @@ export function parseMilestone(raw: unknown): Milestone | null {
     sortOrder: finite(raw.sortOrder) ?? 0,
     createdAt,
     updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+    // Older records have no completion time; their last update is the best estimate.
+    completedAt: raw.status === "completed" ? (timestamp(raw.completedAt) ?? timestamp(raw.updatedAt) ?? createdAt) : null,
   };
 }
 
@@ -234,6 +244,12 @@ export function parseSession(raw: unknown): SprintSession | null {
     accumulatedElapsedSeconds: Math.max(0, finite(raw.accumulatedElapsedSeconds) ?? 0),
     lastResumedAt: status === "running" ? lastResumedAt : null,
     completedTaskIds: stringArray(raw.completedTaskIds),
+    allocations: Array.isArray(raw.allocations)
+      ? raw.allocations
+          .filter(isObj)
+          .map((a) => ({ taskId: str(a.taskId), minutes: minutes(a.minutes) }))
+          .filter((a): a is { taskId: string; minutes: number } => !!a.taskId && !!a.minutes)
+      : [],
   };
 }
 
@@ -280,6 +296,66 @@ export function parseCommitment(raw: unknown): MicroCommitment | null {
     createdAt,
     updatedAt: timestamp(raw.updatedAt) ?? createdAt,
     archivedAt: status === "archived" ? (timestamp(raw.archivedAt) ?? createdAt) : null,
+    pausedPeriods: parsePausedPeriods(raw.pausedPeriods, status, localDateOf(timestamp(raw.updatedAt) ?? createdAt)),
+  };
+}
+
+/**
+ * Valid, ordered pause periods with at most one still open — and only while
+ * paused. A commitment paused before pause history existed gets one period
+ * starting from its last update (the best date available).
+ */
+function parsePausedPeriods(raw: unknown, status: string, fallbackDate: string): PausedPeriod[] {
+  const periods = (Array.isArray(raw) ? raw : [])
+    .filter(isObj)
+    .map((p) => ({ from: isoDate(p.from), to: isoDate(p.to) }))
+    .filter((p): p is PausedPeriod => !!p.from && (p.to === null || p.to >= p.from))
+    .sort((a, b) => a.from.localeCompare(b.from));
+  const closed = periods.filter((p) => p.to !== null);
+  const open = periods.find((p) => p.to === null);
+  if (status === "paused") return [...closed, open ?? { from: fallbackDate, to: null }];
+  return open ? [...closed, { from: open.from, to: fallbackDate >= open.from ? fallbackDate : open.from }] : closed;
+}
+
+export function parseWeeklyReview(raw: unknown): WeeklyReview | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const date = isoDate(raw.weekStartDate);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !date || !createdAt) return null;
+  const weekStartDate = startOfWeek(date);
+  const status = raw.status === "completed" ? "completed" : "in_progress";
+  return {
+    id,
+    weekStartDate,
+    weekEndDate: addDays(weekStartDate, 6),
+    status,
+    wentWell: str(raw.wentWell) ?? "",
+    challenges: str(raw.challenges) ?? "",
+    improvements: str(raw.improvements) ?? "",
+    lessonsLearned: str(raw.lessonsLearned) ?? "",
+    nextWeekFocus: str(raw.nextWeekFocus) ?? "",
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+    completedAt: status === "completed" ? (timestamp(raw.completedAt) ?? timestamp(raw.updatedAt) ?? createdAt) : null,
+  };
+}
+
+export function parseWeeklyPriority(raw: unknown): WeeklyPriority | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const weeklyReviewId = str(raw.weeklyReviewId);
+  const title = str(raw.title)?.trim();
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !weeklyReviewId || !title || !createdAt) return null;
+  return {
+    id,
+    weeklyReviewId,
+    taskId: strOrNull(raw.taskId),
+    projectId: strOrNull(raw.projectId),
+    title,
+    sortOrder: finite(raw.sortOrder) ?? 0,
+    createdAt,
   };
 }
 
@@ -430,11 +506,37 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
   const logs = parseList(migrated.kaizenLogs, parseKaizenLog);
   const commitmentIds = new Set(commitments.parsed.map((c) => c.id));
 
+  // Weekly reviews: one per week. Priorities belong to a review (max three),
+  // and links to deleted tasks or projects are cleared — the title stays.
+  const reviewsParsed = parseList(migrated.weeklyReviews, parseWeeklyReview);
+  const weeklyReviews = uniqueBy(dedupeById(reviewsParsed.parsed), (r) => r.weekStartDate, (r) => r.updatedAt);
+  const reviewIds = new Set(weeklyReviews.map((r) => r.id));
+  const taskIds = new Set(linkedTasks.map((t) => t.id));
+  const prioritiesParsed = parseList(migrated.weeklyPriorities, parseWeeklyPriority);
+  const perReview = new Map<string, number>();
+  const weeklyPriorities = dedupeById(prioritiesParsed.parsed)
+    .filter((p) => reviewIds.has(p.weeklyReviewId))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .filter((p) => {
+      const n = perReview.get(p.weeklyReviewId) ?? 0;
+      perReview.set(p.weeklyReviewId, n + 1);
+      return n < 3;
+    })
+    .map((p) => ({
+      ...p,
+      taskId: p.taskId && taskIds.has(p.taskId) ? p.taskId : null,
+      projectId: p.projectId && projectIds.has(p.projectId) ? p.projectId : null,
+    }));
+  // Session time given to tasks that no longer exist is released.
+  const cleanSessions = sessions.map((x) =>
+    x.allocations.every((a) => taskIds.has(a.taskId)) ? x : { ...x, allocations: x.allocations.filter((a) => taskIds.has(a.taskId)) },
+  );
+
   return {
     data: {
       tasks: linkedTasks,
       captures,
-      sessions,
+      sessions: cleanSessions,
       // One highlight and one log per calendar day; one completion per commitment per day.
       highlights: uniqueBy(dedupeById(highlights.parsed), (h) => h.dateKey, (h) => h.updatedAt),
       commitments: dedupeById(commitments.parsed),
@@ -447,6 +549,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       projects,
       milestones,
       recurrences,
+      weeklyReviews,
+      weeklyPriorities,
     },
     dropped:
       rawTasks.length -
@@ -459,7 +563,9 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       logs.dropped +
       projectsParsed.dropped +
       milestonesParsed.dropped +
-      recurrencesParsed.dropped,
+      recurrencesParsed.dropped +
+      reviewsParsed.dropped +
+      prioritiesParsed.dropped,
     migratedFrom: raw.schemaVersion < SCHEMA_VERSION ? raw.schemaVersion : null,
   };
 }
@@ -487,6 +593,11 @@ function migrate(version: number, data: Obj): Obj | null {
       .filter(([id]) => used.has(id))
       .map(([id, p]) => ({ id, ...p, status: "active", notes: "", createdAt: now, updatedAt: now }));
     current = { ...current, projects, milestones: [], recurrences: [] };
+  }
+  if (version < 5) {
+    // v4 → v5: weekly reviews start empty. New fields on commitments,
+    // milestones and sessions are filled in (from existing timestamps) while parsing.
+    current = { ...current, weeklyReviews: [], weeklyPriorities: [] };
   }
   return current;
 }

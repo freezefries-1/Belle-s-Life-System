@@ -74,6 +74,7 @@ export function createMilestone(projectId: string, input: MilestoneInput, sortOr
     sortOrder,
     createdAt: now,
     updatedAt: now,
+    completedAt: input.status === "completed" ? now : null,
   };
 }
 

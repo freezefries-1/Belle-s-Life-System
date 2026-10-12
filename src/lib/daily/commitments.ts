@@ -42,6 +42,7 @@ export function createCommitment(input: CommitmentInput, today: ISODate, now: IS
     createdAt: now,
     updatedAt: now,
     archivedAt: null,
+    pausedPeriods: [],
   };
 }
 

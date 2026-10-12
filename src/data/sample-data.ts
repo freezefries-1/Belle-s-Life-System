@@ -1,10 +1,12 @@
 import { LEGACY_PROJECTS } from "@/data/legacy-projects";
-import { addDays, parseISODate } from "@/lib/date";
+import { addDays, parseISODate, startOfWeek as startOfWeekOf } from "@/lib/date";
 import { createCapture } from "@/lib/brain-dump/capture-model";
 import { createCommitment } from "@/lib/daily/commitments";
 import { createHighlight, createLog } from "@/lib/daily/day";
 import { createMilestone, createProject } from "@/lib/projects/project-model";
 import { createTemplate } from "@/lib/recurrence/recurrence";
+import { createSession, endSession, runSession } from "@/lib/sessions/session-model";
+import { createWeeklyReview } from "@/lib/review/weekly";
 import { createId } from "@/lib/id";
 import { createTask } from "@/lib/tasks/task-model";
 import type {
@@ -16,6 +18,9 @@ import type {
   KaizenLog,
   MilestoneInput,
   PersistedData,
+  SprintId,
+  SprintSession,
+  WeeklyPriority,
   ProjectInput,
   RecurrenceInput,
   Task,
@@ -49,7 +54,7 @@ export function createSampleData(today: ISODate): PersistedData {
     // Sprint 3 — Admin & Life
     { title: "Schedule next week’s tennis students", sprint: "admin", projectId: "p_coaching", priority: "high", dueDate: d(0), estimatedMinutes: 30, created: -1 },
     { title: "Update expenses", sprint: "admin", projectId: "p_life", priority: "low", dueDate: d(0), estimatedMinutes: 20, created: -6 },
-    { title: "Change bedsheets", sprint: "admin", projectId: "p_life", dueDate: d(0), estimatedMinutes: 15, actualMinutes: 15, status: "completed", created: -1, done: 0 },
+    { title: "Change bedsheets", sprint: "admin", projectId: "p_life", dueDate: d(0), estimatedMinutes: 15, actualMinutes: 20, status: "completed", created: -1, done: 0 },
     { title: "Book the dog’s vet check-up", sprint: "admin", projectId: "p_life", priority: "low", dueDate: d(-1), estimatedMinutes: 10, created: -5 },
     // Sprint 4 — Build & Create
     { title: "Develop SportCraft website", sprint: "build", projectId: "p_sportcraft", priority: "medium", status: "in_progress", dueDate: d(21), estimatedMinutes: 120, created: -9 },
@@ -66,6 +71,11 @@ export function createSampleData(today: ISODate): PersistedData {
     { title: "Update coaching availability online", sprint: "admin", projectId: "p_coaching", estimatedMinutes: 15, actualMinutes: 10, status: "completed", created: -6, done: -4 },
     { title: "Create ladder player sign-up form", sprint: "build", projectId: "p_ladder", estimatedMinutes: 30, actualMinutes: 35, status: "completed", created: -10, done: -6 },
     { title: "Photograph new grip tape stock", sprint: "build", projectId: "p_sportcraft", estimatedMinutes: 30, actualMinutes: 45, status: "completed", created: -5, done: -2 },
+    { title: "Reconcile SportCraft invoices", sprint: "admin", projectId: "p_sportcraft", estimatedMinutes: 20, actualMinutes: 35, status: "completed", created: -12, done: -9 },
+    { title: "Renew car insurance", sprint: "admin", projectId: "p_life", estimatedMinutes: 15, actualMinutes: 25, status: "completed", created: -14, done: -11 },
+    { title: "Sketch pickleball clinic flyer", sprint: "build", projectId: "p_coaching", estimatedMinutes: 40, actualMinutes: 40, status: "completed", created: -15, done: -12 },
+    { title: "Edit coaching drill video", sprint: "build", projectId: "p_coaching", estimatedMinutes: 60, actualMinutes: 55, status: "completed", created: -16, done: -13 },
+    { title: "Email ladder players about round 3", sprint: "deadlines", projectId: "p_ladder", estimatedMinutes: 20, status: "completed", created: -12, done: -10 },
   ];
 
   const tasks: Task[] = seeds.map(({ created, done, ...input }, index) => {
@@ -146,7 +156,7 @@ export function createSampleData(today: ISODate): PersistedData {
   const milestone = (projectId: string, title: string, order: number, extra: Partial<MilestoneInput>) =>
     createMilestone(projectId, { title, ...extra }, order * 1000, at(-20, 9));
   const milestones = [
-    milestone("p_ladder", "Registration closes", 1, { targetDate: d(-3), status: "completed" }),
+    { ...milestone("p_ladder", "Registration closes", 1, { targetDate: d(-3), status: "completed" }), completedAt: at(-3, 17) },
     milestone("p_ladder", "Participant packs dispatched", 2, { targetDate: d(3), preparationDate: d(-1), status: "in_progress" }),
     milestone("p_ladder", "Group stage ends", 3, { targetDate: d(10) }),
     milestone("p_ladder", "Finals completed", 4, { targetDate: d(18), preparationDate: d(11) }),
@@ -176,10 +186,52 @@ export function createSampleData(today: ISODate): PersistedData {
     recurring({ title: "Review personal finances", frequency: "monthly", interval: 1, intervalUnit: "days", selectedWeekdays: [], startDate: d(-25), endDate: null, sprintId: "admin", projectId: "p_life", estimatedMinutes: 30 }),
   ];
 
+  // A few finished focus sessions (actual time differs from the plan).
+  const session = (sprintId: SprintId, titles: string[], offset: number, planned: number, actual: number): SprintSession => {
+    const s = createSession({ sprintId, taskIds: titles.map((t) => byTitle(t).id), plannedMinutes: planned, energyLevel: "moderate" }, at(offset, 9));
+    const started = runSession(s, at(offset, 9));
+    const ended = endSession({ ...started, status: "paused", accumulatedElapsedSeconds: actual * 60, lastResumedAt: null }, tasks, at(offset, 10));
+    return { ...ended, endedAt: new Date(Date.parse(at(offset, 9)) + actual * 60_000).toISOString() };
+  };
+  const sessions = [
+    session("build", ["Set up SportCraft product catalogue"], -3, 60, 70),
+    session("admin", ["Restring two racquets", "Weekly grocery shop"], -2, 45, 50),
+    session("build", ["Photograph new grip tape stock"], -2, 30, 40),
+    session("deadlines", ["Prepare Evolve Tennis Ladder tournament materials"], -1, 45, 35),
+    session("build", ["Edit coaching drill video"], -13, 60, 55),
+  ];
+
+  // Last week's review, finished, with its three priorities.
+  const lastWeekReview = {
+    ...createWeeklyReview(addDays(startOfWeekOf(d(0)), -7), at(-7, 19)),
+    status: "completed" as const,
+    wentWell: "Kept mornings for deep work. The product photos finally happened.",
+    challenges: "Admin tasks kept taking longer than planned.",
+    improvements: "Add buffer time to admin estimates.",
+    lessonsLearned: "Batching errands on one afternoon saves a lot of back-and-forth.",
+    nextWeekFocus: "Tournament prep and the website.",
+    completedAt: at(-7, 20),
+  };
+  const priority = (title: string, sortOrder: number, link: Partial<WeeklyPriority>): WeeklyPriority => ({
+    id: createId(),
+    weeklyReviewId: lastWeekReview.id,
+    taskId: null,
+    projectId: null,
+    title,
+    sortOrder,
+    createdAt: at(-7, 20),
+    ...link,
+  });
+  const weeklyPriorities = [
+    priority("Prepare Evolve Tennis Ladder tournament materials", 0, { taskId: byTitle("Prepare Evolve Tennis Ladder tournament materials").id }),
+    priority("SportCraft OS", 1, { projectId: "p_sportcraft" }),
+    priority("Rest properly on Sunday", 2, {}),
+  ];
+
   return {
     tasks,
     captures,
-    sessions: [],
+    sessions,
     highlights,
     commitments,
     commitmentCompletions,
@@ -187,5 +239,7 @@ export function createSampleData(today: ISODate): PersistedData {
     projects,
     milestones,
     recurrences,
+    weeklyReviews: [lastWeekReview],
+    weeklyPriorities,
   };
 }

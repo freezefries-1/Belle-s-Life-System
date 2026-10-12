@@ -4,7 +4,7 @@
 
 A calm, Kaizen-inspired personal productivity workspace, based on Ruri Ohama’s Kaizen method and designed to keep visual and mental clutter low. It replaces a Notion template with a faster, cleaner interface built around one daily highlight, four kinds of work (sprints), quick capture and small daily improvements.
 
-> **Phase 5 — Projects, Deadlines & Recurring Tasks.** Tasks, Brain Dump, focus sessions, daily highlights, micro-commitments, the Kaizen Log, projects, milestones and recurring tasks are saved in your browser (localStorage) and survive refreshes. The Calendar is built from that saved data. Only the Weekly Review still shows preview data. Nothing syncs between devices yet.
+> **Phase 6 — Weekly Reviews, Time Estimation & Progress.** Everything is saved in your browser (localStorage) and survives refreshes: tasks, Brain Dump, focus sessions, daily highlights, micro-commitments, the Kaizen Log, projects, milestones, recurring tasks and weekly reviews. Calendar, Weekly Review numbers, Time Estimation and Progress are all calculated from those records. Nothing syncs between devices yet.
 
 ---
 
@@ -63,7 +63,7 @@ src/
 │   ├── layout.tsx            # Root layout: font + app shell
 │   ├── page.tsx              # Today dashboard
 │   ├── brain-dump/ sprints/ tasks/ projects/ projects/[id]/ calendar/
-│   ├── kaizen-log/ micro-commitments/ weekly-review/ time-estimation/
+│   ├── kaizen-log/ micro-commitments/ weekly-review/ time-estimation/ progress/
 │   └── settings/
 ├── components/
 │   ├── ui/                   # shadcn/ui primitives (button, card, dialog…)
@@ -76,6 +76,9 @@ src/
 │   ├── commitments/          # Commitment editor, tick row, management card
 │   ├── projects/             # Project card, editor, workspace sections (tasks, milestones, notes), deadline overview
 │   ├── recurrence/           # Repeat-rule fields, series editor, Recurring tasks panel
+│   ├── review/               # Weekly Review steps: look back, unfinished tasks, reflect, look ahead
+│   ├── time/                 # Inline minutes field, session-time allocation dialog
+│   ├── analytics/            # Stat tile, simple bar charts, "not enough data" state
 │   ├── settings/             # Data controls (backup, sample data, clear)
 │   ├── pages/                # Client components for every other page
 │   └── shared/               # SprintBadge, ProgressRing, task meta labels…
@@ -83,8 +86,7 @@ src/
 │   ├── sprints.ts            # The four sprints + their colours
 │   ├── capture-kinds.ts      # Task / Idea / Reminder / Note
 │   ├── sample-data.ts        # Opt-in sample data ("Explore with sample data")
-│   ├── legacy-projects.ts    # The four former preview projects (used by the v4 migration and sample data)
-│   └── preview-content.ts    # Weekly Review preview
+│   └── legacy-projects.ts    # The four former preview projects (used by the v4 migration and sample data)
 ├── lib/
 │   ├── storage/              # localStorage wrapper, versioned schema + validation, repository
 │   ├── tasks/                # Task model, filter/sort/summary queries, sprint-board helpers (order, progress)
@@ -94,6 +96,8 @@ src/
 │   ├── projects/             # Project/milestone model, progress, deadline status, deadline overview items
 │   ├── recurrence/           # Repeat rules, occurrence generator
 │   ├── calendar/             # Derived calendar items
+│   ├── review/               # Weekly review model, week summary, unfinished-at-week-end, insights
+│   ├── analytics/            # Commitment consistency, time estimation stats, focus stats, trends
 │   ├── store/workspace-store.tsx  # Single source of truth + actions, persists via the repository
 │   ├── selectors.ts          # Project progress, inbox…
 │   ├── date.ts               # Local-date helpers (no time zone surprises)
@@ -106,7 +110,7 @@ src/
 - `WorkspaceProvider` (in the app shell) loads saved data through a `WorkspaceRepository` **in the browser only** (no hydration mismatches) and exposes `useWorkspace()` → `{ workspace, actions, storage }`.
 - Components read through `useWorkspace()` and the query helpers in `lib/tasks`, and change data only through `actions` (`addCapture`, `convertCapture`, `createTask`, `updateTask`, `toggleTaskComplete`, `deleteTask`…).
 - Every action writes through the repository. Today that's `localStorageRepository`; a Supabase repository can implement the same interface later.
-- **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures, sessions } }`. The current `schemaVersion` is **4**: v4 adds `projects`, `milestones` and `recurrences`, plus four task fields (`projectSortOrder`, `milestoneId`, `recurrenceTemplateId`, `occurrenceDate`). v3 added `highlights`, `commitments`, `commitmentCompletions` and `kaizenLogs`, and older data upgrades step by step, with a `pre-vN` backup kept first. Phase 2 (v1) data upgrades automatically: every task keeps its fields and gains a `sortOrder`, and a copy of the old data is kept under `belles-life-system:v1:backup:pre-v2-<time>`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
+- **Storage format:** one versioned key, `belles-life-system:v1`, holding `{ schemaVersion, savedAt, data: { tasks, captures, sessions } }`. The current `schemaVersion` is **5**: v5 adds `weeklyReviews` and `weeklyPriorities`, records commitment `pausedPeriods`, milestone `completedAt` and session `allocations` (filled from existing timestamps when upgrading). v4 added `projects`, `milestones` and `recurrences`, plus four task fields (`projectSortOrder`, `milestoneId`, `recurrenceTemplateId`, `occurrenceDate`). v3 added `highlights`, `commitments`, `commitmentCompletions` and `kaizenLogs`, and older data upgrades step by step, with a `pre-vN` backup kept first. Phase 2 (v1) data upgrades automatically: every task keeps its fields and gains a `sortOrder`, and a copy of the old data is kept under `belles-life-system:v1:backup:pre-v2-<time>`. Every record is validated on load. Unreadable records are skipped and a backup copy of the raw value is kept under `belles-life-system:v1:backup:<time>`. Changes made in another tab sync automatically.
 - **First run** starts empty. Sample data is only loaded when you choose “Explore with sample data”, and it never overwrites saved data without asking.
 
 ### Task rules
@@ -155,6 +159,26 @@ src/
 - Pause stops new occurrences, and resuming doesn't back-fill the gap. End stops after today. Delete removes the rule and keeps completed occurrences as normal tasks. Removing upcoming unfinished occurrences is an optional checkbox.
 - The Calendar also shows planned future dates that haven't been generated yet (dashed). Nothing is stored for them.
 
+### Weekly review rules
+
+- Weeks run Monday–Sunday in local time. There's **one review per week**, keyed by its Monday. Opening a week creates nothing; the record appears with your first answer, priority or status change. "Not started" simply means there's no record yet.
+- Only your words and priorities are stored. Every number is calculated from tasks, highlights, commitments, sessions and milestones.
+- **Unfinished at week end** = due by Sunday, created by then, and not completed by then (using `createdAt`/`completedAt`). For past weeks this is labelled as reconstructed: due dates are today's values and skipped tasks aren't included, since neither change is dated. Nothing is rescheduled automatically.
+- Up to **three priorities** for the coming week, linking a task or project or written as free text. Linking never creates a task. If a linked task or project is deleted, the link is cleared and the title stays.
+- A review is Completed only when you mark it, whatever is filled in, and it can be reopened.
+
+### Time rules
+
+- Tasks keep `estimatedMinutes` and `actualMinutes` (both optional). **Difference = actual − estimated**, calculated only when both exist. Missing values are left out and never treated as zero, and every statistic shows how many tasks it's based on.
+- **Focus time comes from sessions only**, using actual elapsed time, not the plan. A session can include several tasks, so its time isn't copied to them automatically. You can **allocate** a session's minutes to its tasks: that adds to their actual time, the total can't exceed the session, and editing an allocation changes each task by the difference. Focus totals never include allocated or manual minutes, so nothing is counted twice.
+- Patterns ("You tend to underestimate Admin & Life tasks") appear only with at least 5 comparable tasks overall, or per Sprint for Sprint patterns.
+
+### Progress rules
+
+- One date range (7, 30 or 90 days, or custom) applies to every metric on the page.
+- **Commitment consistency** counts scheduled opportunities only: scheduled days for daily and weekday commitments, Monday–Sunday weeks for weekly ones. Unscheduled days, days before the start, paused stretches and days after archiving never count as missed. Today (or this week) counts only once it's done.
+- Project progress is current only. Past snapshots aren't stored, so there's no invented history.
+
 ### Design tokens
 
 Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-ink`, `text-ink-muted`, `bg-sprint-urgent`, …):
@@ -170,6 +194,25 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 | `ink-border`     | `#334155` | Borders on dark surfaces    |
 
 ---
+
+## Phase 6 — what’s included
+
+- **Weekly Review** (`/weekly-review?week=YYYY-MM-DD`): week navigation, a status badge and review history. Three steps you can move between freely:
+  - **Look back:** week numbers, short factual insights, completed tasks, highlights, commitment consistency, current project progress, and unfinished tasks you can open, re-date, re-sprint or complete.
+  - **Reflect:** five optional questions that save as you type.
+  - **Look ahead:** up to three priorities.
+- **Time Estimation:**
+  - accuracy stats (average and median difference, % that took longer, average estimate and actual), each with its task count;
+  - planning patterns, or "Not enough data yet";
+  - an editable log (estimate, actual, difference, accuracy) with filters;
+  - session-time allocation.
+- **Progress** (`/progress`):
+  - range picker and six overview metrics;
+  - tasks-completed chart (daily or weekly) and Sprint distribution;
+  - commitment consistency with a weekly trend;
+  - focus sessions (total, count, average, planned vs actual, by Sprint);
+  - active project progress.
+- **Today:** a small "This week" card (tasks, highlights, commitments, focus time) with a link to the Weekly Review.
 
 ## Phase 5 — what’s included
 
@@ -245,17 +288,16 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 ## Known limitations
 
 - Data lives in one browser on one device. Clearing site data removes it, so use **Download a backup**. There's no import yet.
-- The Weekly Review (wins, challenges, priorities) is still a preview and isn't saved.
+- Task due-date changes and skips aren't dated, so past weeks' unfinished lists use current due dates and leave out skipped tasks (the page says so). Commitments paused before this update get a pause start of their last edit. Milestones completed before it use their last update as the completion date.
+- Charts are deliberately simple. There's no history of project progress, and no export of analytics.
 - There are no reminders or notifications for deadlines or preparation dates, and no external calendar sync. Dates are shown inside the app only.
 - Recurring occurrences are created when the app is opened. If it isn't opened for a while, only the most recent missed occurrence appears. Projects and milestones can't be duplicated or templated yet.
 - Project notes are plain text (no rich formatting or links preview). Milestones reorder with arrow buttons rather than drag and drop.
 - The app doesn't record *when* a commitment was paused. For past days, the Kaizen Log lists commitments that had started and weren't archived yet, plus anything actually ticked that day.
 - On phones you can reorder within a sprint by dragging, but you move tasks between sprints with the menu or quick-assign buttons (one column shows at a time).
-- Session time isn't yet copied into a task's "actual time". Time Estimation and Weekly Review will use the session history in later phases.
+- Session time reaches a task's actual time only when you allocate it. The timer doesn't track individual tasks.
 
 ## Next phases (suggested)
 
-1. Weekly Review saving and gentle trends (session, highlight and commitment history are already stored).
-2. Time Estimation from session history.
-4. Supabase + sign-in, implementing `WorkspaceRepository` (with a one-time import from localStorage).
-5. Calendar sync, reminders, Notion import, dark mode.
+1. Supabase + sign-in, implementing `WorkspaceRepository` (with a one-time import from localStorage).
+2. Calendar sync, reminders, Notion import, dark mode.
