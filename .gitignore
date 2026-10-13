@@ -41,3 +41,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 supabase/local/.env
+
+# Playwright
+/test-results/
+/playwright-report/

@@ -28,12 +28,15 @@ Open <http://localhost:3000>.
 | `npm run typecheck` | Check types with TypeScript     |
 | `npm test`      | Run the unit tests (Vitest)         |
 | `npm run test:db` | Database security tests (needs the local Supabase stack) |
+| `npm run test:e2e` | End-to-end browser tests (local stack only) |
 
 ### Tests
 
 - **Unit tests** (`tests/unit`, `npm test`): the business rules — dates and time zones, commitments, streaks and consistency, recurring tasks, data validation and upgrades, analytics, the main store change rules, the sync engine's merge and conflict helpers, row mapping, the test-import sample and safe sign-in redirects. They need nothing running and take about a second.
 - **Database security tests** (`supabase/tests/db-security.test.mjs`, `npm run test:db`): 54 checks with two real accounts against the local Supabase stack (`supabase/local/start.sh`, then `set -a; source supabase/local/.env; set +a`).
-- **Browser suites:** each phase was also checked end to end in a real browser (auth, every record type, two-device sync, conflicts, offline, migration, mobile layouts). Those scripts drove a local test setup and aren't part of the repository.
+- **End-to-end tests** (`tests/e2e`, `npm run test:e2e`): Playwright runs the everyday workflow (sign in → task → sprint → Highlight → complete → project → recurring task → commitment → Kaizen Log → Weekly Review → sign out), account isolation and a phone run against the **local** stack only — they refuse to run against anything else. Setup: [tests/e2e/README.md](tests/e2e/README.md).
+- Each phase was also checked during development with longer browser scripts (two-device sync, conflicts, offline, migration, layouts at every width); those stayed outside the repository.
+- Security review and dashboard settings to confirm: [docs/security.md](docs/security.md). Accessibility: [docs/accessibility.md](docs/accessibility.md). Performance: [docs/performance.md](docs/performance.md).
 
 ## Deploy to Vercel
 
