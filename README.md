@@ -43,6 +43,14 @@ Open <http://localhost:3000>.
 
 Without environment variables the app runs in browser-only mode. To turn on sign-in and cloud sync, follow [docs/supabase-setup.md](docs/supabase-setup.md): create a Supabase project, run the SQL in `supabase/migrations/`, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in Vercel (see `.env.example`), then redeploy. Never add a service-role or secret key.
 
+## Install it as an app
+
+The live app is at **https://belle-life-system.vercel.app**. It can be added to an iPhone or Android Home Screen, or installed on a computer, and then opens in its own window. Steps: [docs/install-on-phone.md](docs/install-on-phone.md).
+
+- `src/app/manifest.ts` (name, colours, icons in `public/icons/`), `src/app/apple-icon.png` and the `appleWebApp` metadata in `src/app/layout.tsx`.
+- `public/sw.js` caches only static build files and an offline page (`public/offline.html`). It never caches pages, your data or anything from Supabase, and it's registered in production builds only. There's no offline mode beyond the "You're offline" page.
+- When changing `sw.js`, bump its `VERSION` so old caches are cleared.
+
 ## Keyboard shortcuts
 
 | Key           | Action                    |
