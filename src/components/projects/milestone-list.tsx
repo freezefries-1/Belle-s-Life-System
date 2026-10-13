@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,8 @@ import { DeadlineChip, MilestoneStatusBadge } from "./project-visuals";
 export function MilestoneList({ projectId }: { projectId: string }) {
   const { workspace, actions } = useWorkspace();
   const [editing, setEditing] = React.useState<Milestone | "new" | null>(null);
+  const [deleting, setDeleting] = React.useState<Milestone | null>(null);
+  const deletingLinked = deleting ? workspace.tasks.filter((t) => t.milestoneId === deleting.id).length : 0;
   const milestones = milestonesOrdered(workspace.milestones, projectId);
 
   function move(index: number, delta: -1 | 1) {
@@ -118,10 +121,7 @@ export function MilestoneList({ projectId }: { projectId: string }) {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-rose-600 focus:text-rose-700"
-                        onSelect={() => {
-                          actions.deleteMilestone(m.id);
-                          toast(`Milestone deleted${linked.length ? " — its tasks are kept" : ""}`, { description: m.title });
-                        }}
+                        onSelect={() => setDeleting(m)}
                       >
                         <Trash2 className="text-rose-500" />
                         Delete
@@ -134,6 +134,37 @@ export function MilestoneList({ projectId }: { projectId: string }) {
           })}
         </ol>
       )}
+
+      <Dialog open={deleting !== null} onOpenChange={(o) => !o && setDeleting(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete “{deleting?.title}”?</DialogTitle>
+            <DialogDescription>
+              The milestone, its description and its dates are removed.{" "}
+              {deletingLinked > 0
+                ? `Its ${deletingLinked} ${deletingLinked === 1 ? "task stays" : "tasks stay"} in the project, just without a milestone.`
+                : "No tasks are linked to it."}{" "}
+              To keep it, mark it completed instead.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-rose-600 hover:bg-rose-700"
+              onClick={() => {
+                if (!deleting) return;
+                actions.deleteMilestone(deleting.id);
+                toast(`Milestone deleted${deletingLinked ? " — its tasks are kept" : ""}`, { description: deleting.title });
+                setDeleting(null);
+              }}
+            >
+              Delete milestone
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {editing && (
         <MilestoneEditorDialog

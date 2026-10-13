@@ -107,7 +107,7 @@ export function DataSettings() {
       <div className="flex flex-col gap-2.5">
         <DataAction
           title="Download a backup"
-          body="A JSON copy of your tasks and Brain Dump."
+          body="A JSON file with everything — tasks, Brain Dump, focus sessions and time, highlights, commitments and their history, Kaizen Logs, projects, milestones, recurring tasks and weekly reviews — with every id and link kept. Keep a recent copy somewhere safe."
           action={
             <Button variant="outline" size="sm" className="gap-1.5" onClick={downloadBackup} disabled={!hasData}>
               <Download className="size-3.5" />

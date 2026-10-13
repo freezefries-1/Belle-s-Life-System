@@ -4,7 +4,7 @@ import { createSampleData } from "@/data/sample-data";
 import { generateOccurrences } from "@/lib/recurrence/recurrence";
 import { countRows, pickSample } from "@/lib/repositories/local-migration";
 import { dataToRows, rowsToData } from "@/lib/repositories/mappers";
-import { SCHEMA_VERSION, parseEnvelope } from "@/lib/storage/schema";
+import { SCHEMA_VERSION, createEnvelope, parseEnvelope } from "@/lib/storage/schema";
 import { TABLE_ORDER } from "@/types/database";
 
 const TODAY = "2026-10-12";
@@ -62,5 +62,15 @@ describe("test-import sample", () => {
       if (p.task_id) expect(picked.tasks.has(p.task_id)).toBe(true);
       if (p.project_id) expect(picked.projects.has(p.project_id)).toBe(true);
     }
+  });
+});
+
+describe("backup file (Preferences → Download a backup)", () => {
+  it("contains every record type and restores identically, ids and links included", () => {
+    const file = JSON.parse(JSON.stringify(createEnvelope(sample.data)));
+    for (const key of Object.keys(sample.data)) expect(Array.isArray(file.data[key]), key).toBe(true);
+    const restored = parseEnvelope(file)!;
+    expect(restored.dropped).toBe(0);
+    expect(restored.data).toEqual(sample.data);
   });
 });
