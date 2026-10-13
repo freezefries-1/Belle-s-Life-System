@@ -23,7 +23,7 @@ function SheetContent({
   children,
   side = "left",
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Content> & { side?: "left" | "right" }) {
+}: React.ComponentProps<typeof SheetPrimitive.Content> & { side?: "left" | "right" | "bottom" }) {
   return (
     <SheetPrimitive.Portal>
       <SheetPrimitive.Overlay
@@ -33,11 +33,14 @@ function SheetContent({
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 z-50 flex h-full w-[284px] max-w-[85vw] flex-col shadow-2xl transition ease-out data-[state=open]:animate-in data-[state=open]:duration-250 data-[state=closed]:animate-out data-[state=closed]:duration-200",
+          "fixed z-50 flex flex-col shadow-2xl transition ease-out data-[state=open]:animate-in data-[state=open]:duration-250 data-[state=closed]:animate-out data-[state=closed]:duration-200",
+          side !== "bottom" && "inset-y-0 h-full w-[284px] max-w-[85vw]",
           side === "left" &&
             "left-0 data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left",
           side === "right" &&
             "right-0 data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
+          side === "bottom" &&
+            "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-2xl pb-[env(safe-area-inset-bottom)] data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
           className,
         )}
         {...props}

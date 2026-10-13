@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { Menu, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { formatLongDate } from "@/lib/date";
@@ -15,13 +15,11 @@ import { getNavItem } from "./nav-config";
 import { UserMenu } from "./user-menu";
 
 export function Topbar({
-  onOpenMobileNav,
   onQuickAdd,
   onOpenMobileSearch,
   onShowShortcuts,
   searchInputRef,
 }: {
-  onOpenMobileNav: () => void;
   onQuickAdd: () => void;
   onOpenMobileSearch: () => void;
   onShowShortcuts: () => void;
@@ -30,17 +28,7 @@ export function Topbar({
   const today = useToday();
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur-md sm:px-6 lg:px-8">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="-ml-1.5 lg:hidden"
-        onClick={onOpenMobileNav}
-        aria-label="Open navigation"
-      >
-        <Menu className="size-5" />
-      </Button>
-
+    <header className="sticky top-0 z-20 flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-center gap-3 border-b bg-background/85 pt-[env(safe-area-inset-top)] pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] backdrop-blur-md sm:px-6 lg:px-8">
       <div className="min-w-0 flex-1">
         <h1 className="h-[22px] truncate text-[17px] leading-tight font-bold tracking-tight">
           {/* Pathname is request-time data on dynamic routes, so it streams in. */}

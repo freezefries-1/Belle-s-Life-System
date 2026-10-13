@@ -117,3 +117,39 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Touch screens (phones, tablets):
+ * - every button, checkbox and tab gets an invisible tap area of about
+ *   44 × 44 px centred on it, so small controls are easy to hit without
+ *   looking any bigger. (In the base layer, so a control that sets its own
+ *   position, e.g. `absolute`, keeps it.)
+ * - text fields use 16px text: iPhone Safari zooms into anything smaller.
+ */
+@layer base {
+  @media (pointer: coarse) {
+    :where(button, [role="checkbox"], [role="tab"], [role="switch"], [role="radio"]) {
+      position: relative;
+    }
+    :where(button, [role="checkbox"], [role="tab"], [role="switch"], [role="radio"])::after {
+      content: "";
+      position: absolute;
+      inset: min(0px, calc((100% - 44px) / 2));
+    }
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* Toasts sit above the bottom navigation bar on phones and tablets. */
+:root {
+  --toast-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 64rem) {
+  :root {
+    --toast-bottom: 24px;
+  }
+}

@@ -19,6 +19,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#101827",
+  // Use the whole screen on iPhones with a notch; spacing respects the safe areas.
+  viewportFit: "cover",
+  // Android: the page shrinks when the keyboard opens, so dialogs and fields stay visible.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

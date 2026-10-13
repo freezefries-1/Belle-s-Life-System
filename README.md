@@ -82,7 +82,7 @@ src/
 │   └── auth/confirm/         # Email link handler
 ├── components/
 │   ├── ui/                   # shadcn/ui primitives (button, card, dialog…)
-│   ├── layout/               # App shell, sidebar, top bar, mobile drawer, search, quick add
+│   ├── layout/               # App shell, sidebar, top bar, phone/tablet bottom bar, search, quick add
 │   ├── dashboard/            # Today page sections
 │   ├── brain-dump/           # Capture form, inbox, entry row, edit dialog
 │   ├── tasks/                # TaskItem row, shared task editor, filters, summary, actions menu

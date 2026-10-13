@@ -12,8 +12,8 @@ import { WorkspaceProvider } from "@/lib/store/workspace-store";
 import { isCloudEnabled } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 
+import { BottomNav } from "./bottom-nav";
 import { GlobalSearch } from "./global-search";
-import { MobileNav } from "./mobile-nav";
 import { QuickAddDialog } from "./quick-add-dialog";
 import { ShortcutsDialog } from "./shortcuts-dialog";
 import { Sidebar } from "./sidebar";
@@ -26,7 +26,6 @@ function isTypingTarget(target: EventTarget | null) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = React.useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
@@ -69,7 +68,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <TaskEditorProvider>
           <SessionPlannerProvider>
             <Sidebar collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
-            <MobileNav open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
 
             <div
               className={cn(
@@ -80,16 +78,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             >
               <Topbar
-                onOpenMobileNav={() => setMobileNavOpen(true)}
                 onQuickAdd={() => setQuickAddOpen(true)}
                 onOpenMobileSearch={() => setMobileSearchOpen(true)}
                 onShowShortcuts={() => setShortcutsOpen(true)}
                 searchInputRef={searchInputRef}
               />
-              <main className="mx-auto w-full max-w-[1360px] flex-1 px-4 pt-6 pb-16 sm:px-6 lg:px-8 lg:pt-8">
+              {/* Below lg the bottom bar covers the last 56px (plus the iPhone home indicator area). */}
+              <main className="mx-auto w-full max-w-[1360px] flex-1 px-[max(1rem,env(safe-area-inset-left))] pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:pt-8 lg:pb-16">
                 {children}
               </main>
             </div>
+            <BottomNav />
 
             <QuickAddDialog open={quickAddOpen} onOpenChange={setQuickAddOpen} />
             <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
