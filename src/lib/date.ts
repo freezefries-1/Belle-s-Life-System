@@ -68,13 +68,6 @@ export function relativeDayLabel(iso: ISODate, today: ISODate) {
   return formatShortDate(iso);
 }
 
-export function formatTime(hhmm: string) {
-  const [h, m] = hhmm.split(":").map(Number);
-  const suffix = h >= 12 ? "pm" : "am";
-  const hour = h % 12 || 12;
-  return m ? `${hour}:${pad(m)}${suffix}` : `${hour}${suffix}`;
-}
-
 /** Relative label for use mid-sentence: "due tomorrow", "due Friday", "due 2 Nov". */
 export function relativeDayPhrase(iso: ISODate, today: ISODate) {
   const label = relativeDayLabel(iso, today);

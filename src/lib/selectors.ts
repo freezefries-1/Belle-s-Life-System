@@ -1,22 +1,9 @@
 import { isInInbox, sortCaptures } from "@/lib/brain-dump/capture-model";
 import { isOpenSession } from "@/lib/sessions/session-model";
-import { isCompleted, isSkipped } from "@/lib/tasks/task-model";
 import type { Project, Workspace } from "@/types";
 
 export function getProject(ws: Workspace, id: string | null): Project | null {
   return id ? (ws.projects.find((p) => p.id === id) ?? null) : null;
-}
-
-/** Progress counts every task except skipped ones. */
-export function getProjectStats(ws: Workspace, projectId: string) {
-  const tasks = ws.tasks.filter((t) => t.projectId === projectId && !isSkipped(t));
-  const done = tasks.filter(isCompleted).length;
-  return {
-    total: tasks.length,
-    done,
-    outstanding: tasks.length - done,
-    percent: tasks.length ? Math.round((done / tasks.length) * 100) : 0,
-  };
 }
 
 /** Active Brain Dump entries, newest first. */

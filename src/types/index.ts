@@ -2,7 +2,7 @@
  * Domain model for Belle's Life System.
  *
  * These shapes are intentionally flat and relational (ids, not nested objects)
- * so each one maps cleanly onto a Supabase table in a later phase.
+ * so each one maps cleanly onto a Supabase table (see ./database.ts and the mappers).
  */
 
 /** Calendar date in the user's local time zone, formatted YYYY-MM-DD. */

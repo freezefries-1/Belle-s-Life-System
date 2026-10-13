@@ -49,14 +49,24 @@ export function ProgressPage() {
   const days = daysBetween(range.from, range.to) + 1;
   const effectiveUnit = days > 62 && unit === "day" ? "week" : unit;
 
-  const completed = workspace.tasks.filter((t) => t.status === "completed" && t.completedAt && localDateOf(t.completedAt) >= range.from && localDateOf(t.completedAt) <= range.to);
+  // Task-wide scans are memoised: with years of history they're the slow part of this page.
+  const completed = React.useMemo(
+    () =>
+      workspace.tasks.filter((t) => {
+        if (t.status !== "completed" || !t.completedAt) return false;
+        const day = localDateOf(t.completedAt);
+        return day >= range.from && day <= range.to;
+      }),
+    [workspace.tasks, range],
+  );
   const highlights = workspace.highlights.filter((h) => h.dateKey >= range.from && h.dateKey <= range.to);
-  const highlightsDone = highlights.filter((h) => workspace.tasks.find((t) => t.id === h.taskId)?.status === "completed").length;
+  const completedIds = React.useMemo(() => new Set(workspace.tasks.filter((t) => t.status === "completed").map((t) => t.id)), [workspace.tasks]);
+  const highlightsDone = highlights.filter((h) => h.taskId !== null && completedIds.has(h.taskId)).length;
   const consistency = getConsistencyReport(workspace.commitments, range.from, range.to, today, workspace.commitmentCompletions);
   const focus = getFocusStats(sessionsBetween(workspace.sessions, range.from, range.to));
   const activeProjects = workspace.projects.filter((p) => p.status === "active");
   const milestones = workspace.milestones.filter((m) => m.status === "completed" && m.completedAt && localDateOf(m.completedAt) >= range.from && localDateOf(m.completedAt) <= range.to);
-  const trend = getCompletionTrend(workspace.tasks, range.from, range.to, effectiveUnit);
+  const trend = React.useMemo(() => getCompletionTrend(completed, range.from, range.to, effectiveUnit), [completed, range, effectiveUnit]);
   const distribution = getSprintDistribution(completed);
 
   return (

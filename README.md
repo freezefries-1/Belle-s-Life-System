@@ -25,6 +25,15 @@ Open <http://localhost:3000>.
 | `npm run build` | Production build (what Vercel runs) |
 | `npm run start` | Serve the production build          |
 | `npm run lint`  | Lint with ESLint                    |
+| `npm run typecheck` | Check types with TypeScript     |
+| `npm test`      | Run the unit tests (Vitest)         |
+| `npm run test:db` | Database security tests (needs the local Supabase stack) |
+
+### Tests
+
+- **Unit tests** (`tests/unit`, `npm test`): the business rules — dates and time zones, commitments, streaks and consistency, recurring tasks, data validation and upgrades, analytics, the main store change rules, the sync engine's merge and conflict helpers, row mapping, the test-import sample and safe sign-in redirects. They need nothing running and take about a second.
+- **Database security tests** (`supabase/tests/db-security.test.mjs`, `npm run test:db`): 54 checks with two real accounts against the local Supabase stack (`supabase/local/start.sh`, then `set -a; source supabase/local/.env; set +a`).
+- **Browser suites:** each phase was also checked end to end in a real browser (auth, every record type, two-device sync, conflicts, offline, migration, mobile layouts). Those scripts drove a local test setup and aren't part of the repository.
 
 ## Deploy to Vercel
 
@@ -61,11 +70,16 @@ Without environment variables the app runs in browser-only mode. To turn on sign
 ```
 src/
 ├── app/                      # Routes (one folder per page)
-│   ├── layout.tsx            # Root layout: font + app shell
-│   ├── page.tsx              # Today dashboard
-│   ├── brain-dump/ sprints/ tasks/ projects/ projects/[id]/ calendar/
-│   ├── kaizen-log/ micro-commitments/ weekly-review/ time-estimation/ progress/
-│   └── settings/
+│   ├── layout.tsx            # Root layout: font, metadata
+│   ├── global-error.tsx      # Last-resort error screen
+│   ├── (workspace)/          # Signed-in pages, sharing the app shell (layout.tsx)
+│   │   ├── page.tsx          # Today dashboard
+│   │   ├── error.tsx         # "Something went wrong on this page" (sidebar and data stay)
+│   │   ├── brain-dump/ sprints/ tasks/ projects/ projects/[id]/ calendar/
+│   │   ├── kaizen-log/ micro-commitments/ weekly-review/ time-estimation/ progress/
+│   │   └── settings/
+│   ├── (auth)/login/ reset-password/   # Sign-in pages
+│   └── auth/confirm/         # Email link handler
 ├── components/
 │   ├── ui/                   # shadcn/ui primitives (button, card, dialog…)
 │   ├── layout/               # App shell, sidebar, top bar, mobile drawer, search, quick add
@@ -99,7 +113,8 @@ src/
 │   ├── calendar/             # Derived calendar items
 │   ├── review/               # Weekly review model, week summary, unfinished-at-week-end, insights
 │   ├── analytics/            # Commitment consistency, time estimation stats, focus stats, trends
-│   ├── store/workspace-store.tsx  # Single source of truth + actions, persists via the repository
+│   ├── store/workspace-store.tsx  # Single source of truth: applies changes, saves via the repository
+│   ├── store/changes/        # The rules for every change, as plain functions (tasks, daily, projects, recurring, reviews)
 │   ├── selectors.ts          # Project progress, inbox…
 │   ├── date.ts               # Local-date helpers (no time zone surprises)
 │   └── use-today.ts          # Viewer’s local date, hydration-safe
@@ -112,6 +127,8 @@ src/
 ├── types/supabase.ts         # Generated from the database schema (supabase/local/gen-types.sh)
 ├── types/database.ts         # Supabase row types, derived from the generated ones
 └── types/index.ts            # Domain model
+
+tests/unit/                   # Vitest unit tests (npm test)
 
 supabase/
 ├── migrations/               # Schema, constraints, indexes, RLS, functions (version-controlled)
@@ -237,9 +254,7 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
   - verification afterwards;
   - local data kept until you choose to clear it.
 - **Tasks page:** long lists render 100 at a time.
-- **Tests:**
-  - `supabase/tests/db-security.test.mjs`: 41 checks with two real accounts against the local stack;
-  - an end-to-end browser suite: auth, password reset email, every record type, two-device sync, conflicts, recurring de-duplication, offline, isolation, migration with a simulated failure, mobile.
+- **Tests:** database security checks with two real accounts (`npm run test:db`), plus end-to-end browser checks run during development (see **Tests** near the top).
 
 ## Phase 6 — what’s included
 

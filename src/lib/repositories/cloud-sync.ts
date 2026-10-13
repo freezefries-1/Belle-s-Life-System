@@ -131,6 +131,8 @@ export class CloudSync {
   private copyTimer: ReturnType<typeof setTimeout> | null = null;
   /** Set when signing out: no copy is saved on this device from then on. */
   private copyForgotten = false;
+  /** The rows of the last version pushed, so the next push doesn't rebuild them. */
+  private lastPushed: { data: PersistedData; rows: RowSet } | null = null;
   /** How the last load got its data — for the docs' "lighter loading" checks and tests. */
   loadedFrom: "server" | "device" | null = null;
 
@@ -371,7 +373,11 @@ export class CloudSync {
   push(prev: PersistedData, next: PersistedData) {
     if (this.disposed) return;
     this.localEpoch++;
-    const ops = diff(dataToRows(prev), dataToRows(next));
+    // The previous version's rows were usually built on the last save; reuse them.
+    const before = this.lastPushed?.data === prev ? this.lastPushed.rows : dataToRows(prev);
+    const after = dataToRows(next);
+    this.lastPushed = { data: next, rows: after };
+    const ops = diff(before, after);
     if (!ops.length) return;
     this.queue.push(ops);
     this.persistPending();

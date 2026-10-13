@@ -425,10 +425,22 @@ export function stripManaged<R extends AnyRow>(row: R): R {
   return rest as R;
 }
 
+const MANAGED = new Set(["user_id", "version", "synced_at"]);
+
+/** Every data field holds the very same value (the usual case for an unchanged record). */
+function identicalFields(a: AnyRow, b: AnyRow) {
+  const x = a as unknown as Record<string, unknown>;
+  const y = b as unknown as Record<string, unknown>;
+  for (const k in x) if (!MANAGED.has(k) && x[k] !== y[k]) return false;
+  for (const k in y) if (!MANAGED.has(k) && !(k in x)) return false;
+  return true;
+}
+
 /** Stable comparison of two rows' data. Timestamps are compared as instants. */
 export function sameRow(a: AnyRow | undefined, b: AnyRow | undefined) {
   if (!a || !b) return a === b;
-  return canonical(stripManaged(a)) === canonical(stripManaged(b));
+  // Fast path first: comparing every row as normalised JSON on each save is slow with years of data.
+  return identicalFields(a, b) || canonical(stripManaged(a)) === canonical(stripManaged(b));
 }
 
 function canonical(row: object) {

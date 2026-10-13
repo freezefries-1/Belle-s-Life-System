@@ -22,9 +22,9 @@ export interface LoadResult {
 export type SaveResult = { ok: true } | { ok: false; message: string };
 
 /**
- * The one place the app reads and writes persistent data.
- * Phase 2 uses localStorage; a Supabase implementation can replace it
- * later without touching components.
+ * The one place the app reads and writes persistent data: this browser's
+ * storage (below), or the cloud account (repositories/cloud-repository.ts).
+ * Components never know which.
  */
 export interface WorkspaceRepository {
   load(): Promise<LoadResult>;

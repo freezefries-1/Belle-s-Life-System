@@ -10,7 +10,7 @@ import { getSessionHistory } from "@/lib/selectors";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { formatMinutes } from "@/lib/utils";
 
-/** A light log of finished sessions — later phases use it for estimates and reviews. */
+/** A light log of finished sessions — Time Estimation and the Weekly Review use it too. */
 export function SessionHistory({ limit = 8 }: { limit?: number }) {
   const { workspace } = useWorkspace();
   const history = getSessionHistory(workspace).slice(0, limit);
