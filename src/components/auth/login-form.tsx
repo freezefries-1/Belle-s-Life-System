@@ -115,7 +115,7 @@ export function LoginForm() {
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Password</Label>
               {mode === "sign-in" && (
-                <button type="button" onClick={() => (setMode("forgot"), setError(null))} className="cursor-pointer text-xs font-semibold text-primary hover:text-primary-hover">
+                <button type="button" onClick={() => (setMode("forgot"), setError(null))} className="cursor-pointer text-xs font-semibold text-primary hover:text-primary-strong">
                   Forgot password?
                 </button>
               )}
@@ -140,12 +140,12 @@ export function LoginForm() {
         {mode === "sign-in" ? (
           <>
             New here?{" "}
-            <button type="button" onClick={() => (setMode("sign-up"), setError(null))} className="cursor-pointer font-semibold text-primary hover:text-primary-hover">
+            <button type="button" onClick={() => (setMode("sign-up"), setError(null))} className="cursor-pointer font-semibold text-primary hover:text-primary-strong">
               Create an account
             </button>
           </>
         ) : (
-          <button type="button" onClick={() => (setMode("sign-in"), setError(null))} className="cursor-pointer font-semibold text-primary hover:text-primary-hover">
+          <button type="button" onClick={() => (setMode("sign-in"), setError(null))} className="cursor-pointer font-semibold text-primary hover:text-primary-strong">
             Back to sign in
           </button>
         )}

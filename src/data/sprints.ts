@@ -63,14 +63,14 @@ export const SPRINT_STYLES: Record<
   },
   deadlines: {
     dot: "bg-sprint-deadlines",
-    text: "text-sprint-deadlines",
+    text: "text-sprint-deadlines-text",
     tint: "bg-amber-50",
     bar: "bg-sprint-deadlines",
     border: "border-t-sprint-deadlines",
   },
   admin: {
     dot: "bg-sprint-admin",
-    text: "text-sprint-admin",
+    text: "text-sprint-admin-text",
     tint: "bg-teal-50",
     bar: "bg-sprint-admin",
     border: "border-t-sprint-admin",

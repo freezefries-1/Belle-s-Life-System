@@ -30,7 +30,7 @@ export function DayHistory({ selected }: { selected: ISODate }) {
                 href={`/kaizen-log?date=${day.date}`}
                 aria-current={day.date === selected ? "date" : undefined}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/50 focus-visible:bg-muted focus-visible:outline-none",
+                  "flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/50 focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset",
                   day.date === selected && "bg-accent/60 hover:bg-accent/70",
                 )}
               >

@@ -151,7 +151,7 @@ export function CommitmentCard({ commitment }: { commitment: MicroCommitment }) 
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setConfirmDelete(true)} className="text-rose-600 focus:text-rose-700">
+              <DropdownMenuItem onSelect={() => setConfirmDelete(true)} className="text-rose-700 focus:text-rose-800">
                 <Trash2 className="text-rose-500" />
                 Delete
               </DropdownMenuItem>

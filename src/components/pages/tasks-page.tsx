@@ -128,7 +128,7 @@ export function TasksPage() {
             >
               <TabsList>
                 {TASK_VIEWS.map((v) => (
-                  <TabsTrigger key={v.id} value={v.id}>
+                  <TabsTrigger standalone key={v.id} value={v.id}>
                     {v.label}
                   </TabsTrigger>
                 ))}

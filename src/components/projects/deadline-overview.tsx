@@ -54,14 +54,14 @@ function DeadlineRow({ item, today }: { item: DeadlineItem; today: string }) {
   const tone = item.isPreparation
     ? "text-primary"
     : item.status === "overdue"
-      ? "text-rose-600"
+      ? "text-rose-700"
       : item.status === "due_today" || item.status === "approaching"
         ? "text-amber-700"
         : "text-muted-foreground";
 
   return (
     <li>
-      <Link href={href} className="flex items-center gap-3 py-2.5 hover:bg-muted/40 focus-visible:bg-muted focus-visible:outline-none">
+      <Link href={href} className="flex items-center gap-3 py-2.5 hover:bg-muted/40 focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset">
         <span className="flex size-9 shrink-0 flex-col items-center justify-center rounded-lg bg-muted leading-none">
           <span className="text-[9px] font-semibold text-muted-foreground uppercase">{formatWeekday(item.date)}</span>
           <span className="text-[13px] font-bold">{formatShortDate(item.date).split(" ")[0]}</span>

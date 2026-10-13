@@ -103,7 +103,7 @@ function BottomNavBar({ pathname }: { pathname: string }) {
 
 function barItemClass(active: boolean) {
   return cn(
-    "relative flex h-full w-full flex-col items-center justify-center gap-0.5 text-[10.5px] font-semibold tracking-tight outline-none transition-colors focus-visible:bg-ink-2",
+    "relative flex h-full w-full flex-col items-center justify-center gap-0.5 text-[10.5px] font-semibold tracking-tight outline-none transition-colors focus-visible:bg-ink-2 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-inset",
     active ? "text-primary-hover" : "text-ink-muted hover:text-ink-foreground",
   );
 }

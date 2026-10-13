@@ -48,7 +48,7 @@ function NavLinks({ collapsed = false, onNavigate, pathname }: SidebarNavProps &
           {collapsed ? (
             <div className="mx-auto mb-2 h-px w-6 bg-ink-border/70 first:hidden" aria-hidden />
           ) : (
-            <p className="mb-1.5 px-3 text-[11px] font-semibold tracking-[0.08em] text-ink-muted/70 uppercase">
+            <p className="mb-1.5 px-3 text-[11px] font-semibold tracking-[0.08em] text-ink-muted uppercase">
               {section.label}
             </p>
           )}

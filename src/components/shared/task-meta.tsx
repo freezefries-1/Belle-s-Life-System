@@ -40,7 +40,7 @@ export function DueLabel({
         done
           ? "text-muted-foreground"
           : diff < 0
-            ? "font-semibold text-rose-600"
+            ? "font-semibold text-rose-700"
             : diff <= 1
               ? "font-semibold text-amber-700"
               : "text-muted-foreground",

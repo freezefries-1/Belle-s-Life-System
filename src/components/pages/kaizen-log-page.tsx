@@ -88,7 +88,7 @@ export function KaizenLogPage() {
             <DayView key={date} date={date} isToday={isToday} />
           )}
         </div>
-        <aside className="min-w-0">
+        <aside className="min-w-0" aria-label="Recent days">
           <DayHistory selected={date} />
         </aside>
       </div>
@@ -174,7 +174,7 @@ function DayView({ date, isToday }: { date: ISODate; isToday: boolean }) {
           <p className="mt-3 text-[13px] text-muted-foreground">
             Nothing scheduled.{" "}
             {workspace.commitments.length === 0 && (
-              <Link href="/micro-commitments" className="font-semibold text-primary hover:text-primary-hover">
+              <Link href="/micro-commitments" className="font-semibold text-primary hover:text-primary-strong">
                 Add a commitment
               </Link>
             )}

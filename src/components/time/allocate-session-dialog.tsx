@@ -57,7 +57,7 @@ export function AllocateSessionDialog({ session, onClose }: { session: SprintSes
             ))}
           </ul>
         )}
-        <p className={cn("text-xs", over ? "font-semibold text-rose-600" : "text-muted-foreground")} aria-live="polite">
+        <p className={cn("text-xs", over ? "font-semibold text-rose-700" : "text-muted-foreground")} aria-live="polite">
           {total} of {available} min allocated{over ? " — that’s more than the session ran." : ""}
         </p>
         <DialogFooter>

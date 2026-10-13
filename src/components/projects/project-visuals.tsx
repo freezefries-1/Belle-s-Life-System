@@ -85,7 +85,7 @@ const DEADLINE_TONE: Record<DeadlineStatus, string> = {
   upcoming: "text-muted-foreground",
   approaching: "text-amber-700",
   due_today: "text-amber-700 font-semibold",
-  overdue: "text-rose-600 font-semibold",
+  overdue: "text-rose-700 font-semibold",
   completed: "text-emerald-700",
 };
 

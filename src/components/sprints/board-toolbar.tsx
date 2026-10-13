@@ -126,7 +126,7 @@ export function BoardToolbar({
           <button
             type="button"
             onClick={() => onChange(DEFAULT_BOARD_QUERY)}
-            className="cursor-pointer font-semibold text-primary hover:text-primary-hover"
+            className="cursor-pointer font-semibold text-primary hover:text-primary-strong"
           >
             Back to manual order
           </button>

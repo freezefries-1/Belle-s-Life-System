@@ -91,7 +91,7 @@ function OpenRow({ task }: { task: Task }) {
           <button type="button" onClick={() => editor.openEdit(task.id)} className="cursor-pointer text-left text-[13px] font-semibold hover:text-primary">
             {task.title}
           </button>
-          <p className={overdue ? "flex items-center gap-1 text-xs text-rose-600" : "flex items-center gap-1 text-xs text-muted-foreground"}>
+          <p className={overdue ? "flex items-center gap-1 text-xs text-rose-700" : "flex items-center gap-1 text-xs text-muted-foreground"}>
             <CalendarClock className="size-3" />
             Due {formatShortDate(task.dueDate!)}
           </p>

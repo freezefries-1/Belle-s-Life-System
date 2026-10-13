@@ -63,7 +63,7 @@ export function ProjectCard({ project, compact = false, className }: { project: 
         <span className="text-muted-foreground">
           {progress.nextDeadline ? <>Next: {relativeDayPhrase(progress.nextDeadline, workspace.today)}</> : "No upcoming deadlines"}
         </span>
-        <Link href={href} className="inline-flex items-center gap-0.5 font-semibold text-primary hover:text-primary-hover">
+        <Link href={href} className="inline-flex items-center gap-0.5 font-semibold text-primary hover:text-primary-strong">
           Open
           <ArrowUpRight className="size-3.5 transition-transform group-hover:translate-x-px group-hover:-translate-y-px" />
         </Link>

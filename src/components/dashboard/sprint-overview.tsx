@@ -32,11 +32,11 @@ export function SprintOverview({ className }: { className?: string }) {
             <button
               type="button"
               onClick={() => planner.open()}
-              className="cursor-pointer text-xs font-semibold text-primary hover:text-primary-hover"
+              className="cursor-pointer text-xs font-semibold text-primary hover:text-primary-strong"
             >
               Plan a session
             </button>
-            <Link href="/sprints" className="text-xs font-semibold text-primary hover:text-primary-hover">
+            <Link href="/sprints" className="text-xs font-semibold text-primary hover:text-primary-strong">
               Open board
             </Link>
           </span>
@@ -50,7 +50,7 @@ export function SprintOverview({ className }: { className?: string }) {
       {unassigned > 0 && (
         <p className="text-xs text-muted-foreground">
           {unassigned} open {unassigned === 1 ? "task has" : "tasks have"} no sprint yet —{" "}
-          <Link href="/sprints#unassigned" className="font-semibold text-primary hover:text-primary-hover">
+          <Link href="/sprints#unassigned" className="font-semibold text-primary hover:text-primary-strong">
             sort them on the board
           </Link>
         </p>
@@ -104,7 +104,7 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
             <button
               type="button"
               onClick={() => editor.openCreate({ sprint: sprint.id })}
-              className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
+              className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-strong"
             >
               <Plus className="size-3.5" />
               Add task
@@ -149,7 +149,7 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
       </div>
       <Link
         href={href}
-        className="mt-3 inline-flex items-center gap-1 self-start text-xs font-semibold text-primary hover:text-primary-hover"
+        className="mt-3 inline-flex items-center gap-1 self-start text-xs font-semibold text-primary hover:text-primary-strong"
       >
         View sprint
         <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />

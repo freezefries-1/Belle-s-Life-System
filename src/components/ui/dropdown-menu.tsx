@@ -6,8 +6,13 @@ import { CheckIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
+/**
+ * Menus are non-modal (the WAI-ARIA menu-button pattern): the page isn't
+ * hidden from screen readers while one is open. Arrow keys, Escape and
+ * returning focus to the button work as before.
+ */
+function DropdownMenu({ modal = false, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" modal={modal} {...props} />;
 }
 
 function DropdownMenuTrigger(props: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {

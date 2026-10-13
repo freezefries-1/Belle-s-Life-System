@@ -146,7 +146,7 @@ export function SprintColumn({
                 <SprintTaskCard key={t.id} task={t} />
               ))}
               {completed.length > 20 && (
-                <Link href="/tasks" className="px-2 text-xs font-semibold text-primary hover:text-primary-hover">
+                <Link href="/tasks" className="px-2 text-xs font-semibold text-primary hover:text-primary-strong">
                   See all in Tasks
                 </Link>
               )}

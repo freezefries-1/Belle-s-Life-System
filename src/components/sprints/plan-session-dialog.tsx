@@ -210,7 +210,7 @@ export function PlanSessionDialog({
                   <button
                     type="button"
                     onClick={() => setSelected(chosen.length === candidates.length ? [] : candidates.map((t) => t.id))}
-                    className="cursor-pointer text-xs font-semibold text-primary hover:text-primary-hover"
+                    className="cursor-pointer text-xs font-semibold text-primary hover:text-primary-strong"
                   >
                     {chosen.length === candidates.length ? "Clear" : "Select all"}
                   </button>

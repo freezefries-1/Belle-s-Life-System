@@ -45,9 +45,9 @@ export function BrainDumpPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
               <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger standalone value="all">All</TabsTrigger>
                 {CAPTURE_KINDS.map((k) => (
-                  <TabsTrigger key={k.id} value={k.id}>
+                  <TabsTrigger standalone key={k.id} value={k.id}>
                     {k.label}s
                   </TabsTrigger>
                 ))}
@@ -81,7 +81,7 @@ export function BrainDumpPage() {
                           <button
                             type="button"
                             onClick={() => editor.openEdit(task.id)}
-                            className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
+                            className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-strong"
                           >
                             Open task <ArrowRight className="size-3" />
                           </button>
@@ -97,7 +97,7 @@ export function BrainDumpPage() {
           )}
         </div>
 
-        <aside className="flex flex-col gap-4">
+        <aside className="flex flex-col gap-4" aria-label="How the Brain Dump works">
           <Card className="p-5">
             <h3 className="text-[15px] font-semibold">From thought to done</h3>
             <ol className="mt-3 flex flex-col gap-2.5 text-[13px]">

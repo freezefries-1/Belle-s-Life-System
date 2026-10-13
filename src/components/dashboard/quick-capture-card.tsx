@@ -52,7 +52,7 @@ export function QuickCaptureCard({ className }: { className?: string }) {
       )}
       <Link
         href="/brain-dump"
-        className="group mt-3 inline-flex items-center gap-1 self-start text-xs font-semibold text-primary hover:text-primary-hover"
+        className="group mt-3 inline-flex items-center gap-1 self-start text-xs font-semibold text-primary hover:text-primary-strong"
       >
         Sort your brain dump
         <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />

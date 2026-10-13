@@ -20,6 +20,7 @@ export function Sidebar({
 
   return (
     <aside
+      aria-label="Sidebar"
       className={cn(
         "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-ink-border/60 bg-ink transition-[width] duration-200 ease-out lg:flex",
         collapsed ? "w-[72px]" : "w-[252px]",

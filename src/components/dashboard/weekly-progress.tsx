@@ -36,7 +36,7 @@ export function WeeklyProgress({ className }: { className?: string }) {
         ))}
       </dl>
       <div className="mt-4 flex items-center justify-between gap-2 text-xs">
-        <Link href={`/weekly-review?week=${week}`} className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-hover">
+        <Link href={`/weekly-review?week=${week}`} className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-strong">
           View Weekly Review
           <ArrowRight className="size-3.5" />
         </Link>

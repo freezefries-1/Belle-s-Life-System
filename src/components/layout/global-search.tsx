@@ -115,7 +115,7 @@ export function GlobalSearch({
                       e.preventDefault();
                       go(r.href);
                     }}
-                    className="flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                    className="flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] hover:bg-muted focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset"
                   >
                     <r.icon className="size-4 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate font-medium">{r.label}</span>

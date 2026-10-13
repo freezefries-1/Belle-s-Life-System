@@ -18,13 +18,14 @@
   --popover: #ffffff;
   --popover-foreground: #0f172a;
   --primary: #2563eb;
-  --primary-hover: #3b82f6;
+  --primary-hover: #3b82f6; /* lighter: for buttons and for blue on the dark navigation */
+  --primary-strong: #1d4ed8; /* darker: hover colour for blue text on light backgrounds */
   --primary-foreground: #f8fafc;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --subtle-foreground: #94a3b8;
+  --muted-foreground: #5f6f84; /* ≥4.5:1 on white and the light greys (WCAG AA) */
+  --subtle-foreground: #64748b; /* ≥4.5:1 on white */
   --accent: #eff6ff;
   --accent-foreground: #1d4ed8;
   --destructive: #e11d48;
@@ -44,6 +45,9 @@
   --sprint-urgent: #e11d48;
   --sprint-deadlines: #d97706;
   --sprint-admin: #0d9488;
+  /* Darker shades for sprint names written as text (the colours above are for dots and bars). */
+  --sprint-deadlines-text: #b45309;
+  --sprint-admin-text: #0f766e;
   --sprint-build: #7c3aed;
 }
 
@@ -63,6 +67,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
+  --color-primary-strong: var(--primary-strong);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -87,6 +92,8 @@
   --color-sprint-deadlines: var(--sprint-deadlines);
   --color-sprint-admin: var(--sprint-admin);
   --color-sprint-build: var(--sprint-build);
+  --color-sprint-deadlines-text: var(--sprint-deadlines-text);
+  --color-sprint-admin-text: var(--sprint-admin-text);
 }
 
 @layer base {
@@ -103,6 +110,11 @@
     /* Long words and pasted links wrap instead of pushing the layout wider. */
     overflow-wrap: break-word;
     font-feature-settings: "ss01", "cv11";
+  }
+  /* A clear focus outline for keyboard users on anything that doesn't define its own. */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
   ::selection {
     background: color-mix(in srgb, var(--primary) 20%, transparent);

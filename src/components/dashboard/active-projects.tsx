@@ -22,7 +22,7 @@ export function ActiveProjects({ className }: { className?: string }) {
         title={<span id="projects-heading">Active projects</span>}
         description="Where your sprints are taking you."
         action={
-          <Link href="/projects" className="text-xs font-semibold text-primary hover:text-primary-hover">
+          <Link href="/projects" className="text-xs font-semibold text-primary hover:text-primary-strong">
             All projects
           </Link>
         }
@@ -31,7 +31,7 @@ export function ActiveProjects({ className }: { className?: string }) {
         <Card className="flex-row items-center gap-3 p-5">
           <FolderKanban className="size-5 shrink-0 text-muted-foreground" />
           <p className="flex-1 text-[13px] text-muted-foreground">No active projects. Group related tasks under one outcome to see progress here.</p>
-          <Link href="/projects" className="shrink-0 text-xs font-semibold text-primary hover:text-primary-hover">
+          <Link href="/projects" className="shrink-0 text-xs font-semibold text-primary hover:text-primary-strong">
             Go to Projects
           </Link>
         </Card>

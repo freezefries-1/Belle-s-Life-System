@@ -148,7 +148,7 @@ function TemplateRow({ template: t, onConfirm }: { template: RecurrenceTemplate;
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => onConfirm({ kind: "delete", template: t })} className="text-rose-600 focus:text-rose-700">
+          <DropdownMenuItem onSelect={() => onConfirm({ kind: "delete", template: t })} className="text-rose-700 focus:text-rose-800">
             <Trash2 className="text-rose-500" />
             Delete series…
           </DropdownMenuItem>

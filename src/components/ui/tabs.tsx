@@ -22,10 +22,16 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
   );
 }
 
-function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+/**
+ * `standalone`: the tabs switch or filter content rendered elsewhere (no
+ * TabsContent), so the trigger doesn't point screen readers at a panel that
+ * doesn't exist.
+ */
+function TabsTrigger({ className, standalone, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger> & { standalone?: boolean }) {
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
+      {...(standalone ? { "aria-controls": undefined } : {})}
       className={cn(
         "inline-flex h-full cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold whitespace-nowrap transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm",
         className,

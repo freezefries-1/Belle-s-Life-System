@@ -67,6 +67,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <TooltipProvider>
         <TaskEditorProvider>
           <SessionPlannerProvider>
+            {/* Keyboard users: the first Tab press offers a jump past the navigation. */}
+            <a
+              href="#main"
+              className="sr-only z-50 rounded-lg bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+            >
+              Skip to main content
+            </a>
             <Sidebar collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
 
             <div
@@ -84,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 searchInputRef={searchInputRef}
               />
               {/* Below lg the bottom bar covers the last 56px (plus the iPhone home indicator area). */}
-              <main className="mx-auto w-full max-w-[1360px] flex-1 px-[max(1rem,env(safe-area-inset-left))] pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:pt-8 lg:pb-16">
+              <main id="main" tabIndex={-1} className="mx-auto outline-none w-full max-w-[1360px] flex-1 px-[max(1rem,env(safe-area-inset-left))] pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:pt-8 lg:pb-16">
                 {children}
               </main>
             </div>

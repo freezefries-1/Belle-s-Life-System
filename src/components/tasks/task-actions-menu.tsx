@@ -99,7 +99,7 @@ export function TaskActionsMenu({ task, align = "end", projectId }: { task: Task
             Remove from project
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => feedback.remove(task)} className="text-rose-600 focus:text-rose-700">
+        <DropdownMenuItem onSelect={() => feedback.remove(task)} className="text-rose-700 focus:text-rose-800">
           <Trash2 className="text-rose-500" />
           Delete
         </DropdownMenuItem>

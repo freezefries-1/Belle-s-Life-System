@@ -192,7 +192,7 @@ function ItemChip({ item }: { item: CalendarItem }) {
   const style = KIND_STYLE[item.kind];
   const Icon = style.icon;
   return (
-    <span className={cn("flex min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-semibold", style.chip, item.done && "line-through opacity-50")}>
+    <span className={cn("flex min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-semibold", style.chip, item.done && "line-through opacity-75")}>
       {Icon && <Icon className="size-3 shrink-0" />}
       <span className="truncate">{item.title}</span>
     </span>

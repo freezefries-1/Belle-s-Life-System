@@ -86,7 +86,7 @@ export function CaptureRow({ capture }: { capture: Capture }) {
               Convert to task
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={remove} className="text-rose-600 focus:text-rose-700">
+            <DropdownMenuItem onSelect={remove} className="text-rose-700 focus:text-rose-800">
               <Trash2 className="text-rose-500" />
               Delete
             </DropdownMenuItem>

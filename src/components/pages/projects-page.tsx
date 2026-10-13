@@ -69,7 +69,7 @@ export function ProjectsPage() {
                 <Tabs value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
                   <TabsList>
                     {PROJECT_STATUSES.map((s) => (
-                      <TabsTrigger key={s.id} value={s.id}>
+                      <TabsTrigger standalone key={s.id} value={s.id}>
                         {s.label}
                         {counts[s.id] > 0 && <span className="text-muted-foreground tabular-nums">{counts[s.id]}</span>}
                       </TabsTrigger>
@@ -101,7 +101,7 @@ export function ProjectsPage() {
               </div>
             )}
           </div>
-          <aside className="min-w-0">
+          <aside className="min-w-0" aria-label="Deadlines">
             <DeadlineOverview limit={10} />
           </aside>
         </div>

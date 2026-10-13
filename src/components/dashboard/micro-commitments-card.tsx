@@ -42,7 +42,7 @@ export function MicroCommitmentsCard({ className }: { className?: string }) {
             <button
               type="button"
               onClick={() => setCreating(true)}
-              className="mt-2 inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
+              className="mt-2 inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-strong"
             >
               <Plus className="size-3.5" />
               Add a small one
@@ -56,7 +56,7 @@ export function MicroCommitmentsCard({ className }: { className?: string }) {
           ))}
         </div>
       )}
-      <Link href="/micro-commitments" className="mt-3 self-start text-xs font-semibold text-primary hover:text-primary-hover">
+      <Link href="/micro-commitments" className="mt-3 self-start text-xs font-semibold text-primary hover:text-primary-strong">
         Manage commitments
       </Link>
       {creating && <CommitmentEditorDialog open={creating} onOpenChange={setCreating} />}

@@ -120,7 +120,7 @@ export function MilestoneList({ projectId }: { projectId: string }) {
                       ))}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        className="text-rose-600 focus:text-rose-700"
+                        className="text-rose-700 focus:text-rose-800"
                         onSelect={() => setDeleting(m)}
                       >
                         <Trash2 className="text-rose-500" />

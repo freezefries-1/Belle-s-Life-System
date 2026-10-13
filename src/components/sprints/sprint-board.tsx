@@ -266,12 +266,12 @@ export function SprintBoard({ query }: { query: BoardQuery }) {
             <Tabs value={mobileTab} onValueChange={(v) => setMobileTab(v as BoardContainer)}>
               <TabsList>
                 {SPRINTS.map((s) => (
-                  <TabsTrigger key={s.id} value={s.id} className="gap-1.5">
+                  <TabsTrigger standalone key={s.id} value={s.id} className="gap-1.5">
                     <span className={cn("size-1.5 rounded-full", SPRINT_STYLES[s.id].dot)} />
                     {s.number}. {s.name}
                   </TabsTrigger>
                 ))}
-                <TabsTrigger value="unassigned">Unassigned · {unassignedCount}</TabsTrigger>
+                <TabsTrigger standalone value="unassigned">Unassigned · {unassignedCount}</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>

@@ -89,7 +89,7 @@ export function ReflectionEditor({ date, section }: { date: ISODate; section: "r
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[11px] text-muted-foreground">
             For journaling. Things to do belong in the{" "}
-            <Link href="/brain-dump" className="font-semibold text-primary hover:text-primary-hover">
+            <Link href="/brain-dump" className="font-semibold text-primary hover:text-primary-strong">
               Brain Dump
             </Link>
             .

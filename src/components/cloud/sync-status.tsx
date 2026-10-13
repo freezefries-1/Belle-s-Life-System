@@ -21,7 +21,7 @@ export function SyncIndicator({ className }: { className?: string }) {
         ? { icon: CloudCheck, label: "Saved", tone: "text-muted-foreground" }
         : status.state === "conflict"
           ? { icon: AlertTriangle, label: "Needs attention", tone: "text-amber-700" }
-          : { icon: CloudOff, label: "Not saved", tone: "text-rose-600" };
+          : { icon: CloudOff, label: "Not saved", tone: "text-rose-700" };
   return (
     <span
       className={cn("inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap", view.tone, className)}

@@ -170,7 +170,7 @@ export function WeeklyReviewPage() {
           </div>
         </div>
 
-        <aside className="min-w-0">
+        <aside className="min-w-0" aria-label="Review history">
           <ReviewHistory current={weekStart} thisWeek={thisWeek} />
         </aside>
       </div>

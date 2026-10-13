@@ -117,7 +117,7 @@ export function MicroCommitmentsPage() {
             )}
           </div>
 
-          <aside className="flex flex-col gap-4">
+          <aside className="flex flex-col gap-4" aria-label="Today’s summary">
             <Card className="p-5">
               <h3 className="text-[15px] font-semibold">Today</h3>
               {progress.percent === null ? (

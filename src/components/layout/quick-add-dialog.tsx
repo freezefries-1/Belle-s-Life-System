@@ -52,7 +52,7 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               <Link
                 href="/brain-dump"
                 onClick={() => onOpenChange(false)}
-                className="font-semibold text-primary hover:text-primary-hover"
+                className="font-semibold text-primary hover:text-primary-strong"
               >
                 Open Brain Dump
               </Link>
