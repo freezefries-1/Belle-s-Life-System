@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AccountContext, type Account } from "@/lib/auth/account";
 import { createCloudRepository } from "@/lib/repositories/cloud-repository";
 import { CloudSync } from "@/lib/repositories/cloud-sync";
+import { clearDeviceCopies } from "@/lib/repositories/device-cache";
 import { WorkspaceProvider } from "@/lib/store/workspace-store";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -39,12 +40,14 @@ export function CloudWorkspaceProvider({ children }: { children: React.ReactNode
     };
   }, [client]);
 
-  // Signed out (or the session expired): leave, with a full page load so no
-  // in-memory data from this account survives.
+  // Signed out (or the session expired, or signed out in another tab): remove
+  // the account's copy from this browser, then leave with a full page load so
+  // no in-memory data from this account survives. Unsaved changes are kept
+  // separately and aren't affected.
   React.useEffect(() => {
     if (account === null) {
       const next = window.location.pathname + window.location.search;
-      window.location.replace(next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`);
+      void clearDeviceCopies().finally(() => window.location.replace(next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`));
     }
   }, [account]);
 
@@ -72,6 +75,8 @@ export function CloudWorkspaceProvider({ children }: { children: React.ReactNode
   const signOut = React.useCallback(async () => {
     // Signing out on purpose (after any unsaved-changes warning) forgets changes kept on this device.
     engine?.discardPending();
+    // Delete the account's copy from this browser first: signing out leaves the page straight away.
+    await engine?.forgetDeviceCopy();
     const { error } = await client.auth.signOut();
     if (error) {
       // Couldn't reach the server: still end the session in this browser.

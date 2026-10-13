@@ -167,6 +167,12 @@ Duplicates across devices are prevented by:
   - every table is indexed by its `(user_id, …)` primary key;
   - `(user_id, synced_at)` for incremental sync;
   - the common filters: status, due date, completed date, project, milestone, template, session and task links, completion dates.
-- **Loading:** the full load at sign-in is paged (1,000 rows per request, tables in parallel). After that, only changes are fetched. Navigating between pages makes no requests.
+- **Loading — a copy on the device, then only changes:**
+  - after loading, the engine saves its copy of the account's *confirmed* server rows in this browser (IndexedDB, `src/lib/repositories/device-cache.ts`), together with the sync cursor. Unsaved changes are never in it; they're kept separately until the server confirms them;
+  - opening the app again loads that copy and fetches only the rows and deletions changed since the cursor (deletions come from `sync_tombstones`, which are kept permanently, so a copy can't miss one);
+  - safety net: after catching up, each table's record count is compared with the server's, and any difference means a full download. A full download also happens on first sign-in on a device, when the copy is over 7 days old, when it can't be read, or when `DEVICE_COPY_FORMAT` is bumped (do that whenever a migration changes columns);
+  - the full download is paged (1,000 rows per request, tables in parallel). Navigating between pages makes no requests;
+  - only one account's copy is kept per browser. Signing out deletes it first; so does the app noticing it has been signed out (including from another tab, or an expired session).
+- **Privacy trade-off:** while signed in, the account's data is stored in the browser on each device used. Sign out on shared computers.
 - **Rendering:** long task lists render 100 at a time.
-- **Known trade-off:** analytics are calculated in the browser from the loaded workspace, which is the same logic as Phases 4–6. For one person's data (years of tasks is still tens of thousands of rows) this is fast. If it ever isn't, the next step is loading older completed history on demand and moving analytics to SQL views.
+- **Known trade-off:** analytics are calculated in the browser from the loaded workspace, which is the same logic as Phases 4–6. For one person's data (years of tasks is still tens of thousands of rows) this is fast. If it ever isn't, the next step is loading older completed history on demand and moving analytics to SQL views (considered and not done: every streak, review and progress figure reads full history).

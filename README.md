@@ -228,6 +228,7 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
   - versioned concurrency, so stale edits are reported and never silently overwritten;
   - automatic handling of routine multi-device cases;
   - incremental sync on focus, on reconnect and every 30 s;
+  - a copy on the device, so opening the app only fetches what changed (deleted on sign-out);
   - a sync indicator, offline and error banners with Retry, and a load-error screen.
 - **Migration:**
   - a backup download, a preview, and explicit confirmation;
@@ -336,7 +337,7 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 - Cloud mode needs a connection to save. Changes made offline (or when a session expires) are kept on that device with a clear "not saved" banner, and saved when you're back online or signed in again. They live only on that device until then. There's no full offline-first mode.
 - Sync is near-real-time: on focus, on reconnect and every 30 s, not instant push. Realtime subscriptions could replace the poll later.
 - Recurring occurrences are still generated when the app opens. There's no server-side scheduler.
-- The whole workspace loads at sign-in (paged), and analytics run in the browser. That's fast for one person's history, but very large histories may eventually want on-demand loading of old records.
+- Opening the app loads a copy kept on the device and fetches only what changed (with a full download on first sign-in, weekly, or if the copy doesn't match). That copy means your data is stored in the browser while you're signed in; signing out deletes it. Analytics run in the browser over your full history.
 - Sign-in is email + password only, and there's no account deletion screen yet (delete the user in the Supabase dashboard).
 - Task due-date changes and skips aren't dated, so past weeks' unfinished lists use current due dates and leave out skipped tasks (the page says so). Commitments paused before this update get a pause start of their last edit. Milestones completed before it use their last update as the completion date.
 - Charts are deliberately simple. There's no history of project progress, and no export of analytics.

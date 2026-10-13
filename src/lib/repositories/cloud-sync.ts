@@ -3,6 +3,7 @@ import type { AppSupabaseClient } from "@/lib/supabase/client";
 import type { PersistedData } from "@/types";
 import { TABLE_ORDER, type AnyRow, type TableName, type TombstoneRow } from "@/types/database";
 
+import { clearDeviceCopies, readDeviceCopy, writeDeviceCopy } from "./device-cache";
 import { dataToRows, emptyRowSet, rowsToData, sameRow, stripManaged, type RowSet } from "./mappers";
 
 /**
@@ -68,6 +69,11 @@ type ApplyResult =
 const PAGE = 1000;
 const OVERLAP_MS = 10_000; // re-read a little before the cursor so late commits aren't missed
 const POLL_MS = 30_000;
+/** Bump when a migration changes table columns, so copies saved on devices are downloaded afresh. */
+const DEVICE_COPY_FORMAT = 1;
+/** Even with a device copy, download everything at least this often, as a safety net. */
+const FULL_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+const DEVICE_COPY_SAVE_DELAY_MS = 1500;
 const PENDING_KEY_PREFIX = "belles-life-system:cloud-pending:";
 const key = (table: TableName, id: string) => `${table}\u0000${id}`;
 
@@ -120,6 +126,13 @@ export class CloudSync {
   private inFlight = 0;
   /** Server copies were adopted locally; refresh the app once everything is saved. */
   private needsRefresh = false;
+  /** When everything was last downloaded in full (kept with the device copy). */
+  private fullAt = new Date(0).toISOString();
+  private copyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Set when signing out: no copy is saved on this device from then on. */
+  private copyForgotten = false;
+  /** How the last load got its data — for the docs' "lighter loading" checks and tests. */
+  loadedFrom: "server" | "device" | null = null;
 
   /** Called with fresh data when changes arrive from another device. */
   onRemoteData: ((data: PersistedData) => void) | null = null;
@@ -214,6 +227,79 @@ export class CloudSync {
     return rows;
   }
 
+  /** Rows and deletions changed on the server after `cursor` (with a small overlap). Changes nothing locally. */
+  private async fetchChanges(cursor: string | null) {
+    const since = cursor ? new Date(Date.parse(cursor) - OVERLAP_MS).toISOString() : "1970-01-01T00:00:00Z";
+    const changed = await Promise.all(
+      TABLE_ORDER.map(async (table) => {
+        const out: AnyRow[] = [];
+        let last = "";
+        for (;;) {
+          let q = this.client.from(table).select("*").gt("synced_at", since).order("id").limit(PAGE);
+          if (last) q = q.gt("id", last);
+          const { data, error } = await q;
+          if (error) throw toError(error);
+          out.push(...(data as AnyRow[]));
+          if (data.length < PAGE) break;
+          last = (data as AnyRow[])[data.length - 1].id;
+        }
+        return [table, out] as const;
+      }),
+    );
+    const { data: tombs, error } = await this.client.from("sync_tombstones").select("table_name, id, deleted_at").gt("deleted_at", since);
+    if (error) throw toError(error);
+    return { changed, tombs: tombs as TombstoneRow[] };
+  }
+
+  /**
+   * The device copy brought up to date with only what changed since it was
+   * saved — or null when a full download is needed (no copy, an old one, or
+   * one whose record counts don't match the server's).
+   */
+  private async loadFromDevice(): Promise<{ rows: RowSet; cursor: string | null; fullAt: string } | null> {
+    const copy = await readDeviceCopy(this.userId, DEVICE_COPY_FORMAT);
+    if (!copy || !(Date.now() - Date.parse(copy.fullAt) < FULL_REFRESH_MS)) return null;
+    const rows = emptyRowSet();
+    for (const table of TABLE_ORDER) for (const r of copy.rows[table]) (rows[table] as Map<string, AnyRow>).set(r.id, r);
+    const { changed, tombs } = await this.fetchChanges(copy.cursor);
+    const { newest } = mergeChanges(rows, changed, tombs, copy.cursor);
+    // Safety net: every table must hold exactly as many records as the server does.
+    const counts = await Promise.all(
+      TABLE_ORDER.map(async (table) => {
+        const { count, error } = await this.client.from(table).select("id", { count: "exact", head: true });
+        if (error) throw toError(error);
+        return count === rows[table].size;
+      }),
+    );
+    return counts.every(Boolean) ? { rows, cursor: newest, fullAt: copy.fullAt } : null;
+  }
+
+  /** Stop keeping a copy on this device and delete it (before signing out). */
+  async forgetDeviceCopy() {
+    this.copyForgotten = true;
+    if (this.copyTimer) clearTimeout(this.copyTimer);
+    this.copyTimer = null;
+    await clearDeviceCopies();
+  }
+
+  /** Save the confirmed server rows on this device, shortly after they change. */
+  private scheduleDeviceCopy() {
+    if (!this.loaded || this.disposed || this.copyForgotten || this.copyTimer) return;
+    this.copyTimer = setTimeout(() => {
+      this.copyTimer = null;
+      if (this.disposed || this.copyForgotten) return;
+      const rows = Object.fromEntries(TABLE_ORDER.map((t) => [t, [...this.server[t].values()]])) as Record<TableName, AnyRow[]>;
+      void writeDeviceCopy({
+        format: DEVICE_COPY_FORMAT,
+        userId: this.userId,
+        cursor: this.cursor,
+        fullAt: this.fullAt,
+        savedAt: new Date().toISOString(),
+        rows,
+      });
+    }, DEVICE_COPY_SAVE_DELAY_MS);
+  }
+
   private adoptAll(rows: RowSet) {
     this.server = rows;
     this.versions.clear();
@@ -225,6 +311,14 @@ export class CloudSync {
       }
     if (newest && (!this.cursor || newest > this.cursor)) this.cursor = newest;
     this.loaded = true;
+    this.scheduleDeviceCopy();
+  }
+
+  /** Everything from the server, in full. */
+  private async downloadAll() {
+    const fullAt = new Date().toISOString();
+    const rows = await this.fetchAll();
+    return { rows, fullAt };
   }
 
   /**
@@ -234,7 +328,23 @@ export class CloudSync {
    */
   async loadAll(): Promise<PersistedData> {
     await this.ensureAccount();
-    const rows = await this.fetchAll();
+    const fromDevice = await this.loadFromDevice().catch((e) => {
+      // Offline or signed out: report it as before. Anything else: fall back to a full download.
+      if (e instanceof NetworkError || e instanceof AuthExpiredError) throw e;
+      return null;
+    });
+    let rows: RowSet;
+    if (fromDevice) {
+      this.cursor = fromDevice.cursor;
+      this.fullAt = fromDevice.fullAt;
+      this.loadedFrom = "device";
+      rows = fromDevice.rows;
+    } else {
+      const full = await this.downloadAll();
+      this.fullAt = full.fullAt;
+      this.loadedFrom = "server";
+      rows = full.rows;
+    }
     this.adoptAll(rows);
     const pending = this.readPending();
     if (pending.length) {
@@ -348,11 +458,13 @@ export class CloudSync {
     if (version === null) {
       this.versions.delete(k);
       map.delete(id);
+      this.scheduleDeviceCopy();
       return;
     }
     this.versions.set(k, version);
     const sent = adopted ?? batch.find((op) => op.table === table && op.id === id)?.row;
     if (sent) map.set(id, { ...sent, version, synced_at: adopted?.synced_at ?? syncedAt } as AnyRow);
+    this.scheduleDeviceCopy();
   }
 
   private scheduleRetry() {
@@ -485,6 +597,7 @@ export class CloudSync {
   private rememberServerRow(table: TableName, row: AnyRow & { version?: number }) {
     (this.server[table] as Map<string, AnyRow>).set(row.id, row);
     this.versions.set(key(table, row.id), row.version ?? 1);
+    this.scheduleDeviceCopy();
   }
 
   private notice(message: string) {
@@ -522,6 +635,7 @@ export class CloudSync {
       map.delete(c.id);
       this.versions.delete(k);
     }
+    this.scheduleDeviceCopy();
   }
 
   /**
@@ -568,9 +682,10 @@ export class CloudSync {
 
   private async reload() {
     const epoch = this.localEpoch;
-    const rows = await this.fetchAll();
+    const { rows, fullAt } = await this.downloadAll();
     // A local change happened while loading: keep it; the next pull catches up.
     if (epoch !== this.localEpoch || this.hasUnsavedChanges()) return;
+    this.fullAt = fullAt;
     this.adoptAll(rows);
     this.onRemoteData?.(rowsToData(rows));
   }
@@ -590,57 +705,18 @@ export class CloudSync {
     if (!force && typeof document !== "undefined" && document.visibilityState !== "visible") return;
     this.pulling = true;
     const epoch = this.localEpoch;
-    // The cursor is server time (from rows we've seen), so a wrong clock on this device can't hide changes.
-    const since = this.cursor ? new Date(Date.parse(this.cursor) - OVERLAP_MS).toISOString() : "1970-01-01T00:00:00Z";
     try {
-      const changed = await Promise.all(
-        TABLE_ORDER.map(async (table) => {
-          const out: AnyRow[] = [];
-          let last = "";
-          for (;;) {
-            let q = this.client.from(table).select("*").gt("synced_at", since).order("id").limit(PAGE);
-            if (last) q = q.gt("id", last);
-            const { data, error } = await q;
-            if (error) throw toError(error);
-            out.push(...(data as AnyRow[]));
-            if (data.length < PAGE) break;
-            last = (data as AnyRow[])[data.length - 1].id;
-          }
-          return [table, out] as const;
-        }),
-      );
-      const { data: tombs, error } = await this.client.from("sync_tombstones").select("table_name, id, deleted_at").gt("deleted_at", since);
-      if (error) throw toError(error);
+      // The cursor is server time (from rows we've seen), so a wrong clock on this device can't hide changes.
+      const { changed, tombs } = await this.fetchChanges(this.cursor);
       // A local change happened meanwhile: drop this pull; the next one catches up.
       if (epoch !== this.localEpoch || this.hasUnsavedChanges()) return;
 
-      let touched = false;
-      let newest = this.cursor;
-      const seen = (t: string | undefined) => {
-        if (t && (!newest || t > newest)) newest = t;
-      };
-      for (const [table, rows] of changed) {
-        const map = this.server[table] as Map<string, AnyRow>;
-        for (const r of rows) {
-          seen(r.synced_at);
-          const mine = map.get(r.id);
-          // Same row we already have? (A restored-after-delete row restarts at version 1, so compare times too.)
-          if (mine && mine.version === r.version && (mine.synced_at ?? "") >= (r.synced_at ?? "")) continue;
-          map.set(r.id, r);
-          this.versions.set(key(table, r.id), r.version ?? 1);
-          touched = true;
-        }
-      }
-      for (const t of tombs as TombstoneRow[]) {
-        seen(t.deleted_at);
-        const map = this.server[t.table_name] as Map<string, AnyRow> | undefined;
-        const row = map?.get(t.id);
-        if (!map || !row || (row.synced_at && row.synced_at > t.deleted_at)) continue;
-        map.delete(t.id);
-        this.versions.delete(key(t.table_name, t.id));
-        touched = true;
-      }
+      const { touched, newest } = mergeChanges(this.server, changed, tombs, this.cursor, {
+        set: (table, r) => this.versions.set(key(table, r.id), r.version ?? 1),
+        remove: (table, id) => this.versions.delete(key(table, id)),
+      });
       this.cursor = newest;
+      this.scheduleDeviceCopy();
       this.setStatus({ lastSyncedAt: new Date().toISOString(), ...(this.status.state === "offline" ? { state: "synced", message: null } : {}) });
       if (touched || emitAlways) this.onRemoteData?.(rowsToData(this.server));
     } catch {
@@ -676,6 +752,7 @@ export class CloudSync {
     }
     if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.retryTimer) clearTimeout(this.retryTimer);
+    if (this.copyTimer) clearTimeout(this.copyTimer);
     this.listeners.clear();
     this.onRemoteData = null;
     this.onNotice = null;
@@ -683,6 +760,46 @@ export class CloudSync {
 }
 
 /* ---------------- helpers ---------------- */
+
+/**
+ * Merge rows and deletions fetched since `cursor` into `rows` (in place).
+ * Returns whether anything changed and the new cursor (newest server time seen).
+ */
+export function mergeChanges(
+  rows: RowSet,
+  changed: readonly (readonly [TableName, AnyRow[]])[],
+  tombs: TombstoneRow[],
+  cursor: string | null,
+  on?: { set: (table: TableName, row: AnyRow) => void; remove: (table: TableName, id: string) => void },
+) {
+  let touched = false;
+  let newest = cursor;
+  const seen = (t: string | undefined) => {
+    if (t && (!newest || t > newest)) newest = t;
+  };
+  for (const [table, list] of changed) {
+    const map = rows[table] as Map<string, AnyRow>;
+    for (const r of list) {
+      seen(r.synced_at);
+      const mine = map.get(r.id);
+      // Same row we already have? (A restored-after-delete row restarts at version 1, so compare times too.)
+      if (mine && mine.version === r.version && (mine.synced_at ?? "") >= (r.synced_at ?? "")) continue;
+      map.set(r.id, r);
+      on?.set(table, r);
+      touched = true;
+    }
+  }
+  for (const t of tombs) {
+    seen(t.deleted_at);
+    const map = rows[t.table_name] as Map<string, AnyRow> | undefined;
+    const row = map?.get(t.id);
+    if (!map || !row || (row.synced_at && row.synced_at > t.deleted_at)) continue;
+    map.delete(t.id);
+    on?.remove(t.table_name, t.id);
+    touched = true;
+  }
+  return { touched, newest };
+}
 
 /** Row-level differences between two snapshots, in a safe order (deletes children-first, upserts parents-first). */
 export function diff(before: RowSet, after: RowSet): Op[] {
