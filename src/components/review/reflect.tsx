@@ -7,14 +7,14 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { REFLECTION_PROMPTS } from "@/lib/review/weekly";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import type { ISODate, WeeklyReview, WeeklyReviewInput } from "@/types";
 
 type Key = (typeof REFLECTION_PROMPTS)[number]["key"];
 
 /** Five optional questions. Saves as you type; a review record is created on the first word. */
 export function Reflect({ weekStart, review }: { weekStart: ISODate; review: WeeklyReview | null }) {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
   const [values, setValues] = React.useState<Record<Key, string>>(() =>
     Object.fromEntries(REFLECTION_PROMPTS.map((p) => [p.key, review?.[p.key] ?? ""])) as Record<Key, string>,
   );

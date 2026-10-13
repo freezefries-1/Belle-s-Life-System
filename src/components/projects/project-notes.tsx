@@ -5,12 +5,12 @@ import { Check, Loader2, NotebookPen } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import type { Project } from "@/types";
 
 /** Plain-text notes that save as you type (line breaks kept; simple "- " lists read fine). */
 export function ProjectNotes({ project }: { project: Project }) {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
   const [value, setValue] = React.useState(project.notes);
   const [status, setStatus] = React.useState<"idle" | "saving" | "saved">("idle");
   const pending = React.useRef<string | null>(null);

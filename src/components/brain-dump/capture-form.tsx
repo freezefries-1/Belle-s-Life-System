@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { CAPTURE_KINDS } from "@/data/capture-kinds";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 import type { Capture, CaptureKind } from "@/types";
 
@@ -28,7 +28,7 @@ export function CaptureForm({
   onCaptured?: (capture: Capture) => void;
   className?: string;
 }) {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
   const [text, setText] = React.useState("");
   const [kind, setKind] = React.useState<CaptureKind>("task");
   const inputRef = React.useRef<HTMLInputElement>(null);

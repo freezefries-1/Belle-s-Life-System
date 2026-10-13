@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CATEGORY_SUGGESTIONS, PROJECT_COLOURS, PROJECT_ICONS, PROJECT_STATUSES } from "@/lib/projects/project-model";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import { TASK_PRIORITIES } from "@/lib/tasks/task-model";
 import { cn } from "@/lib/utils";
 import type { Project, ProjectColour, ProjectIcon, ProjectStatus, TaskPriority } from "@/types";
@@ -41,7 +41,7 @@ export function ProjectEditorDialog({
   onOpenChange: (open: boolean) => void;
   openAfterCreate?: boolean;
 }) {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
   const router = useRouter();
   const [name, setName] = React.useState(project?.name ?? "");
   const [description, setDescription] = React.useState(project?.description ?? "");

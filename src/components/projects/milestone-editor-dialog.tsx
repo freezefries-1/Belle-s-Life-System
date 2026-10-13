@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MILESTONE_STATUSES } from "@/lib/projects/project-model";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import type { Milestone, MilestoneStatus } from "@/types";
 
 import { DateWithPrep } from "./date-with-prep";
@@ -33,7 +33,7 @@ export function MilestoneEditorDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
   const [title, setTitle] = React.useState(milestone?.title ?? "");
   const [description, setDescription] = React.useState(milestone?.description ?? "");
   const [target, setTarget] = React.useState(milestone?.targetDate ?? "");

@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 
 import { TASK_STATUS_LABEL } from "@/lib/tasks/task-model";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import type { Task, TaskStatus } from "@/types";
 
 /**
@@ -11,7 +11,7 @@ import type { Task, TaskStatus } from "@/types";
  * completing or deleting a task feels the same everywhere.
  */
 export function useTaskFeedback() {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
 
   return {
     toggleComplete(task: Task) {

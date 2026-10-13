@@ -4,13 +4,13 @@ import { toast } from "sonner";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SPRINTS, SPRINT_STYLES, sprintLabel } from "@/data/sprints";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
 /** One-tap sprint assignment: four small numbered buttons. */
 export function SprintQuickAssign({ task, className }: { task: Task; className?: string }) {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
 
   return (
     <div className={cn("mt-2 flex items-center gap-1", className)} role="group" aria-label={`Assign “${task.title}” to a sprint`}>

@@ -14,14 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SPRINTS } from "@/data/sprints";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import type { Task } from "@/types";
 
 import { useTaskEditor } from "./task-editor-provider";
 import { useTaskFeedback } from "./use-task-feedback";
 
 export function TaskActionsMenu({ task, align = "end", projectId }: { task: Task; align?: "start" | "end"; projectId?: string }) {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
   const editor = useTaskEditor();
   const feedback = useTaskFeedback();
 

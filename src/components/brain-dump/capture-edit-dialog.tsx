@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTURE_KINDS } from "@/data/capture-kinds";
-import { useWorkspace } from "@/lib/store/workspace-store";
+import { useWorkspaceActions } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 import type { Capture, CaptureKind } from "@/types";
 
@@ -29,7 +29,7 @@ export function CaptureEditDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { actions } = useWorkspace();
+  const actions = useWorkspaceActions();
   const [title, setTitle] = React.useState(capture.title);
   const [note, setNote] = React.useState(capture.note);
   const [kind, setKind] = React.useState<CaptureKind>(capture.kind);
