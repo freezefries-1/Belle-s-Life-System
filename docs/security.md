@@ -31,7 +31,7 @@ settings to confirm in your own Supabase and Vercel dashboards.
 | Two-account database tests (`npm run test:db`) | 57 checks pass: no cross-account reads, writes, deletes, links or RPC calls |
 | Browser tests (`npm run test:e2e`) | Account B can't see, change or delete A's task (in the app and directly in the database); signed-out reads return nothing; protected pages redirect; crafted `?next=` links stay on this site |
 | Secrets in the built app and in git history | None. The only match was Supabase's own library code checking a key's prefix. The only env file in git is the empty `.env.example`. The local test database's default password (`postgres`) appears in the Docker test setup only |
-| Error messages and logs | No credentials or other people's data. Save/import errors show the database's message to the signed-in owner; a page crash is logged to your own browser console only; the app writes no server logs of its own |
+| Error messages and logs | No credentials or other people's data. Save/import errors show the database's message to the signed-in owner; a crash sends only the error's kind, page path and code location to the Vercel logs (never its message or anything typed; see [monitoring.md](monitoring.md)) |
 | Dependencies (`npm audit`) | **App (production): 0 vulnerabilities.** Development tools only — see below |
 | Security headers | Added: no framing (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), `nosniff`, `Referrer-Policy`, `Permissions-Policy` (no camera/mic/location), HSTS |
 

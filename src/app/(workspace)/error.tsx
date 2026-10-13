@@ -5,6 +5,7 @@ import Link from "next/link";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { reportClientError } from "@/lib/monitoring/error-report";
 
 /**
  * Shown when a page crashes while drawing. The sidebar, and the workspace
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 export default function WorkspaceError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   React.useEffect(() => {
     console.error(error);
+    reportClientError(error, "page");
   }, [error]);
 
   return (

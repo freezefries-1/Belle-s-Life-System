@@ -33,10 +33,19 @@ Open <http://localhost:3000>.
 ### Tests
 
 - **Unit tests** (`tests/unit`, `npm test`): the business rules — dates and time zones, commitments, streaks and consistency, recurring tasks, data validation and upgrades, analytics, the main store change rules, the sync engine's merge and conflict helpers, row mapping, the test-import sample and safe sign-in redirects. They need nothing running and take about a second.
-- **Database security tests** (`supabase/tests/db-security.test.mjs`, `npm run test:db`): 54 checks with two real accounts against the local Supabase stack (`supabase/local/start.sh`, then `set -a; source supabase/local/.env; set +a`).
-- **End-to-end tests** (`tests/e2e`, `npm run test:e2e`): Playwright runs the everyday workflow (sign in → task → sprint → Highlight → complete → project → recurring task → commitment → Kaizen Log → Weekly Review → sign out), account isolation and a phone run against the **local** stack only — they refuse to run against anything else. Setup: [tests/e2e/README.md](tests/e2e/README.md).
+- **Database security tests** (`supabase/tests/db-security.test.mjs`, `npm run test:db`): 57 checks with two real accounts against the local Supabase stack (`supabase/local/start.sh`, then `set -a; source supabase/local/.env; set +a`).
+- **End-to-end tests** (`tests/e2e`, `npm run test:e2e`): Playwright runs the everyday workflow (sign in → task → sprint → Highlight → complete → project → recurring task → commitment → Kaizen Log → Weekly Review → sign out), account isolation, backup restore and a phone run against the **local** stack only — they refuse to run against anything else. Setup: [tests/e2e/README.md](tests/e2e/README.md).
 - Each phase was also checked during development with longer browser scripts (two-device sync, conflicts, offline, migration, layouts at every width); those stayed outside the repository.
+- **CI:** every push and pull request runs lint, type check, unit tests and a build on GitHub Actions (`.github/workflows/ci.yml`).
 - Security review and dashboard settings to confirm: [docs/security.md](docs/security.md). Accessibility: [docs/accessibility.md](docs/accessibility.md). Performance: [docs/performance.md](docs/performance.md).
+
+## Running it day to day
+
+- **Launch readiness and known issues:** [docs/launch-readiness.md](docs/launch-readiness.md)
+- **Checking the live site:** [docs/production-checklist.md](docs/production-checklist.md)
+- **Backups, restore and what to do when something goes wrong:** [docs/backup-and-recovery.md](docs/backup-and-recovery.md)
+- **Crash reports and automatic checks:** [docs/monitoring.md](docs/monitoring.md)
+- **Weekly, monthly and quarterly upkeep:** [docs/maintenance.md](docs/maintenance.md)
 
 ## Deploy to Vercel
 
@@ -237,6 +246,19 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 
 ---
 
+## Phase 8 — what’s included
+
+- **Phones:** a bottom navigation bar, tap areas of about 44 × 44 px, no zoom when typing, dialogs that fit small screens, and support for the iPhone notch and home bar.
+- **Installable app (PWA):** manifest, icons, a cautious service worker (static files and an offline page only) and install steps.
+- **Speed and polish:** Lighthouse measurements, and confirmation before deleting a milestone.
+- **Accessibility:** contrast fixes, a skip link, focus outlines, named regions and correct menu and tab semantics.
+- **Testing and security:** Playwright end-to-end tests (local only), an RLS inventory, a security review and security headers.
+- **Deployment and operations:**
+  - **Restore from a backup file:** preview, confirm, add-only, safe to repeat;
+  - free crash reports to the Vercel logs (no typed text);
+  - GitHub Actions CI;
+  - recovery, maintenance and live-site guides, and a launch-readiness report.
+
 ## Phase 7 — what’s included
 
 - **Supabase schema** (`supabase/migrations/20261012000000_initial_schema.sql`):
@@ -360,6 +382,7 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 ## Known limitations
 
 - Browser-only mode keeps data in one browser. Cloud mode needs a Supabase project (see the setup guide).
+- Supabase Free has no automatic backups. Download a backup weekly. Restoring a backup adds missing records but never undoes edits, and works when signed in only.
 - Cloud mode needs a connection to save. Changes made offline (or when a session expires) are kept on that device with a clear "not saved" banner, and saved when you're back online or signed in again. They live only on that device until then. There's no full offline-first mode.
 - Sync is near-real-time: on focus, on reconnect and every 30 s, not instant push. Realtime subscriptions could replace the poll later.
 - Recurring occurrences are still generated when the app opens. There's no server-side scheduler.

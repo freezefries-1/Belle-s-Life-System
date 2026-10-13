@@ -18,6 +18,7 @@ import { useAccount } from "@/lib/auth/account";
 import { hasAnyData } from "@/lib/workspace-data";
 import { createEnvelope } from "@/lib/storage/schema";
 
+import { BackupRestore } from "./backup-restore";
 import { LocalDataMigration } from "./local-data-migration";
 import { useWorkspace } from "@/lib/store/workspace-store";
 
@@ -115,6 +116,7 @@ export function DataSettings() {
             </Button>
           }
         />
+        {cloud && <BackupRestore />}
         {cloud && <LocalDataMigration />}
         {(!cloud || !hasData) && (
         <DataAction

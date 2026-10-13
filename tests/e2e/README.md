@@ -1,7 +1,7 @@
 # End-to-end tests
 
-Real browser tests (Playwright) of the everyday workflow, account isolation
-and phone use. They run **only against a local test setup** — the tests stop
+Real browser tests (Playwright) of the everyday workflow, account isolation,
+backup restore and phone use. They run **only against a local test setup** — the tests stop
 straight away if the app or its database isn't on this machine, so they can
 never touch production data.
 
@@ -17,6 +17,10 @@ never touch production data.
   or delete another's data (in the app and directly in the database); signed-
   out visitors can read nothing; and a phone run (bottom bar, capture, More,
   same data on a second device).
+- `restore.spec.ts` — Preferences → Restore from a backup file: a non-backup
+  file is refused; only deleted records come back; a record edited after the
+  backup keeps its newer version; a second run adds nothing; restoring into a
+  second account gives it its own copy and leaves the first untouched.
 
 ## Running them
 

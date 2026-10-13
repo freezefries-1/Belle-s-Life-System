@@ -32,7 +32,7 @@ export const TABLE_LABELS: Record<TableName, string> = {
 };
 
 /** Tables where one record per day/week is allowed, so a different id can still be a duplicate. */
-const DATE_KEYS: Partial<Record<TableName, string>> = {
+export const DATE_KEYS: Partial<Record<TableName, string>> = {
   daily_highlights: "date_key",
   kaizen_logs: "date_key",
   weekly_reviews: "week_start_date",
@@ -54,14 +54,22 @@ export interface LocalSnapshot {
 export function readLocalSnapshot(): LocalSnapshot | { error: string } | null {
   const raw = readRaw(STORAGE_KEY);
   if (raw === null) return null;
+  return snapshotFromText(raw, {
+    notJson: "The data saved in this browser isn’t readable JSON, so it can’t be imported. Download it to keep a copy.",
+    unknown: "The data saved in this browser is in an unknown format, so it can’t be imported. Download it to keep a copy.",
+  });
+}
+
+/** Validate a saved envelope (the browser copy, or a downloaded backup file). Read-only. */
+export function snapshotFromText(raw: string, errors: { notJson: string; unknown: string }): LocalSnapshot | { error: string } {
   let json: unknown;
   try {
     json = JSON.parse(raw);
   } catch {
-    return { error: "The data saved in this browser isn’t readable JSON, so it can’t be imported. Download it to keep a copy." };
+    return { error: errors.notJson };
   }
   const parsed = parseEnvelope(json);
-  if (!parsed) return { error: "The data saved in this browser is in an unknown format, so it can’t be imported. Download it to keep a copy." };
+  if (!parsed) return { error: errors.unknown };
   const env = json as { schemaVersion?: number; savedAt?: string; data?: Record<string, unknown> };
   return {
     raw,
@@ -117,7 +125,7 @@ export interface PreviewRow {
   cloudTotal: number;
 }
 
-async function existingIds(client: AppSupabaseClient, table: TableName, ids: string[]) {
+export async function existingIds(client: AppSupabaseClient, table: TableName, ids: string[]) {
   const found = new Set<string>();
   for (let i = 0; i < ids.length; i += CHUNK) {
     const { data, error } = await client.from(table).select("id").in("id", ids.slice(i, i + CHUNK));

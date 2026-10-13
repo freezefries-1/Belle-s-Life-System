@@ -27,8 +27,8 @@ Every file only adds or updates things. None deletes data, and each is safe to r
 ## 3. Set up sign-in
 1. **Authentication → Sign In / Providers → Email**: keep Email enabled.
 2. **Authentication → URL Configuration**:
-   - **Site URL**: your Vercel address, for example `https://belles-life-system.vercel.app`.
-   - **Redirect URLs**: add `https://belles-life-system.vercel.app/auth/confirm` (and `http://localhost:3000/auth/confirm` for local development).
+   - **Site URL**: your Vercel address, for example `https://belle-life-system.vercel.app`.
+   - **Redirect URLs**: add `https://belle-life-system.vercel.app/auth/confirm` (and `http://localhost:3000/auth/confirm` for local development).
 3. Create your account. Either:
    - open the app after step 4 and choose **Create an account** (confirm the email if Supabase asks), or
    - use **Authentication → Users → Add user**.

@@ -1,11 +1,16 @@
 "use client";
 
+import * as React from "react";
+
+import { reportClientError } from "@/lib/monitoring/error-report";
+
 /**
  * Last-resort screen if the app's outer frame itself fails. It replaces the
  * whole document, so it brings its own minimal styling. Reloading starts the
  * app afresh; saved data (and changes kept on this device) are unaffected.
  */
 export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+  React.useEffect(() => reportClientError(error, "app"), [error]);
   return (
     <html lang="en-GB">
       <body style={{ margin: 0, fontFamily: "system-ui, sans-serif", background: "#f8fafc", color: "#0f172a" }}>
