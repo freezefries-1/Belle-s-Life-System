@@ -10,7 +10,8 @@ if (!anonKey) throw new Error("ANON_KEY is required");
 let pass = 0;
 let fail = 0;
 const check = (name, ok, detail = "") => {
-  ok ? pass++ : fail++;
+  if (ok) pass++;
+  else fail++;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`);
 };
 const now = new Date().toISOString();
