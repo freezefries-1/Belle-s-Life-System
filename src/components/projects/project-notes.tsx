@@ -13,6 +13,13 @@ export function ProjectNotes({ project }: { project: Project }) {
   const actions = useWorkspaceActions();
   const [value, setValue] = React.useState(project.notes);
   const [status, setStatus] = React.useState<"idle" | "saving" | "saved">("idle");
+  // Notes changed elsewhere (another device, or a Brain Dump entry added to them):
+  // show the new text, unless you're in the middle of typing.
+  const [seen, setSeen] = React.useState(project.notes);
+  if (project.notes !== seen) {
+    setSeen(project.notes);
+    if (status !== "saving") setValue(project.notes);
+  }
   const pending = React.useRef<string | null>(null);
   const timer = React.useRef<number | null>(null);
 

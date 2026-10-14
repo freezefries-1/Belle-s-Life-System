@@ -231,6 +231,15 @@ for (const [label, changes] of [
   r = await apply(a, changes);
   check(`Malformed input refused: ${label}`, !!r.error);
 }
+// Brain Dump statuses: "kept" (kept as a note) is allowed; anything else is refused.
+r = await apply(a, [{ table: "brain_dump_entries", op: "upsert", id: "kept1", row: { id: "kept1", title: "A note to keep", kind: "note", status: "kept", created_at: now, updated_at: now }, expected_version: null }]);
+check("A Brain Dump entry can be kept as a note", r.data?.ok === true, JSON.stringify(r.data ?? r.error));
+r = await apply(a, [{ table: "brain_dump_entries", op: "upsert", id: "odd1", row: { id: "odd1", title: "Odd", kind: "note", status: "archived", created_at: now, updated_at: now }, expected_version: null }]);
+const odd = await a.client.from("brain_dump_entries").select("id").eq("id", "odd1");
+check("An unknown Brain Dump status is refused", r.data?.ok !== true && odd.data?.length === 0, JSON.stringify(r.data ?? r.error?.message));
+r = await b.client.from("brain_dump_entries").select("id").eq("id", "kept1");
+check("Kept notes are private too", !r.error && r.data.length === 0);
+
 // Profiles: only the display name can be changed.
 r = await a.client.from("profiles").update({ display_name: "Belle" }).eq("id", a.id).select("display_name");
 check("Profile display name can be updated", !r.error && r.data[0]?.display_name === "Belle", r.error?.message);

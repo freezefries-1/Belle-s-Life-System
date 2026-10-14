@@ -12,7 +12,7 @@ Tick each item. If one fails, note what you saw and which device and browser.
 
 - [ ] Vercel → Deployments: the latest deployment of `main` is **Ready**, and
       GitHub → Actions shows a green run for that commit.
-- [ ] Supabase: both files in `supabase/migrations/` have been run (see
+- [ ] Supabase: every file in `supabase/migrations/` has been run (see
       [supabase-setup.md](supabase-setup.md)). The restore feature needs no
       new database changes.
 - [ ] Supabase and Vercel settings in [security.md](security.md) → "Settings to

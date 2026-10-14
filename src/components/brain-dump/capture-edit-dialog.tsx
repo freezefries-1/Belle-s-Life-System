@@ -48,7 +48,7 @@ export function CaptureEditDialog({
       <DialogContent className="top-4 max-w-lg sm:top-[12%]">
         <DialogHeader>
           <DialogTitle>Edit entry</DialogTitle>
-          <DialogDescription>Tidy the wording or add a note. It stays in your inbox.</DialogDescription>
+          <DialogDescription>Tidy the wording or add a note. It stays {capture.status === "kept" ? "with your kept notes" : "in your inbox"}.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">

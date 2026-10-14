@@ -19,6 +19,8 @@ export function createCapture(input: CaptureInput, now: ISODateTime): Capture {
 }
 
 export const isInInbox = (c: Capture) => c.status === "inbox";
+/** Kept as a note: out of the inbox, but still in the Brain Dump. */
+export const isKept = (c: Capture) => c.status === "kept";
 
 /** Newest first. */
 export function sortCaptures(captures: Capture[]) {

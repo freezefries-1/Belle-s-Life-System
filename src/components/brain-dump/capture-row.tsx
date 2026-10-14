@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArrowRight, FolderInput, Inbox, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useTaskEditor } from "@/components/tasks/task-editor-provider";
@@ -20,11 +20,14 @@ import { cn } from "@/lib/utils";
 import type { Capture } from "@/types";
 
 import { CaptureEditDialog } from "./capture-edit-dialog";
+import { FileToProjectDialog } from "./file-to-project-dialog";
 
 export function CaptureRow({ capture }: { capture: Capture }) {
   const { workspace, actions } = useWorkspace();
   const editor = useTaskEditor();
   const [editing, setEditing] = React.useState(false);
+  const [filing, setFiling] = React.useState(false);
+  const kept = capture.status === "kept";
   const kind = CAPTURE_KIND_BY_ID[capture.kind];
   const day = relativeDayLabel(localDateOf(capture.createdAt), workspace.today);
 
@@ -34,6 +37,17 @@ export function CaptureRow({ capture }: { capture: Capture }) {
     toast("Entry deleted", {
       description: removed.title,
       action: { label: "Undo", onClick: () => actions.restoreCapture(removed) },
+    });
+  }
+
+  function setKept(next: boolean) {
+    actions.setCaptureKept(capture.id, next);
+    // The row moves between the inbox and Kept notes; keep keyboard focus on it.
+    const label = `Actions for “${capture.title}”`;
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(label)}"]`)?.focus(), 0);
+    toast(next ? "Kept as a note" : "Moved back to the inbox", {
+      description: capture.title,
+      action: { label: "Undo", onClick: () => actions.setCaptureKept(capture.id, !next) },
     });
   }
 
@@ -53,7 +67,9 @@ export function CaptureRow({ capture }: { capture: Capture }) {
         </button>
         {capture.note && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{capture.note}</p>}
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span className="rounded bg-accent px-1.5 py-px text-[11px] font-semibold text-accent-foreground">Inbox</span>
+          <span className={cn("rounded px-1.5 py-px text-[11px] font-semibold", kept ? "bg-muted text-muted-foreground" : "bg-accent text-accent-foreground")}>
+            {kept ? "Kept note" : "Inbox"}
+          </span>
           <span>
             {kind.label} · {day} at {formatClockTime(capture.createdAt)}
           </span>
@@ -85,6 +101,21 @@ export function CaptureRow({ capture }: { capture: Capture }) {
               <ArrowRight />
               Convert to task
             </DropdownMenuItem>
+            {kept ? (
+              <DropdownMenuItem onSelect={() => setKept(false)}>
+                <Inbox />
+                Back to inbox
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={() => setKept(true)}>
+                <Archive />
+                Keep as note
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={() => setFiling(true)}>
+              <FolderInput />
+              Add to project notes…
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={remove} className="text-rose-700 focus:text-rose-800">
               <Trash2 className="text-rose-500" />
@@ -95,6 +126,7 @@ export function CaptureRow({ capture }: { capture: Capture }) {
       </div>
 
       {editing && <CaptureEditDialog capture={capture} open={editing} onOpenChange={setEditing} />}
+      {filing && <FileToProjectDialog capture={capture} open={filing} onOpenChange={setFiling} />}
     </li>
   );
 }

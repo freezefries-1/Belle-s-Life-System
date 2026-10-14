@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createSampleData } from "@/data/sample-data";
 import { createCapture } from "@/lib/brain-dump/capture-model";
 import { createCommitment } from "@/lib/daily/commitments";
+import { formatShortDate } from "@/lib/date";
 import { nowISO } from "@/lib/id";
 import { createProject } from "@/lib/projects/project-model";
 import { createTemplate, generateOccurrences } from "@/lib/recurrence/recurrence";
@@ -68,6 +69,11 @@ export interface WorkspaceActions {
   restoreCapture: (capture: Capture) => void;
   /** Returns the new task, or null if the entry was already converted. */
   convertCapture: (id: string, input: TaskInput) => Task | null;
+  /** Keep an inbox entry as a note (out of the inbox), or move a kept note back to the inbox. */
+  setCaptureKept: (id: string, kept: boolean) => void;
+  /** Append an entry to a project's notes and remove it from the Brain Dump. Returns what's needed to undo it. */
+  fileCaptureToProject: (id: string, projectId: string) => tasks.FiledCapture | null;
+  undoFileCapture: (filed: tasks.FiledCapture) => void;
 
   // Tasks
   createTask: (input: TaskInput) => Task | null;
@@ -256,6 +262,15 @@ export function WorkspaceProvider({
         commit(() => result.data);
         return result.task;
       },
+      setCaptureKept: (id, kept) => commit((d) => tasks.setCaptureKept(d, id, kept, nowISO())),
+      fileCaptureToProject: (id, projectId) => {
+        const data = current();
+        if (!data || !today) return null;
+        const result = tasks.fileCaptureToProject(data, id, projectId, `${formatShortDate(today)} ${today.slice(0, 4)}`, nowISO());
+        if (result) commit(() => result.data);
+        return result;
+      },
+      undoFileCapture: (filed) => commit((d) => tasks.unfileCapture(d, filed, nowISO())),
 
       createTask: (input) => {
         const data = current();

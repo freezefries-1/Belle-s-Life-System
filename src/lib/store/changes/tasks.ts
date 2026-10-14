@@ -31,10 +31,67 @@ export const deleteCapture = (d: PersistedData, id: string): PersistedData => ({
 export const restoreCapture = (d: PersistedData, capture: Capture): PersistedData =>
   d.captures.some((c) => c.id === capture.id) ? d : { ...d, captures: [capture, ...d.captures] };
 
-/** Turn an inbox entry into a task. Returns null if it was already converted (double clicks, two tabs, stale dialogs). */
+/** Keep an inbox entry as a note (out of the inbox), or move a kept note back. Converted entries are left alone. */
+export function setCaptureKept(d: PersistedData, id: string, kept: boolean, now: ISODateTime): PersistedData {
+  const capture = d.captures.find((c) => c.id === id);
+  const from = kept ? "inbox" : "kept";
+  if (!capture || capture.status !== from) return d;
+  return { ...d, captures: d.captures.map((c) => (c.id === id ? { ...c, status: kept ? "kept" : "inbox", updatedAt: now } : c)) };
+}
+
+/** The text added to a project's notes: a dated heading, the entry's title and its note. */
+export function captureNoteBlock(capture: Capture, dateLabel: string) {
+  return [`— ${dateLabel}, from Brain Dump`, capture.title, capture.note].filter(Boolean).join("\n");
+}
+
+export interface FiledCapture {
+  data: PersistedData;
+  capture: Capture;
+  projectId: string;
+  /** Exactly what was appended, so Undo can take it out again. */
+  appended: string;
+}
+
+/**
+ * Add an entry (inbox or kept) to the end of a project's notes and remove it
+ * from the Brain Dump. Existing notes are never changed, only added to.
+ */
+export function fileCaptureToProject(d: PersistedData, id: string, projectId: string, dateLabel: string, now: ISODateTime): FiledCapture | null {
+  const capture = d.captures.find((c) => c.id === id);
+  const project = d.projects.find((p) => p.id === projectId);
+  if (!capture || capture.status === "converted" || !project) return null;
+  const block = captureNoteBlock(capture, dateLabel);
+  const appended = project.notes.trim() ? `\n\n${block}` : block;
+  return {
+    capture,
+    projectId,
+    appended,
+    data: {
+      ...d,
+      captures: d.captures.filter((c) => c.id !== id),
+      projects: d.projects.map((p) => (p.id === projectId ? { ...p, notes: p.notes + appended, updatedAt: now } : p)),
+    },
+  };
+}
+
+/** Undo fileCaptureToProject: the entry comes back, and the added text is taken out of the notes if it's still there. */
+export function unfileCapture(d: PersistedData, filed: Pick<FiledCapture, "capture" | "projectId" | "appended">, now: ISODateTime): PersistedData {
+  const restored = restoreCapture(d, filed.capture);
+  return {
+    ...restored,
+    projects: restored.projects.map((p) => {
+      if (p.id !== filed.projectId) return p;
+      const at = p.notes.lastIndexOf(filed.appended);
+      if (at < 0) return p;
+      return { ...p, notes: p.notes.slice(0, at) + p.notes.slice(at + filed.appended.length), updatedAt: now };
+    }),
+  };
+}
+
+/** Turn an inbox entry (or a kept note) into a task. Returns null if it was already converted (double clicks, two tabs, stale dialogs). */
 export function convertCapture(d: PersistedData, id: string, input: TaskInput, now: ISODateTime): { data: PersistedData; task: Task } | null {
   const capture = d.captures.find((c) => c.id === id);
-  if (!capture || capture.status !== "inbox" || d.tasks.some((t) => t.sourceCaptureId === id) || !input.title.trim()) return null;
+  if (!capture || capture.status === "converted" || d.tasks.some((t) => t.sourceCaptureId === id) || !input.title.trim()) return null;
   const task = createTask(input, now, {
     sourceCaptureId: capture.id,
     capturedAt: capture.createdAt,

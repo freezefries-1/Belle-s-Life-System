@@ -15,6 +15,7 @@ Run each file in `supabase/migrations/` **once, in order** (the file names start
 
 1. `20261012000000_initial_schema.sql` creates every table, constraint, index, Row Level Security policy and function.
 2. `20261013000000_stage_a_sync_safety.sql` updates the save and import functions, and adds the account check.
+3. `20261014000000_capture_kept.sql` lets a Brain Dump entry be **kept as a note**. Run it **before** deploying the version of the app that has "Keep as note".
 
 For each file:
 1. On GitHub, open the file and click **Raw**. Select everything (Cmd/Ctrl+A) and copy it.

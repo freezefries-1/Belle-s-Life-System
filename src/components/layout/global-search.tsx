@@ -35,8 +35,8 @@ function search(ws: Workspace, query: string): SearchResult[] {
         icon: ListChecks,
       })),
     ...ws.captures
-      .filter((c) => c.status === "inbox" && (match(c.title) || match(c.note)))
-      .map((c) => ({ id: c.id, label: c.title, meta: "Brain Dump", href: "/brain-dump", icon: Inbox })),
+      .filter((c) => c.status !== "converted" && (match(c.title) || match(c.note)))
+      .map((c) => ({ id: c.id, label: c.title, meta: c.status === "kept" ? "Brain Dump · kept note" : "Brain Dump", href: "/brain-dump", icon: Inbox })),
     ...ws.commitments
       .filter((c) => c.status !== "archived" && match(c.title))
       .map((c) => ({ id: c.id, label: c.title, meta: "Micro-commitment", href: "/micro-commitments", icon: Sprout })),

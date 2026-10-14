@@ -5,12 +5,13 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 import { CaptureForm } from "@/components/brain-dump/capture-form";
 import { CaptureInbox } from "@/components/brain-dump/capture-inbox";
+import { CaptureRow } from "@/components/brain-dump/capture-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { useTaskEditor } from "@/components/tasks/task-editor-provider";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CAPTURE_KINDS } from "@/data/capture-kinds";
-import { sortCaptures } from "@/lib/brain-dump/capture-model";
+import { isKept, sortCaptures } from "@/lib/brain-dump/capture-model";
 import { localDateOf, relativeDayLabel } from "@/lib/date";
 import { getInbox } from "@/lib/selectors";
 import { useWorkspace } from "@/lib/store/workspace-store";
@@ -27,13 +28,14 @@ export function BrainDumpPage() {
   const [filter, setFilter] = React.useState<Filter>("all");
   const inbox = getInbox(workspace);
   const visible = inbox.filter((c) => filter === "all" || c.kind === filter);
+  const kept = sortCaptures(workspace.captures.filter(isKept)).filter((c) => filter === "all" || c.kind === filter);
   const converted = sortCaptures(workspace.captures.filter((c) => c.status === "converted")).slice(0, 10);
 
   return (
     <>
       <PageHeader
         title="Brain Dump"
-        description="Capture first, organise later. Entries stay here until you turn them into tasks or let them go."
+        description="Capture first, organise later. Entries stay here until you turn them into tasks, keep them as notes, or let them go."
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -59,6 +61,24 @@ export function BrainDumpPage() {
           </div>
 
           <CaptureInbox captures={visible} filtered={filter !== "all" && inbox.length > 0} />
+
+          {kept.length > 0 && (
+            <section aria-labelledby="kept-heading" className="flex flex-col gap-2.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 id="kept-heading" className="text-[15px] font-semibold">
+                  Kept notes
+                </h3>
+                <p className="text-xs text-muted-foreground tabular-nums">{kept.length} kept · not in your inbox</p>
+              </div>
+              <Card className="overflow-hidden">
+                <ul className="divide-y" aria-label="Kept notes">
+                  {kept.map((c) => (
+                    <CaptureRow key={c.id} capture={c} />
+                  ))}
+                </ul>
+              </Card>
+            </section>
+          )}
 
           {converted.length > 0 && (
             <details className="group">

@@ -87,8 +87,8 @@ export type TaskInput = Pick<Task, "title"> &
 
 export type CaptureKind = "task" | "idea" | "reminder" | "note";
 
-/** `inbox` until it is converted into a task (or deleted). */
-export type CaptureStatus = "inbox" | "converted";
+/** `inbox` until it is converted into a task, kept as a note, or deleted. */
+export type CaptureStatus = "inbox" | "converted" | "kept";
 
 export interface Capture {
   id: string;

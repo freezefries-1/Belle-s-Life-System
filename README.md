@@ -33,8 +33,8 @@ Open <http://localhost:3000>.
 ### Tests
 
 - **Unit tests** (`tests/unit`, `npm test`): the business rules — dates and time zones, commitments, streaks and consistency, recurring tasks, data validation and upgrades, analytics, the main store change rules, the sync engine's merge and conflict helpers, row mapping, the test-import sample and safe sign-in redirects. They need nothing running and take about a second.
-- **Database security tests** (`supabase/tests/db-security.test.mjs`, `npm run test:db`): 57 checks with two real accounts against the local Supabase stack (`supabase/local/start.sh`, then `set -a; source supabase/local/.env; set +a`).
-- **End-to-end tests** (`tests/e2e`, `npm run test:e2e`): Playwright runs the everyday workflow (sign in → task → sprint → Highlight → complete → project → recurring task → commitment → Kaizen Log → Weekly Review → sign out), account isolation, backup restore and a phone run against the **local** stack only — they refuse to run against anything else. Setup: [tests/e2e/README.md](tests/e2e/README.md).
+- **Database security tests** (`supabase/tests/db-security.test.mjs`, `npm run test:db`): 60 checks with two real accounts against the local Supabase stack (`supabase/local/start.sh`, then `set -a; source supabase/local/.env; set +a`).
+- **End-to-end tests** (`tests/e2e`, `npm run test:e2e`): Playwright runs the everyday workflow (sign in → task → sprint → Highlight → complete → project → recurring task → commitment → Kaizen Log → Weekly Review → sign out), account isolation, backup restore, Brain Dump notes and a phone run against the **local** stack only — they refuse to run against anything else. Setup: [tests/e2e/README.md](tests/e2e/README.md).
 - Each phase was also checked during development with longer browser scripts (two-device sync, conflicts, offline, migration, layouts at every width); those stayed outside the repository.
 - **CI:** every push and pull request runs lint, type check, unit tests and a build on GitHub Actions (`.github/workflows/ci.yml`).
 - Security review and dashboard settings to confirm: [docs/security.md](docs/security.md). Accessibility: [docs/accessibility.md](docs/accessibility.md). Performance: [docs/performance.md](docs/performance.md).
@@ -176,6 +176,8 @@ supabase/
 
 - Completing a task sets `completedAt`. Reopening it clears `completedAt`.
 - Converting a Brain Dump entry creates **one** task (repeat attempts are ignored). The new task stores `sourceCaptureId` and the original `capturedAt`, and the entry leaves the inbox (marked `converted`).
+- **Keep as note** moves an entry out of the inbox into **Kept notes** (marked `kept`). It can go back to the inbox, be edited, or be converted later.
+- **Add to project notes** appends the entry (with the date) to the end of a project's notes and removes it from the Brain Dump. Existing notes are never changed, and Undo takes back exactly what was added.
 - Deleting a task or entry shows an **Undo** toast.
 
 ### Sprint rules
