@@ -36,7 +36,7 @@ test("track a student: add, set stages, move up, lesson notes, history, delete",
   await rally.getByRole("button", { name: "Moved up to R3" }).click();
   await saved(page);
   await expect(rally.getByText("R3 · Reading the bounce")).toBeVisible();
-  let stages = (await db.from("student_stages").select("track, stage, reached_on, note").eq("student_id", student.id).order("stage")).data!;
+  const stages = (await db.from("student_stages").select("track, stage, reached_on, note").eq("student_id", student.id).order("stage")).data!;
   expect(stages).toEqual([
     { track: "rally", stage: "R2", reached_on: today, note: "10-ball rally" },
     { track: "rally", stage: "R3", reached_on: today, note: "" },
