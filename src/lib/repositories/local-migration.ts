@@ -29,6 +29,9 @@ export const TABLE_LABELS: Record<TableName, string> = {
   kaizen_logs: "Kaizen Logs",
   weekly_reviews: "Weekly reviews",
   weekly_priorities: "Weekly priorities",
+  students: "Students",
+  student_stages: "Student stages",
+  student_lessons: "Lesson notes",
 };
 
 /** Tables where one record per day/week is allowed, so a different id can still be a duplicate. */

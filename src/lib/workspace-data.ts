@@ -18,6 +18,9 @@ export function hasAnyData(d: PersistedData) {
     d.recurrences.length > 0 ||
     d.weeklyReviews.length > 0 ||
     d.weeklyPriorities.length > 0 ||
+    d.students.length > 0 ||
+    d.studentStages.length > 0 ||
+    d.studentLessons.length > 0 ||
     d.kaizenLogs.some((l) => l.notes || l.reflectionWentWell || l.reflectionImprove || l.reflectionLearned)
   );
 }

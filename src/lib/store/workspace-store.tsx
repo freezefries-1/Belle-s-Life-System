@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createSampleData } from "@/data/sample-data";
 import { createCapture } from "@/lib/brain-dump/capture-model";
 import { createCommitment } from "@/lib/daily/commitments";
+import { createLesson, createStudent } from "@/lib/students/student-model";
 import { formatShortDate } from "@/lib/date";
 import { nowISO } from "@/lib/id";
 import { createProject } from "@/lib/projects/project-model";
@@ -21,6 +22,7 @@ import * as daily from "./changes/daily";
 import * as projects from "./changes/projects";
 import * as recurrence from "./changes/recurrence";
 import * as reviews from "./changes/reviews";
+import * as students from "./changes/students";
 import * as tasks from "./changes/tasks";
 import type {
   Capture,
@@ -43,9 +45,15 @@ import type {
   SessionAllocation,
   SprintId,
   SprintSession,
+  Student,
+  StudentInput,
+  StudentLesson,
+  StudentLessonInput,
+  StudentStage,
   Task,
   TaskInput,
   TaskStatus,
+  TrackId,
   WeeklyPriority,
   WeeklyReviewInput,
   WeeklyReviewStatus,
@@ -158,6 +166,24 @@ export interface WorkspaceActions {
   // Time
   /** Give a finished session's minutes to its tasks (adds to their actual time). */
   allocateSessionTime: (sessionId: string, allocations: SessionAllocation[]) => boolean;
+
+  // Students (tennis coaching)
+  createStudent: (input: StudentInput) => Student | null;
+  updateStudent: (id: string, changes: Partial<StudentInput>) => void;
+  /** Deletes the student with their stages and lesson notes. Returns them, for Undo. */
+  deleteStudent: (id: string) => students.RemovedStudent | null;
+  restoreStudent: (removed: students.RemovedStudent) => void;
+  /**
+   * Record that a student reached a stage on a track (one entry per stage; repeating it updates the date).
+   * Returns the entry, and whether it's new (so Undo can remove it).
+   */
+  setStudentStage: (studentId: string, track: TrackId, stage: string, reachedOn: ISODate, note?: string) => { entry: StudentStage; created: boolean } | null;
+  removeStudentStage: (id: string) => StudentStage | null;
+  restoreStudentStage: (stage: StudentStage) => void;
+  addLesson: (studentId: string, input: StudentLessonInput) => StudentLesson | null;
+  updateLesson: (id: string, changes: Partial<StudentLessonInput>) => void;
+  deleteLesson: (id: string) => StudentLesson | null;
+  restoreLesson: (lesson: StudentLesson) => void;
 
   /** Fill an empty workspace with sample data. Refuses to replace existing data unless `replace` is set (browser-only mode, after confirmation). */
   loadSampleData: (options?: { replace?: boolean }) => void;
@@ -409,6 +435,52 @@ export function WorkspaceProvider({
         if (dataRef.current && hasAnyData(dataRef.current) && !options?.replace) return;
         commit(() => generateOccurrences(createSampleData(today), today, nowISO()));
       },
+
+      createStudent: (input) => {
+        if (!input.name.trim() || !current()) return null;
+        const student = createStudent(input, nowISO());
+        commit((d) => students.addStudent(d, student));
+        return student;
+      },
+      updateStudent: (id, changes) => commit((d) => students.updateStudent(d, id, changes, nowISO())),
+      deleteStudent: (id) => {
+        const data = current();
+        const result = data && students.deleteStudent(data, id);
+        if (!result) return null;
+        commit((d) => students.deleteStudent(d, id)?.data ?? d);
+        return result.removed;
+      },
+      restoreStudent: (removed) => commit((d) => students.restoreStudent(d, removed)),
+      setStudentStage: (studentId, track, stage, reachedOn, note = "") => {
+        const data = current();
+        if (!data) return null;
+        const existed = data.studentStages.some((s) => s.studentId === studentId && s.track === track && s.stage === stage);
+        const next = students.setStage(data, studentId, track, stage, reachedOn, note, nowISO());
+        if (next === data) return null;
+        commit(() => next);
+        const entry = next.studentStages.find((s) => s.studentId === studentId && s.track === track && s.stage === stage)!;
+        return { entry, created: !existed };
+      },
+      removeStudentStage: (id) => {
+        const stage = current()?.studentStages.find((s) => s.id === id) ?? null;
+        if (stage) commit((d) => students.removeStage(d, id));
+        return stage;
+      },
+      restoreStudentStage: (stage) => commit((d) => students.restoreStage(d, stage)),
+      addLesson: (studentId, input) => {
+        const data = current();
+        if (!data?.students.some((s) => s.id === studentId)) return null;
+        const lesson = createLesson(studentId, input, nowISO());
+        commit((d) => students.addLesson(d, lesson));
+        return lesson;
+      },
+      updateLesson: (id, changes) => commit((d) => students.updateLesson(d, id, changes, nowISO())),
+      deleteLesson: (id) => {
+        const lesson = current()?.studentLessons.find((l) => l.id === id) ?? null;
+        if (lesson) commit((d) => students.deleteLesson(d, id));
+        return lesson;
+      },
+      restoreLesson: (lesson) => commit((d) => students.restoreLesson(d, lesson)),
 
       clearAllData: () => commit(() => EMPTY_DATA),
     };

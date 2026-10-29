@@ -11,6 +11,7 @@ import {
   Sprout,
   Sun,
   Timer,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,6 +37,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Sprints", href: "/sprints", icon: Layers },
       { title: "Tasks", href: "/tasks", icon: ListChecks },
       { title: "Projects", href: "/projects", icon: FolderKanban },
+      { title: "Students", href: "/students", icon: Users },
       { title: "Calendar", href: "/calendar", icon: CalendarDays },
     ],
   },

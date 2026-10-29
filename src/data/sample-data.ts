@@ -8,6 +8,7 @@ import { createTemplate } from "@/lib/recurrence/recurrence";
 import { createSession, endSession, runSession } from "@/lib/sessions/session-model";
 import { createWeeklyReview } from "@/lib/review/weekly";
 import { createId } from "@/lib/id";
+import { createLesson, createStudent } from "@/lib/students/student-model";
 import { createTask } from "@/lib/tasks/task-model";
 import type {
   Capture,
@@ -20,6 +21,7 @@ import type {
   PersistedData,
   SprintId,
   SprintSession,
+  StudentStage,
   WeeklyPriority,
   ProjectInput,
   RecurrenceInput,
@@ -228,7 +230,48 @@ export function createSampleData(today: ISODate): PersistedData {
     priority("Rest properly on Sunday", 2, {}),
   ];
 
+  // Three coaching students at different points on the ladder.
+  const mia = createStudent({ name: "Mia", group: "junior", ball: "orange", hand: "right", backhand: "two", startedOn: d(-120), goals: "Rally from the baseline by the end of the year" }, at(-120, 16));
+  const daniel = createStudent({ name: "Daniel", group: "adult", hand: "right", backhand: "two", startedOn: d(-180), goals: "Play doubles with friends; get the serve in" }, at(-180, 19));
+  const ethan = createStudent({ name: "Ethan", group: "junior", ball: "yellow", hand: "left", backhand: "two", startedOn: d(-700), goals: "STA tournaments this season" }, at(-700, 17));
+  const stage = (studentId: string, track: StudentStage["track"], id: string, offset: number, note = ""): StudentStage => ({
+    id: createId(),
+    studentId,
+    track,
+    stage: id,
+    reachedOn: d(offset),
+    note,
+    createdAt: at(offset, 18),
+    updatedAt: at(offset, 18),
+  });
+  const studentStages = [
+    stage(mia.id, "rally", "R1", -110),
+    stage(mia.id, "rally", "R2", -40, "10-ball rally on the short court"),
+    stage(mia.id, "serve", "S1", -60),
+    stage(mia.id, "match", "M1", -30),
+    stage(daniel.id, "rally", "R3", -150),
+    stage(daniel.id, "rally", "R4", -90),
+    stage(daniel.id, "rally", "R5", -21, "20-ball baseline rally"),
+    stage(daniel.id, "serve", "S1", -150),
+    stage(daniel.id, "serve", "S2", -45),
+    stage(daniel.id, "match", "M2", -60),
+    stage(ethan.id, "rally", "R9", -200),
+    stage(ethan.id, "serve", "S6", -90),
+    stage(ethan.id, "net", "N4", -120),
+    stage(ethan.id, "match", "M6", -150),
+  ];
+  const lesson = (studentId: string, offset: number, focus: string, wentWell: string, workOn: string) =>
+    createLesson(studentId, { date: d(offset), focus, wentWell, workOn }, at(offset, 18));
+  const studentLessons = [
+    lesson(mia.id, -7, "Short court rally, reading the bounce", "Moved her feet better on the forehand", "Backhand: turn the shoulders earlier"),
+    lesson(daniel.id, -3, "Serve from the service line", "Toss much more consistent", "Practise 20 tosses at home"),
+    lesson(ethan.id, -2, "Second serve under pressure; match plan", "Kick serve held up in the practice set", "Return position against lefties"),
+  ];
+
   return {
+    students: [mia, daniel, ethan],
+    studentStages,
+    studentLessons,
     tasks,
     captures,
     sessions,

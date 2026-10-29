@@ -17,7 +17,7 @@ locally, not yet confirmed in production.**
 | Everyday workflow | Browser test, 12 steps, each checked in the database | Pass |
 | Sign-in and protected pages | Browser tests: redirects, crafted links, sign-out | Pass |
 | Account isolation | 57 database checks with two accounts; browser test in app and database | Pass: no cross-account access |
-| Row Level Security | Inventory query, 15/15 tables | All on, signed-out visitors read nothing |
+| Row Level Security | Inventory query, 15/15 tables (18/18 after Students) | All on, signed-out visitors read nothing |
 | Saving and sync | Cloud suite (96 checks): create/edit/delete every record type, two devices, conflicts, offline, expired session | Pass |
 | Backup and restore | Unit tests plus a browser test: deleted records come back, edited ones aren't overwritten, repeat adds nothing, wrong file refused, second account separate | Pass |
 | Moving browser data into an account | Earlier phase suites (insert-only, test import, verification) | Pass |
