@@ -33,8 +33,8 @@ Open <http://localhost:3000>.
 ### Tests
 
 - **Unit tests** (`tests/unit`, `npm test`): the business rules — dates and time zones, commitments, streaks and consistency, recurring tasks, data validation and upgrades, analytics, the main store change rules, the sync engine's merge and conflict helpers, row mapping, the test-import sample and safe sign-in redirects. They need nothing running and take about a second.
-- **Database security tests** (`supabase/tests/db-security.test.mjs`, `npm run test:db`): 60 checks with two real accounts against the local Supabase stack (`supabase/local/start.sh`, then `set -a; source supabase/local/.env; set +a`).
-- **End-to-end tests** (`tests/e2e`, `npm run test:e2e`): Playwright runs the everyday workflow (sign in → task → sprint → Highlight → complete → project → recurring task → commitment → Kaizen Log → Weekly Review → sign out), account isolation, backup restore, Brain Dump notes and a phone run against the **local** stack only — they refuse to run against anything else. Setup: [tests/e2e/README.md](tests/e2e/README.md).
+- **Database security tests** (`supabase/tests/db-security.test.mjs`, `npm run test:db`): 70 checks with two real accounts against the local Supabase stack (`supabase/local/start.sh`, then `set -a; source supabase/local/.env; set +a`).
+- **End-to-end tests** (`tests/e2e`, `npm run test:e2e`): Playwright runs the everyday workflow (sign in → task → sprint → Highlight → complete → project → recurring task → commitment → Kaizen Log → Weekly Review → sign out), account isolation, backup restore, Brain Dump notes, Students and a phone run against the **local** stack only — they refuse to run against anything else. Setup: [tests/e2e/README.md](tests/e2e/README.md).
 - Each phase was also checked during development with longer browser scripts (two-device sync, conflicts, offline, migration, layouts at every width); those stayed outside the repository.
 - **CI:** every push and pull request runs lint, type check, unit tests and a build on GitHub Actions (`.github/workflows/ci.yml`).
 - Security review and dashboard settings to confirm: [docs/security.md](docs/security.md). Accessibility: [docs/accessibility.md](docs/accessibility.md). Performance: [docs/performance.md](docs/performance.md).
@@ -247,6 +247,11 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 | `ink-border`     | `#334155` | Borders on dark surfaces    |
 
 ---
+
+## Students — what’s included
+
+- A **Students** page for tennis coaching: each student's stage on four tracks (Rally R1–R9, Serve S1–S7, Net N1–N5, Match play M1–M6), the overall level worked out from the Rally stage, time at each stage, a full progress history and lesson notes. Juniors carry their ball colour (red, orange, green). See [docs/students.md](docs/students.md).
+- Database: `supabase/migrations/20261029000000_students.sql` (three owner-only tables). Storage format v6.
 
 ## Phase 8 — what’s included
 

@@ -552,6 +552,158 @@ export type Database = {
         }
         Relationships: []
       }
+      student_lessons: {
+        Row: {
+          created_at: string
+          focus: string
+          id: string
+          lesson_date: string
+          student_id: string
+          synced_at: string
+          updated_at: string
+          user_id: string
+          version: number
+          went_well: string
+          work_on: string
+        }
+        Insert: {
+          created_at: string
+          focus?: string
+          id: string
+          lesson_date: string
+          student_id: string
+          synced_at?: string
+          updated_at: string
+          user_id?: string
+          version?: number
+          went_well?: string
+          work_on?: string
+        }
+        Update: {
+          created_at?: string
+          focus?: string
+          id?: string
+          lesson_date?: string
+          student_id?: string
+          synced_at?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+          went_well?: string
+          work_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_lessons_user_id_student_id_fkey"
+            columns: ["user_id", "student_id"]
+            referencedRelation: "students"
+            referencedColumns: ["user_id", "id"]
+          },
+        ]
+      }
+      student_stages: {
+        Row: {
+          created_at: string
+          id: string
+          note: string
+          reached_on: string
+          stage: string
+          student_id: string
+          synced_at: string
+          track: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at: string
+          id: string
+          note?: string
+          reached_on: string
+          stage: string
+          student_id: string
+          synced_at?: string
+          track: string
+          updated_at: string
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string
+          reached_on?: string
+          stage?: string
+          student_id?: string
+          synced_at?: string
+          track?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_stages_user_id_student_id_fkey"
+            columns: ["user_id", "student_id"]
+            referencedRelation: "students"
+            referencedColumns: ["user_id", "id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          backhand: string | null
+          ball: string
+          created_at: string
+          goals: string
+          hand: string | null
+          id: string
+          name: string
+          notes: string
+          player_group: string
+          started_on: string | null
+          status: string
+          synced_at: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          backhand?: string | null
+          ball?: string
+          created_at: string
+          goals?: string
+          hand?: string | null
+          id: string
+          name: string
+          notes?: string
+          player_group?: string
+          started_on?: string | null
+          status?: string
+          synced_at?: string
+          updated_at: string
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          backhand?: string | null
+          ball?: string
+          created_at?: string
+          goals?: string
+          hand?: string | null
+          id?: string
+          name?: string
+          notes?: string
+          player_group?: string
+          started_on?: string | null
+          status?: string
+          synced_at?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       sync_tombstones: {
         Row: {
           deleted_at: string
@@ -794,12 +946,12 @@ export type Database = {
     }
     Functions: {
       apply_changes: {
-        Args: { changes: Json } | { p_user: string; changes: Json }
+        Args: { changes: Json } | { changes: Json; p_user: string }
         Returns: Json
       }
       import_rows: {
         Args:
-          | { p_user: string; rows: Json; target: string }
+          | { p_user: string; target: string; rows: Json }
           | { target: string; rows: Json }
         Returns: Json
       }

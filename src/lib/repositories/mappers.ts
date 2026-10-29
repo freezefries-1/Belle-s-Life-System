@@ -26,6 +26,9 @@ export const emptyRowSet = (): RowSet => ({
   kaizen_logs: new Map(),
   weekly_reviews: new Map(),
   weekly_priorities: new Map(),
+  students: new Map(),
+  student_stages: new Map(),
+  student_lessons: new Map(),
 });
 
 const sessionTaskId = (sessionId: string, taskId: string) => `${sessionId}:${taskId}`;
@@ -225,6 +228,48 @@ export function dataToRows(d: PersistedData): RowSet {
       created_at: p.createdAt,
     });
   }
+  const studentIds = new Set(d.students.map((x) => x.id));
+  for (const x of d.students)
+    rows.students.set(x.id, {
+      id: x.id,
+      name: x.name,
+      player_group: x.group,
+      ball: x.ball,
+      hand: x.hand,
+      backhand: x.backhand,
+      started_on: x.startedOn,
+      goals: x.goals,
+      notes: x.notes,
+      status: x.status,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  for (const x of d.studentStages) {
+    if (!studentIds.has(x.studentId)) continue;
+    rows.student_stages.set(x.id, {
+      id: x.id,
+      student_id: x.studentId,
+      track: x.track,
+      stage: x.stage,
+      reached_on: x.reachedOn,
+      note: x.note,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  }
+  for (const x of d.studentLessons) {
+    if (!studentIds.has(x.studentId)) continue;
+    rows.student_lessons.set(x.id, {
+      id: x.id,
+      student_id: x.studentId,
+      lesson_date: x.date,
+      focus: x.focus,
+      went_well: x.wentWell,
+      work_on: x.workOn,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  }
   return rows;
 }
 
@@ -394,6 +439,40 @@ export function rowsToData(rows: RowSet): PersistedData {
       sortOrder: p.sort_order,
       createdAt: p.created_at,
     })),
+    students: list("students").map((x) => ({
+      id: x.id,
+      name: x.name,
+      group: x.player_group,
+      ball: x.ball,
+      hand: x.hand,
+      backhand: x.backhand,
+      startedOn: x.started_on,
+      goals: x.goals,
+      notes: x.notes,
+      status: x.status,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
+    studentStages: list("student_stages").map((x) => ({
+      id: x.id,
+      studentId: x.student_id,
+      track: x.track,
+      stage: x.stage,
+      reachedOn: x.reached_on,
+      note: x.note,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
+    studentLessons: list("student_lessons").map((x) => ({
+      id: x.id,
+      studentId: x.student_id,
+      date: x.lesson_date,
+      focus: x.focus,
+      wentWell: x.went_well,
+      workOn: x.work_on,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
   };
   const parsed = parseEnvelope({ schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), data: raw });
   return parsed ? parsed.data : rowsToEmpty();
@@ -413,6 +492,9 @@ function rowsToEmpty(): PersistedData {
     recurrences: [],
     weeklyReviews: [],
     weeklyPriorities: [],
+    students: [],
+    studentStages: [],
+    studentLessons: [],
   };
 }
 

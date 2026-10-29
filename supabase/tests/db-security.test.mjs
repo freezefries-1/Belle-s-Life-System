@@ -240,6 +240,36 @@ check("An unknown Brain Dump status is refused", r.data?.ok !== true && odd.data
 r = await b.client.from("brain_dump_entries").select("id").eq("id", "kept1");
 check("Kept notes are private too", !r.error && r.data.length === 0);
 
+// Students: owner-only, linked records must belong to the same account, deleting a student removes their records.
+const student = (id, extra = {}) => ({ id, name: `Student ${id}`, player_group: "junior", ball: "orange", status: "active", created_at: now, updated_at: now, ...extra });
+r = await apply(a, [
+  { table: "students", op: "upsert", id: "st1", row: student("st1"), expected_version: null },
+  { table: "student_stages", op: "upsert", id: "ss1", row: { id: "ss1", student_id: "st1", track: "rally", stage: "R2", reached_on: "2026-10-01", note: "", created_at: now, updated_at: now }, expected_version: null },
+  { table: "student_lessons", op: "upsert", id: "sl1", row: { id: "sl1", student_id: "st1", lesson_date: "2026-10-28", focus: "Bounce", went_well: "", work_on: "", created_at: now, updated_at: now }, expected_version: null },
+]);
+check("A student, a stage and a lesson note save together", r.data?.ok === true, JSON.stringify(r.data ?? r.error));
+r = await b.client.from("students").select("id");
+check("Another account can't see the students", !r.error && r.data.length === 0);
+r = await anon.from("students").select("id");
+check("Signed-out visitors can't see students", (r.data ?? []).length === 0);
+r = await b.client.from("student_lessons").select("id");
+check("Another account can't see lesson notes", !r.error && r.data.length === 0);
+r = await apply(b, [{ table: "student_lessons", op: "upsert", id: "sl-b", row: { id: "sl-b", student_id: "st1", lesson_date: "2026-10-28", focus: "x", went_well: "", work_on: "", created_at: now, updated_at: now }, expected_version: null }]);
+check("Another account can't attach a lesson note to the student", r.data?.ok !== true, JSON.stringify(r.data ?? r.error?.message));
+r = await apply(a, [{ table: "student_stages", op: "upsert", id: "ss-bad", row: { id: "ss-bad", student_id: "st1", track: "volley", stage: "V1", reached_on: "2026-10-01", note: "", created_at: now, updated_at: now }, expected_version: null }]);
+check("An unknown track is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "students", op: "upsert", id: "st-bad", row: student("st-bad", { ball: "purple" }), expected_version: null }]);
+check("An unknown ball colour is refused", r.data?.ok !== true);
+await b.client.from("students").delete().eq("id", "st1");
+r = await a.client.from("students").select("id").eq("id", "st1");
+check("Another account can't delete the student", r.data?.length === 1);
+r = await a.client.from("students").select("version").eq("id", "st1").single();
+r = await apply(a, [{ table: "students", op: "delete", id: "st1", expected_version: r.data.version }]);
+const leftovers = [(await a.client.from("student_stages").select("id").eq("student_id", "st1")).data, (await a.client.from("student_lessons").select("id").eq("student_id", "st1")).data];
+check("Deleting a student removes their stages and lesson notes", r.data?.ok === true && leftovers.every((x) => x.length === 0), JSON.stringify(r.data ?? r.error));
+r = await a.client.from("sync_tombstones").select("table_name").eq("id", "st1");
+check("…and other devices are told it was deleted", r.data?.some((t) => t.table_name === "students"));
+
 // Profiles: only the display name can be changed.
 r = await a.client.from("profiles").update({ display_name: "Belle" }).eq("id", a.id).select("display_name");
 check("Profile display name can be updated", !r.error && r.data[0]?.display_name === "Belle", r.error?.message);

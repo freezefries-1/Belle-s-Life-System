@@ -31,6 +31,9 @@ export type CompletionRow = AppRow<"micro_commitment_completions">;
 export type KaizenLogRow = AppRow<"kaizen_logs">;
 export type WeeklyReviewRow = AppRow<"weekly_reviews">;
 export type WeeklyPriorityRow = AppRow<"weekly_priorities">;
+export type StudentRow = AppRow<"students">;
+export type StudentStageRow = AppRow<"student_stages">;
+export type StudentLessonRow = AppRow<"student_lessons">;
 
 export interface TableRows {
   projects: ProjectRow;
@@ -46,6 +49,9 @@ export interface TableRows {
   kaizen_logs: KaizenLogRow;
   weekly_reviews: WeeklyReviewRow;
   weekly_priorities: WeeklyPriorityRow;
+  students: StudentRow;
+  student_stages: StudentStageRow;
+  student_lessons: StudentLessonRow;
 }
 
 export type TableName = keyof TableRows;
@@ -72,4 +78,7 @@ export const TABLE_ORDER: TableName[] = [
   "kaizen_logs",
   "weekly_reviews",
   "weekly_priorities",
+  "students",
+  "student_stages",
+  "student_lessons",
 ];

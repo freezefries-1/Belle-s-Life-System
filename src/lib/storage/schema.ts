@@ -30,6 +30,13 @@ import type {
   TaskStatus,
   WeeklyPriority,
   WeeklyReview,
+  BallColour,
+  PlayerGroup,
+  Student,
+  StudentLesson,
+  StudentStage,
+  StudentStatus,
+  TrackId,
 } from "@/types";
 
 /**
@@ -48,8 +55,9 @@ export const STORAGE_KEY = "belles-life-system:v1";
  *     recurrence and project-order fields.
  * 5 — Phase 6: `weeklyReviews`, `weeklyPriorities`; commitments gain
  *     `pausedPeriods`, milestones `completedAt`, sessions `allocations`.
+ * 6 — Students: `students`, `studentStages`, `studentLessons`.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -70,6 +78,9 @@ export const EMPTY_DATA: PersistedData = {
   recurrences: [],
   weeklyReviews: [],
   weeklyPriorities: [],
+  students: [],
+  studentStages: [],
+  studentLessons: [],
 };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
@@ -359,6 +370,64 @@ export function parseWeeklyPriority(raw: unknown): WeeklyPriority | null {
   };
 }
 
+const PLAYER_GROUPS: PlayerGroup[] = ["junior", "adult"];
+const BALL_COLOURS: BallColour[] = ["red", "orange", "green", "yellow"];
+const STUDENT_STATUSES: StudentStatus[] = ["active", "paused", "finished"];
+const TRACK_IDS: TrackId[] = ["rally", "serve", "net", "match"];
+
+export function parseStudent(raw: unknown): Student | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const name = str(raw.name)?.trim();
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !name || !createdAt) return null;
+  return {
+    id,
+    name,
+    group: oneOf(raw.group, PLAYER_GROUPS) ?? "adult",
+    ball: oneOf(raw.ball, BALL_COLOURS) ?? "yellow",
+    hand: oneOf(raw.hand, ["right", "left"] as const),
+    backhand: oneOf(raw.backhand, ["one", "two"] as const),
+    startedOn: isoDate(raw.startedOn),
+    goals: str(raw.goals) ?? "",
+    notes: str(raw.notes) ?? "",
+    status: oneOf(raw.status, STUDENT_STATUSES) ?? "active",
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+  };
+}
+
+export function parseStudentStage(raw: unknown): StudentStage | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const studentId = str(raw.studentId);
+  const track = oneOf(raw.track, TRACK_IDS);
+  const stage = str(raw.stage)?.trim();
+  const reachedOn = isoDate(raw.reachedOn);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !studentId || !track || !stage || stage.length > 20 || !reachedOn || !createdAt) return null;
+  return { id, studentId, track, stage, reachedOn, note: str(raw.note) ?? "", createdAt, updatedAt: timestamp(raw.updatedAt) ?? createdAt };
+}
+
+export function parseStudentLesson(raw: unknown): StudentLesson | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const studentId = str(raw.studentId);
+  const date = isoDate(raw.date);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !studentId || !date || !createdAt) return null;
+  return {
+    id,
+    studentId,
+    date,
+    focus: str(raw.focus) ?? "",
+    wentWell: str(raw.wentWell) ?? "",
+    workOn: str(raw.workOn) ?? "",
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+  };
+}
+
 export function parseCompletion(raw: unknown): CommitmentCompletion | null {
   if (!isObj(raw)) return null;
   const id = str(raw.id);
@@ -461,6 +530,8 @@ export interface ParseResult {
     completions: number;
     /** Weekly priorities whose review is missing, or beyond three per review. */
     priorities: number;
+    /** Student stages or lesson notes whose student is missing. */
+    studentRecords: number;
     /** Repeated copies: the same id twice, or a second record for one day or week. */
     duplicates: number;
   };
@@ -549,6 +620,18 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     x.allocations.every((a) => taskIds.has(a.taskId)) ? x : { ...x, allocations: x.allocations.filter((a) => taskIds.has(a.taskId)) },
   );
 
+  // Students: stages and lessons belong to a student; one record per student, track and stage.
+  const studentsParsed = parseList(migrated.students, parseStudent);
+  const students = dedupeById(studentsParsed.parsed);
+  const studentIds = new Set(students.map((x) => x.id));
+  const stagesParsed = parseList(migrated.studentStages, parseStudentStage);
+  const stagesKept = dedupeById(stagesParsed.parsed);
+  const stagesLinked = stagesKept.filter((x) => studentIds.has(x.studentId));
+  const studentStages = uniqueBy(stagesLinked, (x) => `${x.studentId}|${x.track}|${x.stage}`, (x) => x.updatedAt);
+  const lessonsParsed = parseList(migrated.studentLessons, parseStudentLesson);
+  const lessonsKept = dedupeById(lessonsParsed.parsed);
+  const studentLessons = lessonsKept.filter((x) => studentIds.has(x.studentId));
+
   const highlightsKept = dedupeById(highlights.parsed);
   const commitmentsKept = dedupeById(commitments.parsed);
   const completionsKept = dedupeById(completions.parsed);
@@ -569,6 +652,9 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     recurrences,
     weeklyReviews,
     weeklyPriorities,
+    students,
+    studentStages,
+    studentLessons,
   };
 
   const unreadable =
@@ -584,11 +670,15 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     milestonesParsed.dropped +
     recurrencesParsed.dropped +
     reviewsParsed.dropped +
-    prioritiesParsed.dropped;
+    prioritiesParsed.dropped +
+    studentsParsed.dropped +
+    stagesParsed.dropped +
+    lessonsParsed.dropped;
   const removed = {
     milestones: dedupeById(milestonesParsed.parsed).length - milestones.length,
     completions: completionsKept.length - completionsLinked.length,
     priorities: prioritiesKept.length - weeklyPriorities.length,
+    studentRecords: stagesKept.length - stagesLinked.length + (lessonsKept.length - studentLessons.length),
     duplicates:
       parsedTaskCount -
       tasks.length +
@@ -603,12 +693,16 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       (milestonesParsed.parsed.length - dedupeById(milestonesParsed.parsed).length) +
       (recurrencesParsed.parsed.length - recurrences.length) +
       (reviewsParsed.parsed.length - weeklyReviews.length) +
-      (prioritiesParsed.parsed.length - prioritiesKept.length),
+      (prioritiesParsed.parsed.length - prioritiesKept.length) +
+      (studentsParsed.parsed.length - students.length) +
+      (stagesParsed.parsed.length - stagesKept.length) +
+      (stagesLinked.length - studentStages.length) +
+      (lessonsParsed.parsed.length - lessonsKept.length),
   };
 
   return {
     data,
-    dropped: unreadable + removed.milestones + removed.completions + removed.priorities + removed.duplicates,
+    dropped: unreadable + removed.milestones + removed.completions + removed.priorities + removed.studentRecords + removed.duplicates,
     unreadable,
     removed,
     migratedFrom: raw.schemaVersion < SCHEMA_VERSION ? raw.schemaVersion : null,
@@ -643,6 +737,10 @@ function migrate(version: number, data: Obj): Obj | null {
     // v4 → v5: weekly reviews start empty. New fields on commitments,
     // milestones and sessions are filled in (from existing timestamps) while parsing.
     current = { ...current, weeklyReviews: [], weeklyPriorities: [] };
+  }
+  if (version < 6) {
+    // v5 → v6: students start empty. Nothing existing is touched.
+    current = { ...current, students: [], studentStages: [], studentLessons: [] };
   }
   return current;
 }

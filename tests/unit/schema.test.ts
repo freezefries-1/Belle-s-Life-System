@@ -37,7 +37,7 @@ describe("loading saved data", () => {
       commitmentCompletions: [{ id: "cc", commitmentId: "gone", dateKey: "2026-10-01", completedAt: NOW }],
       tasks: [task("t"), task("t")],
     });
-    expect(p.removed).toEqual({ milestones: 1, completions: 1, priorities: 0, duplicates: 1 });
+    expect(p.removed).toEqual({ milestones: 1, completions: 1, priorities: 0, studentRecords: 0, duplicates: 1 });
     expect(p.dropped).toBe(3);
   });
 

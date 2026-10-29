@@ -369,6 +369,59 @@ export interface WeeklyPriority {
   createdAt: ISODateTime;
 }
 
+/* ------------------------------------------------------------------ */
+/* Students (tennis coaching)                                          */
+/* ------------------------------------------------------------------ */
+
+export type PlayerGroup = "junior" | "adult";
+/** Red, orange and green are the slower kids' balls; yellow is the regular ball. */
+export type BallColour = "red" | "orange" | "green" | "yellow";
+export type StudentStatus = "active" | "paused" | "finished";
+export type TrackId = "rally" | "serve" | "net" | "match";
+
+export interface Student {
+  id: string;
+  name: string;
+  group: PlayerGroup;
+  ball: BallColour;
+  hand: "right" | "left" | null;
+  backhand: "one" | "two" | null;
+  startedOn: ISODate | null;
+  goals: string;
+  notes: string;
+  status: StudentStatus;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type StudentInput = Pick<Student, "name"> &
+  Partial<Pick<Student, "group" | "ball" | "hand" | "backhand" | "startedOn" | "goals" | "notes" | "status">>;
+
+/** A student reached `stage` (e.g. "R5") on a track on `reachedOn`. One per student, track and stage. */
+export interface StudentStage {
+  id: string;
+  studentId: string;
+  track: TrackId;
+  stage: string;
+  reachedOn: ISODate;
+  note: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface StudentLesson {
+  id: string;
+  studentId: string;
+  date: ISODate;
+  focus: string;
+  wentWell: string;
+  workOn: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type StudentLessonInput = Pick<StudentLesson, "date"> & Partial<Pick<StudentLesson, "focus" | "wentWell" | "workOn">>;
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
@@ -383,6 +436,9 @@ export interface PersistedData {
   recurrences: RecurrenceTemplate[];
   weeklyReviews: WeeklyReview[];
   weeklyPriorities: WeeklyPriority[];
+  students: Student[];
+  studentStages: StudentStage[];
+  studentLessons: StudentLesson[];
 }
 
 /** What components read: saved data + today's date. */

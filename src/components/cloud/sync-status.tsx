@@ -51,6 +51,9 @@ const TABLE_LABEL: Record<string, string> = {
   kaizen_logs: "Kaizen Log",
   weekly_reviews: "Weekly review",
   weekly_priorities: "Weekly priority",
+  students: "Student",
+  student_stages: "Student stage",
+  student_lessons: "Lesson note",
 };
 
 function conflictTitle(c: SyncConflict) {
