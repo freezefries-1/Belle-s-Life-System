@@ -22,6 +22,7 @@ import * as daily from "./changes/daily";
 import * as projects from "./changes/projects";
 import * as recurrence from "./changes/recurrence";
 import * as reviews from "./changes/reviews";
+import * as ladder from "./changes/ladder";
 import * as students from "./changes/students";
 import * as tasks from "./changes/tasks";
 import type {
@@ -32,6 +33,8 @@ import type {
   DailyHighlight,
   ISODate,
   KaizenLogInput,
+  LadderStage,
+  LadderStageInput,
   MicroCommitment,
   Milestone,
   MilestoneInput,
@@ -184,6 +187,17 @@ export interface WorkspaceActions {
   updateLesson: (id: string, changes: Partial<StudentLessonInput>) => void;
   deleteLesson: (id: string) => StudentLesson | null;
   restoreLesson: (lesson: StudentLesson) => void;
+  /** Tick a milestone for a student on a date, or untick it (null). */
+  setStudentCheck: (studentId: string, track: TrackId, stage: string, checkId: string, done: ISODate | null) => void;
+
+  // Coaching ladder
+  /** Save your wording for a stage: name, focus and milestones. */
+  saveLadderStage: (track: TrackId, stage: string, input: LadderStageInput) => void;
+  /** Add a stage at the end of a track; returns its id (e.g. R10). */
+  addLadderStage: (track: TrackId, input: LadderStageInput) => string | null;
+  /** Reset a built-in stage to its original wording, or delete a stage you added (if no student has reached it). Returns it, for Undo. */
+  removeLadderStage: (track: TrackId, stage: string) => LadderStage | null;
+  restoreLadderStage: (entry: LadderStage) => void;
 
   /** Fill an empty workspace with sample data. Refuses to replace existing data unless `replace` is set (browser-only mode, after confirmation). */
   loadSampleData: (options?: { replace?: boolean }) => void;
@@ -481,6 +495,25 @@ export function WorkspaceProvider({
         return lesson;
       },
       restoreLesson: (lesson) => commit((d) => students.restoreLesson(d, lesson)),
+      setStudentCheck: (studentId, track, stage, checkId, done) =>
+        commit((d) => students.setStudentCheck(d, studentId, track, stage, checkId, done, nowISO())),
+
+      saveLadderStage: (track, stage, input) => commit((d) => ladder.saveLadderStage(d, track, stage, input, nowISO())),
+      addLadderStage: (track, input) => {
+        const data = current();
+        const result = data && ladder.addLadderStage(data, track, input, nowISO());
+        if (!result) return null;
+        commit(() => result.data);
+        return result.stage;
+      },
+      removeLadderStage: (track, stage) => {
+        const data = current();
+        const result = data && ladder.removeLadderStage(data, track, stage);
+        if (!result) return null;
+        commit(() => result.data);
+        return result.removed;
+      },
+      restoreLadderStage: (entry) => commit((d) => ladder.restoreLadderStage(d, entry)),
 
       clearAllData: () => commit(() => EMPTY_DATA),
     };

@@ -12,6 +12,8 @@ stays at S1–S2.
 
 **Rally** (the main progression)
 
+These are the built-in stages; you can reword them (see "Editing the ladder").
+
 | Stage | Working on | Ready to move on when |
 | --- | --- | --- |
 | R1 Contact | Fed balls, forehand and backhand: grip, ready position, swing shape | 7 out of 10 fed balls over the net, both sides |
@@ -68,8 +70,30 @@ what helps your coaching: first names or nicknames, no medical details or
 parents' contact details. Your backup file includes it, so keep that file
 private too.
 
+## Milestones
+
+Each stage's "ready to move on" test is a short checklist of milestones.
+On a student's page, tick each one as they reach it (the date is saved;
+untick to undo). When every milestone is ticked, the card says they're
+ready to move up. Then tap **Moved up to …**. Moving up is always your
+call; ticking doesn't move them automatically. The Students list shows
+each student's Rally milestones, e.g. "R5 milestones 1/3".
+
+## Editing the ladder
+
+**Students → Coaching ladder** shows every stage on each track, with how
+many students are at it.
+- **Edit (pencil):** change a stage's name, what they're working on, and
+  its milestones (add, reword or remove them). Rewording keeps every
+  student's progress and ticks. A milestone you remove stops counting, but
+  its ticks aren't deleted, so they come back if you reset.
+- **Reset to original:** puts a built-in stage back to its original
+  wording (with Undo).
+- **Add stage:** adds a stage at the end of a track (R10, S8, …). A stage
+  you added can be deleted only while no student has reached it, and only
+  the last one on a track. Stages after R9 count as Competitive/Advanced,
+  like R9.
+
 ## Not yet
 
-Stage names and "ready" tests are fixed in this version (Stage 1). Editing
-the ladder in the app, plus matches, benchmarks and charts, are planned as
-later stages.
+Matches, benchmarks and charts are planned as Stage 3.

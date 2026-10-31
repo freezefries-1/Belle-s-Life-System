@@ -49,6 +49,8 @@ export function DataSettings() {
       students,
       studentStages,
       studentLessons,
+      ladderStages,
+      studentChecks,
     } = workspace;
     const envelope = createEnvelope({
       tasks,
@@ -66,6 +68,8 @@ export function DataSettings() {
       students,
       studentStages,
       studentLessons,
+      ladderStages,
+      studentChecks,
     });
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -115,7 +119,7 @@ export function DataSettings() {
       <div className="flex flex-col gap-2.5">
         <DataAction
           title="Download a backup"
-          body="A JSON file with everything — tasks, Brain Dump, focus sessions and time, highlights, commitments and their history, Kaizen Logs, projects, milestones, recurring tasks and weekly reviews, students and lesson notes — with every id and link kept. Keep a recent copy somewhere safe."
+          body="A JSON file with everything — tasks, Brain Dump, focus sessions and time, highlights, commitments and their history, Kaizen Logs, projects, milestones, recurring tasks and weekly reviews, students, lesson notes and your coaching ladder — with every id and link kept. Keep a recent copy somewhere safe."
           action={
             <Button variant="outline" size="sm" className="gap-1.5" onClick={downloadBackup} disabled={!hasData}>
               <Download className="size-3.5" />

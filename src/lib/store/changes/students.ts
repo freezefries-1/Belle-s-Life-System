@@ -1,6 +1,17 @@
 import { createId } from "@/lib/id";
-import { stageIndex } from "@/lib/students/ladder";
-import type { ISODate, ISODateTime, PersistedData, Student, StudentInput, StudentLesson, StudentLessonInput, StudentStage, TrackId } from "@/types";
+import { buildLadder, stageIndex } from "@/lib/students/ladder";
+import type {
+  ISODate,
+  ISODateTime,
+  PersistedData,
+  Student,
+  StudentCheck,
+  StudentInput,
+  StudentLesson,
+  StudentLessonInput,
+  StudentStage,
+  TrackId,
+} from "@/types";
 
 /**
  * Student changes. Like the other change helpers, each takes the current data
@@ -32,6 +43,7 @@ export interface RemovedStudent {
   student: Student;
   stages: StudentStage[];
   lessons: StudentLesson[];
+  checks: StudentCheck[];
 }
 
 /** Removes the student with their stages and lesson notes; returns them so Undo can put everything back. */
@@ -39,12 +51,18 @@ export function deleteStudent(d: PersistedData, id: string): { data: PersistedDa
   const student = d.students.find((s) => s.id === id);
   if (!student) return null;
   return {
-    removed: { student, stages: d.studentStages.filter((s) => s.studentId === id), lessons: d.studentLessons.filter((l) => l.studentId === id) },
+    removed: {
+      student,
+      stages: d.studentStages.filter((s) => s.studentId === id),
+      lessons: d.studentLessons.filter((l) => l.studentId === id),
+      checks: d.studentChecks.filter((c) => c.studentId === id),
+    },
     data: {
       ...d,
       students: d.students.filter((s) => s.id !== id),
       studentStages: d.studentStages.filter((s) => s.studentId !== id),
       studentLessons: d.studentLessons.filter((l) => l.studentId !== id),
+      studentChecks: d.studentChecks.filter((c) => c.studentId !== id),
     },
   };
 }
@@ -56,6 +74,7 @@ export function restoreStudent(d: PersistedData, removed: RemovedStudent): Persi
     students: [...d.students, removed.student],
     studentStages: [...d.studentStages, ...removed.stages],
     studentLessons: [...d.studentLessons, ...removed.lessons],
+    studentChecks: [...d.studentChecks, ...(removed.checks ?? [])],
   };
 }
 
@@ -73,7 +92,7 @@ export function setStage(
   note: string,
   now: ISODateTime,
 ): PersistedData {
-  if (!d.students.some((s) => s.id === studentId) || stageIndex(track, stage) < 0) return d;
+  if (!d.students.some((s) => s.id === studentId) || stageIndex(buildLadder(d.ladderStages), track, stage) < 0) return d;
   const existing = d.studentStages.find((s) => s.studentId === studentId && s.track === track && s.stage === stage);
   if (existing) {
     return {
@@ -118,3 +137,26 @@ export const deleteLesson = (d: PersistedData, id: string): PersistedData => ({ 
 
 export const restoreLesson = (d: PersistedData, lesson: StudentLesson): PersistedData =>
   d.studentLessons.some((l) => l.id === lesson.id) ? d : addLesson(d, lesson);
+
+/**
+ * Tick (or untick) a milestone for a student. One record per student and
+ * milestone; ticking again only changes the date.
+ */
+export function setStudentCheck(
+  d: PersistedData,
+  studentId: string,
+  track: TrackId,
+  stage: string,
+  checkId: string,
+  done: ISODate | null,
+  now: ISODateTime,
+): PersistedData {
+  if (!d.students.some((s) => s.id === studentId)) return d;
+  const existing = d.studentChecks.find((c) => c.studentId === studentId && c.checkId === checkId);
+  if (done === null) return existing ? { ...d, studentChecks: d.studentChecks.filter((c) => c.id !== existing.id) } : d;
+  if (existing) {
+    return existing.doneOn === done ? d : { ...d, studentChecks: d.studentChecks.map((c) => (c.id === existing.id ? { ...c, doneOn: done, updatedAt: now } : c)) };
+  }
+  const check: StudentCheck = { id: createId(), studentId, track, stage, checkId, doneOn: done, createdAt: now, updatedAt: now };
+  return { ...d, studentChecks: [...d.studentChecks, check] };
+}

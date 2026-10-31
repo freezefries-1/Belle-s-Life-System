@@ -4,7 +4,7 @@ import { createSampleData } from "@/data/sample-data";
 import { dataToRows, rowsToData } from "@/lib/repositories/mappers";
 import { EMPTY_DATA, SCHEMA_VERSION, createEnvelope, parseEnvelope } from "@/lib/storage/schema";
 import * as students from "@/lib/store/changes/students";
-import { TRACKS, overallLevel, stageIndex } from "@/lib/students/ladder";
+import { DEFAULT_LADDER as L, overallLevel, stageIndex } from "@/lib/students/ladder";
 import { createLesson, createStudent, currentStages, durationSince, levelOf, stageHistory, stageSummary } from "@/lib/students/student-model";
 import { hasAnyData } from "@/lib/workspace-data";
 import type { PersistedData } from "@/types";
@@ -18,26 +18,30 @@ const base: PersistedData = { ...EMPTY_DATA, students: [mia] };
 
 describe("the ladder", () => {
   it("has the four tracks with unique stage ids in order", () => {
-    expect(TRACKS.map((t) => t.id)).toEqual(["rally", "serve", "net", "match"]);
-    expect(TRACKS.map((t) => t.stages.length)).toEqual([9, 7, 5, 6]);
-    const ids = TRACKS.flatMap((t) => t.stages.map((s) => s.id));
+    expect(L.tracks.map((t) => t.id)).toEqual(["rally", "serve", "net", "match"]);
+    expect(L.tracks.map((t) => t.stages.length)).toEqual([9, 7, 5, 6]);
+    const ids = L.tracks.flatMap((t) => t.stages.map((s) => s.id));
     expect(new Set(ids).size).toBe(ids.length);
-    expect(stageIndex("rally", "R5")).toBe(4);
-    expect(stageIndex("serve", "R5")).toBe(-1);
+    expect(stageIndex(L, "rally", "R5")).toBe(4);
+    expect(stageIndex(L, "serve", "R5")).toBe(-1);
+    // Milestones have ids that never change: R5-1, R5-2…
+    expect(L.rally.stages[4].checks.map((c) => c.id)).toEqual(["R5-1", "R5-2"]);
+    const checkIds = L.tracks.flatMap((t) => t.stages.flatMap((s) => s.checks.map((c) => c.id)));
+    expect(new Set(checkIds).size).toBe(checkIds.length);
   });
 
   it("works out the overall level from the Rally stage", () => {
-    expect(overallLevel(null, null)).toBe("Not assessed");
-    expect(["R1", "R2", "R3"].map((r) => overallLevel(r, null))).toEqual(["Beginner", "Beginner", "Beginner"]);
-    expect(["R4", "R5"].map((r) => overallLevel(r, null))).toEqual(["High beginner", "High beginner"]);
-    expect(["R6", "R7"].map((r) => overallLevel(r, null))).toEqual(["Intermediate", "Intermediate"]);
-    expect(overallLevel("R8", "M6")).toBe("Advanced");
+    expect(overallLevel(L, null, null)).toBe("Not assessed");
+    expect(["R1", "R2", "R3"].map((r) => overallLevel(L, r, null))).toEqual(["Beginner", "Beginner", "Beginner"]);
+    expect(["R4", "R5"].map((r) => overallLevel(L, r, null))).toEqual(["High beginner", "High beginner"]);
+    expect(["R6", "R7"].map((r) => overallLevel(L, r, null))).toEqual(["Intermediate", "Intermediate"]);
+    expect(overallLevel(L, "R8", "M6")).toBe("Advanced");
   });
 
   it("only calls R9 Competitive with competition play (M5 or above)", () => {
-    expect(overallLevel("R9", null)).toBe("Advanced");
-    expect(overallLevel("R9", "M4")).toBe("Advanced");
-    expect(overallLevel("R9", "M5")).toBe("Competitive");
+    expect(overallLevel(L, "R9", null)).toBe("Advanced");
+    expect(overallLevel(L, "R9", "M4")).toBe("Advanced");
+    expect(overallLevel(L, "R9", "M5")).toBe("Competitive");
   });
 });
 
@@ -55,12 +59,12 @@ describe("students", () => {
     let d = students.setStage(base, mia.id, "rally", "R2", "2026-09-01", "", NOW);
     d = students.setStage(d, mia.id, "rally", "R3", "2026-10-20", " short court 20 ", NOW);
     d = students.setStage(d, mia.id, "serve", "S1", "2026-08-01", "", NOW);
-    const current = currentStages(d.studentStages, mia.id);
+    const current = currentStages(L, d.studentStages, mia.id);
     expect(current.rally).toMatchObject({ stage: "R3", note: "short court 20" });
     expect(current.serve?.stage).toBe("S1");
     expect(current.net).toBeNull();
-    expect(stageSummary(current)).toBe("R3 · S1");
-    expect(levelOf(d.studentStages, mia.id)).toBe("Beginner");
+    expect(stageSummary(L, current)).toBe("R3 · S1");
+    expect(levelOf(L, d.studentStages, mia.id)).toBe("Beginner");
     // Setting R2 again only changes its date.
     const again = students.setStage(d, mia.id, "rally", "R2", "2026-09-05", "", LATER);
     expect(again.studentStages).toHaveLength(3);
@@ -75,10 +79,10 @@ describe("students", () => {
   it("history is newest first; removing an entry steps back to the previous stage", () => {
     let d = students.setStage(base, mia.id, "rally", "R2", "2026-09-01", "", NOW);
     d = students.setStage(d, mia.id, "rally", "R3", "2026-10-20", "", NOW);
-    expect(stageHistory(d.studentStages, mia.id).map((s) => s.stage)).toEqual(["R3", "R2"]);
+    expect(stageHistory(L, d.studentStages, mia.id).map((s) => s.stage)).toEqual(["R3", "R2"]);
     const r3 = d.studentStages.find((s) => s.stage === "R3")!;
     const back = students.removeStage(d, r3.id);
-    expect(currentStages(back.studentStages, mia.id).rally?.stage).toBe("R2");
+    expect(currentStages(L, back.studentStages, mia.id).rally?.stage).toBe("R2");
     expect(students.restoreStage(back, r3).studentStages).toHaveLength(2);
   });
 

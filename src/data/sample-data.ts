@@ -272,6 +272,28 @@ export function createSampleData(today: ISODate): PersistedData {
     students: [mia, daniel, ethan],
     studentStages,
     studentLessons,
+    // One reworded stage (an extra milestone on R5) and a few milestones ticked.
+    ladderStages: [
+      {
+        id: "rally:R5",
+        track: "rally" as const,
+        stage: "R5",
+        name: "Baseline steady",
+        focus: "Baseline, centre to centre",
+        checks: [
+          { id: "R5-1", text: "20-ball rally from the baseline" },
+          { id: "R5-2", text: "Half the balls land past the service line" },
+          { id: createId(), text: "Recovers to the centre mark after each shot" },
+        ],
+        createdAt: at(-30, 20),
+        updatedAt: at(-30, 20),
+      },
+    ],
+    studentChecks: [
+      { id: createId(), studentId: daniel.id, track: "rally" as const, stage: "R5", checkId: "R5-1", doneOn: d(-7), createdAt: at(-7, 19), updatedAt: at(-7, 19) },
+      { id: createId(), studentId: mia.id, track: "rally" as const, stage: "R2", checkId: "R2-1", doneOn: d(-7), createdAt: at(-7, 17), updatedAt: at(-7, 17) },
+      { id: createId(), studentId: daniel.id, track: "serve" as const, stage: "S2", checkId: "S2-1", doneOn: d(-3), createdAt: at(-3, 19), updatedAt: at(-3, 19) },
+    ],
     tasks,
     captures,
     sessions,

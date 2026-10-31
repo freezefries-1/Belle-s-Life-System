@@ -270,6 +270,28 @@ check("Deleting a student removes their stages and lesson notes", r.data?.ok ===
 r = await a.client.from("sync_tombstones").select("table_name").eq("id", "st1");
 check("…and other devices are told it was deleted", r.data?.some((t) => t.table_name === "students"));
 
+// Coaching ladder and milestones: owner-only, linked to the owner's own students.
+r = await apply(a, [
+  { table: "ladder_stages", op: "upsert", id: "rally:R5", row: { id: "rally:R5", track: "rally", stage: "R5", name: "Baseline solid", focus: "", checks: [{ id: "R5-1", text: "25-ball rally" }], created_at: now, updated_at: now }, expected_version: null },
+  { table: "students", op: "upsert", id: "st2", row: student("st2"), expected_version: null },
+  { table: "student_checks", op: "upsert", id: "sc1", row: { id: "sc1", student_id: "st2", track: "rally", stage: "R5", check_id: "R5-1", done_on: "2026-10-30", created_at: now, updated_at: now }, expected_version: null },
+]);
+check("A ladder edit and a ticked milestone save", r.data?.ok === true, JSON.stringify(r.data ?? r.error));
+r = await b.client.from("ladder_stages").select("id");
+check("Another account can't see the ladder edits", !r.error && r.data.length === 0);
+r = await b.client.from("student_checks").select("id");
+check("Another account can't see ticked milestones", !r.error && r.data.length === 0);
+r = await anon.from("student_checks").select("id");
+check("Signed-out visitors can't see ticked milestones", (r.data ?? []).length === 0);
+r = await apply(b, [{ table: "student_checks", op: "upsert", id: "sc-b", row: { id: "sc-b", student_id: "st2", track: "rally", stage: "R5", check_id: "R5-1", done_on: "2026-10-30", created_at: now, updated_at: now }, expected_version: null }]);
+check("Another account can't tick a milestone for the student", r.data?.ok !== true);
+r = await apply(a, [{ table: "ladder_stages", op: "upsert", id: "rally:R6", row: { id: "rally:R6", track: "rally", stage: "R6", name: "x", focus: "", checks: { not: "a list" }, created_at: now, updated_at: now }, expected_version: null }]);
+check("Milestones must be a list", r.data?.ok !== true);
+r = await a.client.from("students").select("version").eq("id", "st2").single();
+await apply(a, [{ table: "students", op: "delete", id: "st2", expected_version: r.data.version }]);
+r = await a.client.from("student_checks").select("id").eq("student_id", "st2");
+check("Deleting a student removes their ticked milestones", r.data?.length === 0);
+
 // Profiles: only the display name can be changed.
 r = await a.client.from("profiles").update({ display_name: "Belle" }).eq("id", a.id).select("display_name");
 check("Profile display name can be updated", !r.error && r.data[0]?.display_name === "Belle", r.error?.message);

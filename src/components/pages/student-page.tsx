@@ -11,21 +11,24 @@ import { SetStageDialog } from "@/components/students/set-stage-dialog";
 import { StudentEditorDialog } from "@/components/students/student-editor-dialog";
 import { LevelBadge, STUDENT_STATUSES, StudentFacts } from "@/components/students/student-visuals";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatLongDate, formatShortDate } from "@/lib/date";
-import { TRACKS, TRACK_BY_ID, stageDef, stageIndex, type TrackDef } from "@/lib/students/ladder";
-import { currentStages, durationSince, lessonsOf, levelOf, stageHistory } from "@/lib/students/student-model";
+import { stageDef, stageIndex, type TrackDef } from "@/lib/students/ladder";
+import { checksOf, currentStages, durationSince, lessonsOf, levelOf, milestoneProgress, stageHistory } from "@/lib/students/student-model";
+import { useLadder } from "@/lib/students/use-ladder";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
-import type { Student, StudentLesson, StudentStage, TrackId } from "@/types";
+import type { Student, StudentCheck, StudentLesson, StudentStage, TrackId } from "@/types";
 
 type StageTarget = { track: TrackId; initial?: string };
 
 export function StudentPage() {
   const { workspace, actions } = useWorkspace();
+  const ladder = useLadder();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const student = workspace.students.find((s) => s.id === params.id);
@@ -46,13 +49,14 @@ export function StudentPage() {
     );
   }
 
-  const current = currentStages(workspace.studentStages, student.id);
-  const level = levelOf(workspace.studentStages, student.id);
+  const current = currentStages(ladder, workspace.studentStages, student.id);
+  const level = levelOf(ladder, workspace.studentStages, student.id);
   const lessons = lessonsOf(workspace.studentLessons, student.id);
-  const history = stageHistory(workspace.studentStages, student.id);
+  const history = stageHistory(ladder, workspace.studentStages, student.id);
+  const ticked = checksOf(workspace.studentChecks, student.id);
 
   function moveUp(track: TrackDef) {
-    const at = current[track.id] ? stageIndex(track.id, current[track.id]!.stage) : -1;
+    const at = current[track.id] ? stageIndex(ladder, track.id, current[track.id]!.stage) : -1;
     const next = track.stages[at + 1];
     if (!next || !student) return;
     const saved = actions.setStudentStage(student.id, track.id, next.id, workspace.today);
@@ -67,7 +71,7 @@ export function StudentPage() {
     const removed = actions.removeStudentStage(entry.id);
     if (!removed) return;
     toast("Stage entry removed", {
-      description: `${removed.stage} · ${stageDef(removed.track, removed.stage)?.name ?? ""}`,
+      description: `${removed.stage} · ${stageDef(ladder, removed.track, removed.stage)?.name ?? ""}`,
       action: { label: "Undo", onClick: () => actions.restoreStudentStage(removed) },
     });
   }
@@ -149,11 +153,13 @@ export function StudentPage() {
           Tracks
         </h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {TRACKS.map((t) => (
+          {ladder.tracks.map((t) => (
             <TrackCard
               key={t.id}
               track={t}
               entry={current[t.id]}
+              ticked={ticked}
+              onToggle={(stage, checkId, done) => actions.setStudentCheck(student.id, t.id, stage, checkId, done ? workspace.today : null)}
               today={workspace.today}
               onMoveUp={() => moveUp(t)}
               onChoose={() => setStageTarget({ track: t.id })}
@@ -237,9 +243,9 @@ export function StudentPage() {
                     <span className="w-14 shrink-0 pt-px text-xs text-muted-foreground tabular-nums">{formatShortDate(h.reachedOn)}</span>
                     <span className="min-w-0 flex-1">
                       <span className="font-semibold">
-                        {h.stage} · {stageDef(h.track, h.stage)?.name ?? h.stage}
+                        {h.stage} · {stageDef(ladder, h.track, h.stage)?.name ?? h.stage}
                       </span>
-                      <span className="text-muted-foreground"> · {TRACK_BY_ID[h.track].name}</span>
+                      <span className="text-muted-foreground"> · {ladder[h.track].name}</span>
                       {h.note && <span className="block text-xs text-muted-foreground">{h.note}</span>}
                     </span>
                     <DropdownMenu>
@@ -287,19 +293,24 @@ export function StudentPage() {
 function TrackCard({
   track,
   entry,
+  ticked,
+  onToggle,
   today,
   onMoveUp,
   onChoose,
 }: {
   track: TrackDef;
   entry: StudentStage | null;
+  ticked: Map<string, StudentCheck>;
+  onToggle: (stage: string, checkId: string, done: boolean) => void;
   today: string;
   onMoveUp: () => void;
   onChoose: () => void;
 }) {
-  const at = entry ? stageIndex(track.id, entry.stage) : -1;
+  const at = entry ? track.stages.findIndex((s) => s.id === entry.stage) : -1;
   const stage = entry ? track.stages[at] : null;
   const next = track.stages[at + 1] ?? null;
+  const progress = stage ? milestoneProgress(stage, ticked) : null;
   return (
     <Card className="gap-3 p-4 sm:p-5" aria-labelledby={`track-${track.id}`}>
       <div className="flex items-start justify-between gap-3">
@@ -329,13 +340,40 @@ function TrackCard({
             <span className="text-muted-foreground">Working on: </span>
             {stage.focus}
           </p>
-          {stage.ready && (
-            <p className="mt-0.5">
-              <span className="text-muted-foreground">Ready to move on when: </span>
-              {stage.ready}
+        </div>
+      )}
+      {stage && progress && progress.total > 0 && (
+        <fieldset className="rounded-lg bg-muted/40 px-3 py-2.5">
+          <legend className="sr-only">
+            {stage.id} milestones for {track.name}
+          </legend>
+          <p className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-semibold text-muted-foreground">Ready to move on when</span>
+            <span className={cn("tabular-nums", progress.complete ? "font-semibold text-emerald-700" : "text-muted-foreground")}>
+              {progress.done} of {progress.total}
+            </span>
+          </p>
+          <ul className="mt-1.5 flex flex-col gap-1.5">
+            {stage.checks.map((c) => {
+              const done = ticked.get(c.id);
+              const id = `check-${track.id}-${c.id}`;
+              return (
+                <li key={c.id} className="flex items-start gap-2.5 text-[13px]">
+                  <Checkbox id={id} checked={!!done} onCheckedChange={(v) => onToggle(stage.id, c.id, v === true)} className="mt-0.5" />
+                  <label htmlFor={id} className={cn("min-w-0 flex-1 cursor-pointer", done && "text-muted-foreground")}>
+                    {c.text}
+                    {done && <span className="ml-1.5 text-xs whitespace-nowrap text-emerald-700">✓ {formatShortDate(done.doneOn)}</span>}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+          {progress.complete && next && (
+            <p role="status" className="mt-2 text-xs font-semibold text-emerald-700">
+              All milestones reached: ready to move up to {next.id}.
             </p>
           )}
-        </div>
+        </fieldset>
       )}
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
         {next ? (

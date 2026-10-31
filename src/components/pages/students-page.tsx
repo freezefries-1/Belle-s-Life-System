@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Plus, Users } from "lucide-react";
+import { ListOrdered, Plus, Users } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
@@ -12,8 +12,9 @@ import { FilterSelect } from "@/components/tasks/task-filters";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type Level } from "@/lib/students/ladder";
-import { currentStages, durationSince, lessonsOf, levelOf, stageSummary } from "@/lib/students/student-model";
+import { stageDef, type Ladder, type Level } from "@/lib/students/ladder";
+import { checksOf, currentStages, durationSince, lessonsOf, levelOf, milestoneProgress, stageSummary } from "@/lib/students/student-model";
+import { useLadder } from "@/lib/students/use-ladder";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import type { Student, StudentStatus, Workspace } from "@/types";
 
@@ -29,6 +30,7 @@ const LEVELS: { level: Level; stages: string }[] = [
 
 export function StudentsPage() {
   const { workspace } = useWorkspace();
+  const ladder = useLadder();
   const [status, setStatus] = React.useState<StudentStatus>("active");
   const [group, setGroup] = React.useState<GroupFilter>("all");
   const [adding, setAdding] = React.useState(false);
@@ -45,10 +47,18 @@ export function StudentsPage() {
         title="Students"
         description="Where each student is on the Rally, Serve, Net and Match play tracks, with your lesson notes."
         actions={
-          <Button onClick={() => setAdding(true)} className="gap-1.5">
-            <Plus className="size-4" strokeWidth={2.5} />
-            Add student
-          </Button>
+          <>
+            <Button asChild variant="outline" className="gap-1.5">
+              <Link href="/students/ladder">
+                <ListOrdered className="size-4" />
+                Coaching ladder
+              </Link>
+            </Button>
+            <Button onClick={() => setAdding(true)} className="gap-1.5">
+              <Plus className="size-4" strokeWidth={2.5} />
+              Add student
+            </Button>
+          </>
         }
       />
 
@@ -92,7 +102,7 @@ export function StudentsPage() {
               <ul className="grid grid-cols-1 gap-3 md:grid-cols-2" aria-label="Students">
                 {visible.map((s) => (
                   <li key={s.id}>
-                    <StudentCard student={s} workspace={workspace} />
+                    <StudentCard student={s} workspace={workspace} ladder={ladder} />
                   </li>
                 ))}
               </ul>
@@ -107,7 +117,7 @@ export function StudentsPage() {
                   <li key={l.level} className="flex items-center gap-2">
                     <LevelBadge level={l.level} />
                     <span className="flex-1 text-xs text-muted-foreground">{l.stages}</span>
-                    <span className="font-semibold tabular-nums">{active.filter((x) => levelOf(workspace.studentStages, x.id) === l.level).length}</span>
+                    <span className="font-semibold tabular-nums">{active.filter((x) => levelOf(ladder, workspace.studentStages, x.id) === l.level).length}</span>
                   </li>
                 ))}
               </ul>
@@ -120,11 +130,13 @@ export function StudentsPage() {
   );
 }
 
-function StudentCard({ student, workspace }: { student: Student; workspace: Workspace }) {
-  const current = currentStages(workspace.studentStages, student.id);
-  const level = levelOf(workspace.studentStages, student.id);
+function StudentCard({ student, workspace, ladder }: { student: Student; workspace: Workspace; ladder: Ladder }) {
+  const current = currentStages(ladder, workspace.studentStages, student.id);
+  const level = levelOf(ladder, workspace.studentStages, student.id);
   const lastLesson = lessonsOf(workspace.studentLessons, student.id)[0];
-  const summary = stageSummary(current);
+  const summary = stageSummary(ladder, current);
+  const rallyStage = current.rally ? stageDef(ladder, "rally", current.rally.stage) : null;
+  const rallyProgress = rallyStage ? milestoneProgress(rallyStage, checksOf(workspace.studentChecks, student.id)) : null;
   return (
     <Link
       href={`/students/${student.id}`}
@@ -137,7 +149,15 @@ function StudentCard({ student, workspace }: { student: Student; workspace: Work
         </div>
         <LevelBadge level={level} />
       </div>
-      <p className="text-[13px] font-medium tabular-nums">{summary || <span className="text-muted-foreground">No stages yet</span>}</p>
+      <p className="text-[13px] font-medium tabular-nums">
+        {summary || <span className="text-muted-foreground">No stages yet</span>}
+        {rallyProgress && rallyProgress.total > 0 && (
+          <span className={rallyProgress.complete ? "font-semibold text-emerald-700" : "font-normal text-muted-foreground"}>
+            {" "}
+            · {current.rally!.stage} milestones {rallyProgress.done}/{rallyProgress.total}
+          </span>
+        )}
+      </p>
       <p className="mt-auto text-xs text-muted-foreground">
         {current.rally && `At ${current.rally.stage} for ${durationSince(current.rally.reachedOn, workspace.today)} · `}
         {lastLesson ? `Last lesson ${lastLesson.date === workspace.today ? "today" : `${durationSince(lastLesson.date, workspace.today)} ago`}` : "No lesson notes yet"}

@@ -1,9 +1,12 @@
-import type { TrackId } from "@/types";
+import type { LadderCheck, LadderStage, TrackId } from "@/types";
 
 /**
  * The coaching ladder: four tracks a student moves through at their own pace.
- * Stage ids (R1, S3, …) are what's saved; names and descriptions can be
- * reworded here without touching saved data.
+ *
+ * The built-in stages below are the starting point. Your edits (saved as
+ * LadderStage records) replace a stage's name, focus and milestones, or add
+ * stages at the end of a track. Stage ids (R1, S3, …) and milestone ids
+ * (R5-1, …) never change, so rewording never loses a student's progress.
  */
 
 export interface StageDef {
@@ -11,93 +14,145 @@ export interface StageDef {
   name: string;
   /** What they're working on at this stage. */
   focus: string;
-  /** When they're ready to move on (empty when there's no fixed test). */
-  ready: string;
+  /** "Ready to move on when…" — the milestones for this stage (may be empty). */
+  checks: LadderCheck[];
+  /** One of the built-in stages (can be reset, not deleted). */
+  builtIn: boolean;
+  /** Reworded by you. */
+  edited: boolean;
 }
 
 export interface TrackDef {
   id: TrackId;
   name: string;
+  /** Letter that stage ids start with (R, S, N, M). */
+  prefix: string;
   stages: StageDef[];
 }
 
-export const TRACKS: TrackDef[] = [
+export type Ladder = Record<TrackId, TrackDef> & { tracks: TrackDef[] };
+
+type Builtin = [id: string, name: string, focus: string, checks: string[]];
+
+const BUILTIN: { id: TrackId; name: string; prefix: string; stages: Builtin[] }[] = [
   {
     id: "rally",
     name: "Rally",
+    prefix: "R",
     stages: [
-      { id: "R1", name: "Contact", focus: "Fed balls, forehand and backhand: grip, ready position, swing shape", ready: "7 out of 10 fed balls over the net, both sides" },
-      { id: "R2", name: "Short court", focus: "Service line to service line, centre to centre", ready: "10-ball rally" },
-      { id: "R3", name: "Reading the bounce", focus: "Short court, both sides, small steps to the ball", ready: "20-ball rally; moves their feet, doesn't reach" },
-      { id: "R4", name: "Move back", focus: "Baseline, centre to centre", ready: "10-ball rally" },
-      { id: "R5", name: "Baseline steady", focus: "Baseline, centre to centre", ready: "20-ball rally; half the balls land past the service line" },
-      { id: "R6", name: "Small movement", focus: "One or two steps left and right, back to the middle", ready: "10-ball rally with movement; split step and recovery" },
-      { id: "R7", name: "Direction", focus: "Crosscourt forehand and backhand, then down the line", ready: "10+ crosscourt each side; changes direction when called" },
-      { id: "R8", name: "Depth and spin", focus: "Topspin, depth, side to side", ready: "7 out of 10 deep; rally 15+ moving side to side" },
-      { id: "R9", name: "Live ball", focus: "Rallies under pace; attacking short balls, defending wide balls", ready: "Keeps rallies going under pressure; picks the right ball to attack" },
+      ["R1", "Contact", "Fed balls, forehand and backhand: grip, ready position, swing shape", ["7 out of 10 fed forehands over the net", "7 out of 10 fed backhands over the net"]],
+      ["R2", "Short court", "Service line to service line, centre to centre", ["10-ball rally on the short court"]],
+      ["R3", "Reading the bounce", "Short court, both sides, small steps to the ball", ["20-ball rally on the short court", "Moves their feet to the ball, doesn't reach"]],
+      ["R4", "Move back", "Baseline, centre to centre", ["10-ball rally from the baseline"]],
+      ["R5", "Baseline steady", "Baseline, centre to centre", ["20-ball rally from the baseline", "Half the balls land past the service line"]],
+      ["R6", "Small movement", "One or two steps left and right, back to the middle", ["10-ball rally with movement", "Split step and recovery to the middle"]],
+      ["R7", "Direction", "Crosscourt forehand and backhand, then down the line", ["10+ crosscourt forehands in a row", "10+ crosscourt backhands in a row", "Changes direction when called"]],
+      ["R8", "Depth and spin", "Topspin, depth, side to side", ["7 out of 10 balls deep", "Rally 15+ moving side to side"]],
+      ["R9", "Live ball", "Rallies under pace; attacking short balls, defending wide balls", ["Keeps rallies going under pressure", "Picks the right ball to attack"]],
     ],
   },
   {
     id: "serve",
     name: "Serve",
+    prefix: "S",
     stages: [
-      { id: "S1", name: "Toss and motion", focus: "Toss and swing shape, no pressure on getting it in", ready: "Consistent toss, 7 out of 10" },
-      { id: "S2", name: "From the service line", focus: "Short distance into the box", ready: "5 out of 10 in" },
-      { id: "S3", name: "From the baseline", focus: "Full distance", ready: "5 out of 10 in, both boxes" },
-      { id: "S4", name: "Reliable", focus: "A serving routine; a dependable second serve", ready: "7 out of 10 in; few double faults when playing points" },
-      { id: "S5", name: "Placement", focus: "To the T and out wide, when called", ready: "Hits the called target 5 out of 10" },
-      { id: "S6", name: "Spin second serve", focus: "Slice or kick", ready: "7 out of 10 spin second serves in" },
-      { id: "S7", name: "Under pressure", focus: "Serving in real matches", ready: "No more than 1 double fault per game in matches" },
+      ["S1", "Toss and motion", "Toss and swing shape, no pressure on getting it in", ["Consistent toss, 7 out of 10"]],
+      ["S2", "From the service line", "Short distance into the box", ["5 out of 10 in from the service line"]],
+      ["S3", "From the baseline", "Full distance", ["5 out of 10 in, deuce box", "5 out of 10 in, advantage box"]],
+      ["S4", "Reliable", "A serving routine; a dependable second serve", ["7 out of 10 in", "Has a serving routine", "Few double faults when playing points"]],
+      ["S5", "Placement", "To the T and out wide, when called", ["Hits the called target 5 out of 10"]],
+      ["S6", "Spin second serve", "Slice or kick", ["7 out of 10 spin second serves in"]],
+      ["S7", "Under pressure", "Serving in real matches", ["No more than 1 double fault per game in matches"]],
     ],
   },
   {
     id: "net",
     name: "Net",
+    prefix: "N",
     stages: [
-      { id: "N1", name: "Ready at the net", focus: "Ready position; fed volleys on both sides", ready: "" },
-      { id: "N2", name: "Volley to volley", focus: "Volley to volley, short court", ready: "" },
-      { id: "N3", name: "Volleys off groundstrokes", focus: "Volleys off groundstroke feeds", ready: "7 out of 10 into a target" },
-      { id: "N4", name: "Approach and overhead", focus: "Approach and volley; overheads", ready: "Overheads 5 out of 10" },
-      { id: "N5", name: "Net in points", focus: "Coming forward at the right moment in points", ready: "" },
+      ["N1", "Ready at the net", "Ready position; fed volleys on both sides", []],
+      ["N2", "Volley to volley", "Volley to volley, short court", []],
+      ["N3", "Volleys off groundstrokes", "Volleys off groundstroke feeds", ["7 out of 10 volleys into a target"]],
+      ["N4", "Approach and overhead", "Approach and volley; overheads", ["Overheads 5 out of 10"]],
+      ["N5", "Net in points", "Coming forward at the right moment in points", []],
     ],
   },
   {
     id: "match",
     name: "Match play",
+    prefix: "M",
     stages: [
-      { id: "M1", name: "Scoring", focus: "Knows the scoring and court rules", ready: "" },
-      { id: "M2", name: "Points from a rally", focus: "Plays points starting from a rally", ready: "" },
-      { id: "M3", name: "Games with serve", focus: "Plays games with serving", ready: "" },
-      { id: "M4", name: "Sets and tiebreaks", focus: "Plays sets and tiebreaks", ready: "" },
-      { id: "M5", name: "Club competitions", focus: "Plays club competitions", ready: "" },
-      { id: "M6", name: "Tournaments", focus: "STA and other tournaments, with a match plan and a review afterwards", ready: "" },
+      ["M1", "Scoring", "Knows the scoring and court rules", []],
+      ["M2", "Points from a rally", "Plays points starting from a rally", []],
+      ["M3", "Games with serve", "Plays games with serving", []],
+      ["M4", "Sets and tiebreaks", "Plays sets and tiebreaks", []],
+      ["M5", "Club competitions", "Plays club competitions", []],
+      ["M6", "Tournaments", "STA and other tournaments, with a match plan and a review afterwards", []],
     ],
   },
 ];
 
-export const TRACK_BY_ID = Object.fromEntries(TRACKS.map((t) => [t.id, t])) as Record<TrackId, TrackDef>;
+export const TRACK_IDS: TrackId[] = BUILTIN.map((t) => t.id);
 
-/** Position of a stage on its track (0-based), or -1 if it isn't on the ladder. */
-export function stageIndex(track: TrackId, stage: string) {
-  return TRACK_BY_ID[track].stages.findIndex((s) => s.id === stage);
+const stageNumber = (prefix: string, id: string) => (id.startsWith(prefix) ? Number(id.slice(prefix.length)) : NaN);
+
+/** The ladder as you use it: the built-in stages with your edits, plus any stages you added. */
+export function buildLadder(edits: LadderStage[] = []): Ladder {
+  const tracks = BUILTIN.map((t): TrackDef => {
+    const mine = new Map(edits.filter((e) => e.track === t.id).map((e) => [e.stage, e]));
+    const builtIn = t.stages.map(([id, name, focus, checks]): StageDef => {
+      const e = mine.get(id);
+      return e
+        ? { id, name: e.name, focus: e.focus, checks: e.checks, builtIn: true, edited: true }
+        : { id, name, focus, checks: checks.map((text, i) => ({ id: `${id}-${i + 1}`, text })), builtIn: true, edited: false };
+    });
+    const known = new Set(t.stages.map(([id]) => id));
+    const added = [...mine.values()]
+      .filter((e) => !known.has(e.stage) && Number.isInteger(stageNumber(t.prefix, e.stage)))
+      .sort((a, b) => stageNumber(t.prefix, a.stage) - stageNumber(t.prefix, b.stage))
+      .map((e): StageDef => ({ id: e.stage, name: e.name, focus: e.focus, checks: e.checks, builtIn: false, edited: true }));
+    return { id: t.id, name: t.name, prefix: t.prefix, stages: [...builtIn, ...added] };
+  });
+  return Object.assign(Object.fromEntries(tracks.map((t) => [t.id, t])) as Record<TrackId, TrackDef>, { tracks });
 }
 
-export function stageDef(track: TrackId, stage: string): StageDef | null {
-  return TRACK_BY_ID[track].stages.find((s) => s.id === stage) ?? null;
+/** The built-in ladder, with no edits. */
+export const DEFAULT_LADDER = buildLadder();
+
+/** The built-in version of a stage (for "Reset to default"), or null for a stage you added. */
+export function builtInStage(track: TrackId, stage: string): StageDef | null {
+  return DEFAULT_LADDER[track].stages.find((s) => s.id === stage) ?? null;
+}
+
+/** The id for a new stage at the end of a track, e.g. R10. */
+export function nextStageId(ladder: Ladder, track: TrackId) {
+  const t = ladder[track];
+  const max = Math.max(0, ...t.stages.map((s) => stageNumber(t.prefix, s.id)).filter(Number.isFinite));
+  return `${t.prefix}${max + 1}`;
+}
+
+/** Position of a stage on its track (0-based), or -1 if it isn't on the ladder. */
+export function stageIndex(ladder: Ladder, track: TrackId, stage: string) {
+  return ladder[track].stages.findIndex((s) => s.id === stage);
+}
+
+export function stageDef(ladder: Ladder, track: TrackId, stage: string): StageDef | null {
+  return ladder[track].stages.find((s) => s.id === stage) ?? null;
 }
 
 export type Level = "Not assessed" | "Beginner" | "High beginner" | "Intermediate" | "Advanced" | "Competitive";
 
 /**
  * The overall level comes from the Rally stage; Competitive also needs
- * competition play (Match play M5 or above).
+ * competition play (Match play M5 or above). Stages you add after R9 count
+ * the same as R9.
  */
-export function overallLevel(rally: string | null, match: string | null): Level {
-  const r = rally ? stageIndex("rally", rally) : -1;
+export function overallLevel(ladder: Ladder, rally: string | null, match: string | null): Level {
+  const r = rally ? stageIndex(ladder, "rally", rally) : -1;
   if (r < 0) return "Not assessed";
   if (r <= 2) return "Beginner";
   if (r <= 4) return "High beginner";
   if (r <= 6) return "Intermediate";
   if (r === 7) return "Advanced";
-  return (match ? stageIndex("match", match) : -1) >= 4 ? "Competitive" : "Advanced";
+  return (match ? stageIndex(ladder, "match", match) : -1) >= 4 ? "Competitive" : "Advanced";
 }

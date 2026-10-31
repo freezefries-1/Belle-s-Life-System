@@ -22,7 +22,7 @@ So **your backup file is the backup.**
 2. You get `belles-life-system-backup-YYYY-MM-DD.json`, containing every task,
    Brain Dump entry, focus session, highlight, commitment (and its history),
    Kaizen Log, project, milestone, recurring task, weekly review, student,
-   stage and lesson note, with
+   stage, lesson note, ticked milestone and your coaching-ladder wording, with
    every id and link.
 3. Keep it somewhere that isn't only your phone: iCloud Drive, Google Drive or
    email it to yourself. Keep the last few.

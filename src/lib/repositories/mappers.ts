@@ -29,6 +29,8 @@ export const emptyRowSet = (): RowSet => ({
   students: new Map(),
   student_stages: new Map(),
   student_lessons: new Map(),
+  ladder_stages: new Map(),
+  student_checks: new Map(),
 });
 
 const sessionTaskId = (sessionId: string, taskId: string) => `${sessionId}:${taskId}`;
@@ -270,6 +272,30 @@ export function dataToRows(d: PersistedData): RowSet {
       updated_at: x.updatedAt,
     });
   }
+  for (const x of d.ladderStages)
+    rows.ladder_stages.set(x.id, {
+      id: x.id,
+      track: x.track,
+      stage: x.stage,
+      name: x.name,
+      focus: x.focus,
+      checks: x.checks.map((c) => ({ id: c.id, text: c.text })),
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  for (const x of d.studentChecks) {
+    if (!studentIds.has(x.studentId)) continue;
+    rows.student_checks.set(x.id, {
+      id: x.id,
+      student_id: x.studentId,
+      track: x.track,
+      stage: x.stage,
+      check_id: x.checkId,
+      done_on: x.doneOn,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  }
   return rows;
 }
 
@@ -473,6 +499,26 @@ export function rowsToData(rows: RowSet): PersistedData {
       createdAt: x.created_at,
       updatedAt: x.updated_at,
     })),
+    ladderStages: list("ladder_stages").map((x) => ({
+      id: x.id,
+      track: x.track,
+      stage: x.stage,
+      name: x.name,
+      focus: x.focus,
+      checks: x.checks,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
+    studentChecks: list("student_checks").map((x) => ({
+      id: x.id,
+      studentId: x.student_id,
+      track: x.track,
+      stage: x.stage,
+      checkId: x.check_id,
+      doneOn: x.done_on,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
   };
   const parsed = parseEnvelope({ schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), data: raw });
   return parsed ? parsed.data : rowsToEmpty();
@@ -495,6 +541,8 @@ function rowsToEmpty(): PersistedData {
     students: [],
     studentStages: [],
     studentLessons: [],
+    ladderStages: [],
+    studentChecks: [],
   };
 }
 

@@ -37,6 +37,9 @@ import type {
   StudentStage,
   StudentStatus,
   TrackId,
+  LadderCheck,
+  LadderStage,
+  StudentCheck,
 } from "@/types";
 
 /**
@@ -56,8 +59,9 @@ export const STORAGE_KEY = "belles-life-system:v1";
  * 5 — Phase 6: `weeklyReviews`, `weeklyPriorities`; commitments gain
  *     `pausedPeriods`, milestones `completedAt`, sessions `allocations`.
  * 6 — Students: `students`, `studentStages`, `studentLessons`.
+ * 7 — Coaching ladder: `ladderStages` (your wording), `studentChecks` (milestones reached).
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -81,6 +85,8 @@ export const EMPTY_DATA: PersistedData = {
   students: [],
   studentStages: [],
   studentLessons: [],
+  ladderStages: [],
+  studentChecks: [],
 };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
@@ -428,6 +434,54 @@ export function parseStudentLesson(raw: unknown): StudentLesson | null {
   };
 }
 
+function parseChecks(raw: unknown): LadderCheck[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: LadderCheck[] = [];
+  for (const c of raw) {
+    if (!isObj(c)) continue;
+    const id = str(c.id)?.trim();
+    const text = str(c.text)?.trim();
+    if (!id || !text || id.length > 100 || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, text });
+  }
+  return out;
+}
+
+export function parseLadderStage(raw: unknown): LadderStage | null {
+  if (!isObj(raw)) return null;
+  const track = oneOf(raw.track, TRACK_IDS);
+  const stage = str(raw.stage)?.trim();
+  const name = str(raw.name)?.trim();
+  const createdAt = timestamp(raw.createdAt);
+  if (!track || !stage || stage.length > 20 || !name || !createdAt) return null;
+  return {
+    // The id always matches its track and stage, so there's one per stage.
+    id: `${track}:${stage}`,
+    track,
+    stage,
+    name,
+    focus: str(raw.focus) ?? "",
+    checks: parseChecks(raw.checks),
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+  };
+}
+
+export function parseStudentCheck(raw: unknown): StudentCheck | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const studentId = str(raw.studentId);
+  const track = oneOf(raw.track, TRACK_IDS);
+  const stage = str(raw.stage)?.trim();
+  const checkId = str(raw.checkId)?.trim();
+  const doneOn = isoDate(raw.doneOn);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !studentId || !track || !stage || stage.length > 20 || !checkId || checkId.length > 100 || !doneOn || !createdAt) return null;
+  return { id, studentId, track, stage, checkId, doneOn, createdAt, updatedAt: timestamp(raw.updatedAt) ?? createdAt };
+}
+
 export function parseCompletion(raw: unknown): CommitmentCompletion | null {
   if (!isObj(raw)) return null;
   const id = str(raw.id);
@@ -530,7 +584,7 @@ export interface ParseResult {
     completions: number;
     /** Weekly priorities whose review is missing, or beyond three per review. */
     priorities: number;
-    /** Student stages or lesson notes whose student is missing. */
+    /** Student stages, lesson notes or ticked milestones whose student is missing. */
     studentRecords: number;
     /** Repeated copies: the same id twice, or a second record for one day or week. */
     duplicates: number;
@@ -631,6 +685,13 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
   const lessonsParsed = parseList(migrated.studentLessons, parseStudentLesson);
   const lessonsKept = dedupeById(lessonsParsed.parsed);
   const studentLessons = lessonsKept.filter((x) => studentIds.has(x.studentId));
+  // Ladder: one entry per stage. Milestones reached: one per student and milestone.
+  const ladderParsed = parseList(migrated.ladderStages, parseLadderStage);
+  const ladderStages = uniqueBy(ladderParsed.parsed, (x) => x.id, (x) => x.updatedAt);
+  const checksParsed = parseList(migrated.studentChecks, parseStudentCheck);
+  const checksKept = dedupeById(checksParsed.parsed);
+  const checksLinked = checksKept.filter((x) => studentIds.has(x.studentId));
+  const studentChecks = uniqueBy(checksLinked, (x) => `${x.studentId}|${x.checkId}`, (x) => x.updatedAt);
 
   const highlightsKept = dedupeById(highlights.parsed);
   const commitmentsKept = dedupeById(commitments.parsed);
@@ -655,6 +716,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     students,
     studentStages,
     studentLessons,
+    ladderStages,
+    studentChecks,
   };
 
   const unreadable =
@@ -673,12 +736,15 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     prioritiesParsed.dropped +
     studentsParsed.dropped +
     stagesParsed.dropped +
-    lessonsParsed.dropped;
+    lessonsParsed.dropped +
+    ladderParsed.dropped +
+    checksParsed.dropped;
   const removed = {
     milestones: dedupeById(milestonesParsed.parsed).length - milestones.length,
     completions: completionsKept.length - completionsLinked.length,
     priorities: prioritiesKept.length - weeklyPriorities.length,
-    studentRecords: stagesKept.length - stagesLinked.length + (lessonsKept.length - studentLessons.length),
+    studentRecords:
+      stagesKept.length - stagesLinked.length + (lessonsKept.length - studentLessons.length) + (checksKept.length - checksLinked.length),
     duplicates:
       parsedTaskCount -
       tasks.length +
@@ -697,7 +763,10 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       (studentsParsed.parsed.length - students.length) +
       (stagesParsed.parsed.length - stagesKept.length) +
       (stagesLinked.length - studentStages.length) +
-      (lessonsParsed.parsed.length - lessonsKept.length),
+      (lessonsParsed.parsed.length - lessonsKept.length) +
+      (ladderParsed.parsed.length - ladderStages.length) +
+      (checksParsed.parsed.length - checksKept.length) +
+      (checksLinked.length - studentChecks.length),
   };
 
   return {
@@ -741,6 +810,10 @@ function migrate(version: number, data: Obj): Obj | null {
   if (version < 6) {
     // v5 → v6: students start empty. Nothing existing is touched.
     current = { ...current, students: [], studentStages: [], studentLessons: [] };
+  }
+  if (version < 7) {
+    // v6 → v7: the built-in ladder applies until you edit it; no milestones ticked yet.
+    current = { ...current, ladderStages: [], studentChecks: [] };
   }
   return current;
 }

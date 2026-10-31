@@ -422,6 +422,39 @@ export interface StudentLesson {
 
 export type StudentLessonInput = Pick<StudentLesson, "date"> & Partial<Pick<StudentLesson, "focus" | "wentWell" | "workOn">>;
 
+/** One milestone in a stage's "ready to move on" checklist. The id stays the same when the text is reworded. */
+export interface LadderCheck {
+  id: string;
+  text: string;
+}
+
+/** Your wording for a stage: overrides a built-in stage, or a stage you added. `id` is "<track>:<stage>". */
+export interface LadderStage {
+  id: string;
+  track: TrackId;
+  stage: string;
+  name: string;
+  focus: string;
+  checks: LadderCheck[];
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+/** New milestones have no id yet; one is given when saved. */
+export type LadderStageInput = Pick<LadderStage, "name"> & Partial<Pick<LadderStage, "focus">> & { checks?: { id?: string; text: string }[] };
+
+/** A milestone a student has reached, with the date. One per student and milestone. */
+export interface StudentCheck {
+  id: string;
+  studentId: string;
+  track: TrackId;
+  stage: string;
+  checkId: string;
+  doneOn: ISODate;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
@@ -439,6 +472,8 @@ export interface PersistedData {
   students: Student[];
   studentStages: StudentStage[];
   studentLessons: StudentLesson[];
+  ladderStages: LadderStage[];
+  studentChecks: StudentCheck[];
 }
 
 /** What components read: saved data + today's date. */

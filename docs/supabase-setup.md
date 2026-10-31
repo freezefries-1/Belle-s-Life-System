@@ -17,6 +17,7 @@ Run each file in `supabase/migrations/` **once, in order** (the file names start
 2. `20261013000000_stage_a_sync_safety.sql` updates the save and import functions, and adds the account check.
 3. `20261014000000_capture_kept.sql` lets a Brain Dump entry be **kept as a note**. Run it **before** deploying the version of the app that has "Keep as note".
 4. `20261029000000_students.sql` adds the **Students** tables (students, their stages, lesson notes), with the same owner-only protection. Run it **before** deploying the version of the app that has Students.
+5. `20261031000000_coaching_ladder.sql` adds your **coaching ladder** wording and the **milestones** each student has ticked. Run it **before** deploying the version of the app that has the editable ladder.
 
 For each file:
 1. On GitHub, open the file and click **Raw**. Select everything (Cmd/Ctrl+A) and copy it.

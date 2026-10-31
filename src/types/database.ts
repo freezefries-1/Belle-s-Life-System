@@ -34,6 +34,8 @@ export type WeeklyPriorityRow = AppRow<"weekly_priorities">;
 export type StudentRow = AppRow<"students">;
 export type StudentStageRow = AppRow<"student_stages">;
 export type StudentLessonRow = AppRow<"student_lessons">;
+export type LadderStageRow = AppRow<"ladder_stages", { checks: { id: string; text: string }[] }>;
+export type StudentCheckRow = AppRow<"student_checks">;
 
 export interface TableRows {
   projects: ProjectRow;
@@ -52,6 +54,8 @@ export interface TableRows {
   students: StudentRow;
   student_stages: StudentStageRow;
   student_lessons: StudentLessonRow;
+  ladder_stages: LadderStageRow;
+  student_checks: StudentCheckRow;
 }
 
 export type TableName = keyof TableRows;
@@ -81,4 +85,6 @@ export const TABLE_ORDER: TableName[] = [
   "students",
   "student_stages",
   "student_lessons",
+  "ladder_stages",
+  "student_checks",
 ];

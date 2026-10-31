@@ -146,6 +146,48 @@ export type Database = {
         }
         Relationships: []
       }
+      ladder_stages: {
+        Row: {
+          checks: Json
+          created_at: string
+          focus: string
+          id: string
+          name: string
+          stage: string
+          synced_at: string
+          track: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          checks?: Json
+          created_at: string
+          focus?: string
+          id: string
+          name: string
+          stage: string
+          synced_at?: string
+          track: string
+          updated_at: string
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          checks?: Json
+          created_at?: string
+          focus?: string
+          id?: string
+          name?: string
+          stage?: string
+          synced_at?: string
+          track?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       micro_commitment_completions: {
         Row: {
           commitment_id: string
@@ -551,6 +593,55 @@ export type Database = {
           version?: number
         }
         Relationships: []
+      }
+      student_checks: {
+        Row: {
+          check_id: string
+          created_at: string
+          done_on: string
+          id: string
+          stage: string
+          student_id: string
+          synced_at: string
+          track: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          check_id: string
+          created_at: string
+          done_on: string
+          id: string
+          stage: string
+          student_id: string
+          synced_at?: string
+          track: string
+          updated_at: string
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          check_id?: string
+          created_at?: string
+          done_on?: string
+          id?: string
+          stage?: string
+          student_id?: string
+          synced_at?: string
+          track?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_checks_user_id_student_id_fkey"
+            columns: ["user_id", "student_id"]
+            referencedRelation: "students"
+            referencedColumns: ["user_id", "id"]
+          },
+        ]
       }
       student_lessons: {
         Row: {
