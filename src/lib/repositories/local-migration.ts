@@ -34,6 +34,8 @@ export const TABLE_LABELS: Record<TableName, string> = {
   student_lessons: "Lesson notes",
   ladder_stages: "Ladder stages",
   student_checks: "Milestones reached",
+  student_matches: "Matches",
+  student_benchmarks: "Benchmark results",
 };
 
 /** Tables where one record per day/week is allowed, so a different id can still be a duplicate. */

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { LessonDialog } from "@/components/students/lesson-dialog";
 import { SetStageDialog } from "@/components/students/set-stage-dialog";
+import { BenchmarksSection, MatchesSection, StageTimeline } from "@/components/students/performance-sections";
 import { StudentEditorDialog } from "@/components/students/student-editor-dialog";
 import { LevelBadge, STUDENT_STATUSES, StudentFacts } from "@/components/students/student-visuals";
 import { Badge } from "@/components/ui/badge";
@@ -166,7 +167,11 @@ export function StudentPage() {
             />
           ))}
         </div>
+        <StageTimeline ladder={ladder} stages={history} today={workspace.today} />
       </section>
+
+      <BenchmarksSection student={student} />
+      <MatchesSection student={student} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
         <section aria-labelledby="lessons-heading" className="flex flex-col gap-3">

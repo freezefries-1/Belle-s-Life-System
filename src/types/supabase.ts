@@ -594,6 +594,64 @@ export type Database = {
         }
         Relationships: []
       }
+      student_benchmarks: {
+        Row: {
+          created_at: string
+          higher_is_better: boolean
+          id: string
+          measured_on: string
+          name: string
+          note: string
+          student_id: string
+          synced_at: string
+          test: string
+          unit: string
+          updated_at: string
+          user_id: string
+          value: number
+          version: number
+        }
+        Insert: {
+          created_at: string
+          higher_is_better?: boolean
+          id: string
+          measured_on: string
+          name: string
+          note?: string
+          student_id: string
+          synced_at?: string
+          test: string
+          unit: string
+          updated_at: string
+          user_id?: string
+          value: number
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          higher_is_better?: boolean
+          id?: string
+          measured_on?: string
+          name?: string
+          note?: string
+          student_id?: string
+          synced_at?: string
+          test?: string
+          unit?: string
+          updated_at?: string
+          user_id?: string
+          value?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_benchmarks_user_id_student_id_fkey"
+            columns: ["user_id", "student_id"]
+            referencedRelation: "students"
+            referencedColumns: ["user_id", "id"]
+          },
+        ]
+      }
       student_checks: {
         Row: {
           check_id: string
@@ -686,6 +744,85 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "student_lessons_user_id_student_id_fkey"
+            columns: ["user_id", "student_id"]
+            referencedRelation: "students"
+            referencedColumns: ["user_id", "id"]
+          },
+        ]
+      }
+      student_matches: {
+        Row: {
+          created_at: string
+          double_faults: number | null
+          event: string
+          first_in: number | null
+          first_total: number | null
+          id: string
+          kind: string
+          notes: string
+          opponent: string
+          played_on: string
+          result: string
+          score: string
+          second_in: number | null
+          second_total: number | null
+          student_id: string
+          synced_at: string
+          unforced_errors: number | null
+          updated_at: string
+          user_id: string
+          version: number
+          winners: number | null
+        }
+        Insert: {
+          created_at: string
+          double_faults?: number | null
+          event?: string
+          first_in?: number | null
+          first_total?: number | null
+          id: string
+          kind: string
+          notes?: string
+          opponent?: string
+          played_on: string
+          result: string
+          score?: string
+          second_in?: number | null
+          second_total?: number | null
+          student_id: string
+          synced_at?: string
+          unforced_errors?: number | null
+          updated_at: string
+          user_id?: string
+          version?: number
+          winners?: number | null
+        }
+        Update: {
+          created_at?: string
+          double_faults?: number | null
+          event?: string
+          first_in?: number | null
+          first_total?: number | null
+          id?: string
+          kind?: string
+          notes?: string
+          opponent?: string
+          played_on?: string
+          result?: string
+          score?: string
+          second_in?: number | null
+          second_total?: number | null
+          student_id?: string
+          synced_at?: string
+          unforced_errors?: number | null
+          updated_at?: string
+          user_id?: string
+          version?: number
+          winners?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_matches_user_id_student_id_fkey"
             columns: ["user_id", "student_id"]
             referencedRelation: "students"
             referencedColumns: ["user_id", "id"]

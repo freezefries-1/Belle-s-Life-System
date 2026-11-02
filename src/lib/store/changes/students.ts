@@ -5,8 +5,12 @@ import type {
   ISODateTime,
   PersistedData,
   Student,
+  StudentBenchmark,
+  StudentBenchmarkInput,
   StudentCheck,
   StudentInput,
+  StudentMatch,
+  StudentMatchInput,
   StudentLesson,
   StudentLessonInput,
   StudentStage,
@@ -44,6 +48,8 @@ export interface RemovedStudent {
   stages: StudentStage[];
   lessons: StudentLesson[];
   checks: StudentCheck[];
+  matches: StudentMatch[];
+  benchmarks: StudentBenchmark[];
 }
 
 /** Removes the student with their stages and lesson notes; returns them so Undo can put everything back. */
@@ -56,6 +62,8 @@ export function deleteStudent(d: PersistedData, id: string): { data: PersistedDa
       stages: d.studentStages.filter((s) => s.studentId === id),
       lessons: d.studentLessons.filter((l) => l.studentId === id),
       checks: d.studentChecks.filter((c) => c.studentId === id),
+      matches: d.studentMatches.filter((m) => m.studentId === id),
+      benchmarks: d.studentBenchmarks.filter((b) => b.studentId === id),
     },
     data: {
       ...d,
@@ -63,6 +71,8 @@ export function deleteStudent(d: PersistedData, id: string): { data: PersistedDa
       studentStages: d.studentStages.filter((s) => s.studentId !== id),
       studentLessons: d.studentLessons.filter((l) => l.studentId !== id),
       studentChecks: d.studentChecks.filter((c) => c.studentId !== id),
+      studentMatches: d.studentMatches.filter((m) => m.studentId !== id),
+      studentBenchmarks: d.studentBenchmarks.filter((b) => b.studentId !== id),
     },
   };
 }
@@ -75,6 +85,8 @@ export function restoreStudent(d: PersistedData, removed: RemovedStudent): Persi
     studentStages: [...d.studentStages, ...removed.stages],
     studentLessons: [...d.studentLessons, ...removed.lessons],
     studentChecks: [...d.studentChecks, ...(removed.checks ?? [])],
+    studentMatches: [...d.studentMatches, ...(removed.matches ?? [])],
+    studentBenchmarks: [...d.studentBenchmarks, ...(removed.benchmarks ?? [])],
   };
 }
 
@@ -160,3 +172,48 @@ export function setStudentCheck(
   const check: StudentCheck = { id: createId(), studentId, track, stage, checkId, doneOn: done, createdAt: now, updatedAt: now };
   return { ...d, studentChecks: [...d.studentChecks, check] };
 }
+
+/* ---------------- matches ---------------- */
+
+const hasStudent = (d: PersistedData, id: string) => d.students.some((s) => s.id === id);
+
+export const addMatch = (d: PersistedData, match: StudentMatch): PersistedData =>
+  hasStudent(d, match.studentId) ? { ...d, studentMatches: [...d.studentMatches, match] } : d;
+
+export function updateMatch(d: PersistedData, id: string, input: StudentMatchInput, now: ISODateTime): PersistedData {
+  if (!d.studentMatches.some((m) => m.id === id)) return d;
+  return {
+    ...d,
+    studentMatches: d.studentMatches.map((m) =>
+      m.id === id
+        ? { ...m, ...input, event: input.event.trim(), opponent: input.opponent.trim(), score: input.score.trim(), notes: input.notes.trim(), updatedAt: now }
+        : m,
+    ),
+  };
+}
+
+export const deleteMatch = (d: PersistedData, id: string): PersistedData => ({ ...d, studentMatches: d.studentMatches.filter((m) => m.id !== id) });
+
+export const restoreMatch = (d: PersistedData, match: StudentMatch): PersistedData =>
+  d.studentMatches.some((m) => m.id === match.id) ? d : addMatch(d, match);
+
+/* ---------------- benchmark results ---------------- */
+
+export const addBenchmark = (d: PersistedData, result: StudentBenchmark): PersistedData =>
+  hasStudent(d, result.studentId) ? { ...d, studentBenchmarks: [...d.studentBenchmarks, result] } : d;
+
+export function updateBenchmark(d: PersistedData, id: string, input: StudentBenchmarkInput, now: ISODateTime): PersistedData {
+  if (!d.studentBenchmarks.some((b) => b.id === id)) return d;
+  return {
+    ...d,
+    studentBenchmarks: d.studentBenchmarks.map((b) => (b.id === id ? { ...b, ...input, name: input.name.trim(), note: input.note.trim(), updatedAt: now } : b)),
+  };
+}
+
+export const deleteBenchmark = (d: PersistedData, id: string): PersistedData => ({
+  ...d,
+  studentBenchmarks: d.studentBenchmarks.filter((b) => b.id !== id),
+});
+
+export const restoreBenchmark = (d: PersistedData, result: StudentBenchmark): PersistedData =>
+  d.studentBenchmarks.some((b) => b.id === result.id) ? d : addBenchmark(d, result);

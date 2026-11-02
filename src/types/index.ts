@@ -455,6 +455,54 @@ export interface StudentCheck {
   updatedAt: ISODateTime;
 }
 
+export type MatchKind = "tournament" | "club" | "practice";
+
+/** One singles match a student played. Serve counts are optional; percentages are worked out from them. */
+export interface StudentMatch {
+  id: string;
+  studentId: string;
+  playedOn: ISODate;
+  kind: MatchKind;
+  event: string;
+  opponent: string;
+  result: "win" | "loss";
+  score: string;
+  firstIn: number | null;
+  firstTotal: number | null;
+  secondIn: number | null;
+  secondTotal: number | null;
+  doubleFaults: number | null;
+  unforcedErrors: number | null;
+  winners: number | null;
+  notes: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type StudentMatchInput = Omit<StudentMatch, "id" | "studentId" | "createdAt" | "updatedAt">;
+
+export type BenchmarkUnit = "balls" | "out_of_10" | "count" | "seconds";
+
+/**
+ * One benchmark result. `test` is a built-in test id (e.g. "first_serves") or
+ * "custom:<name>"; the name, unit and direction travel with each result.
+ */
+export interface StudentBenchmark {
+  id: string;
+  studentId: string;
+  test: string;
+  name: string;
+  unit: BenchmarkUnit;
+  higherIsBetter: boolean;
+  value: number;
+  measuredOn: ISODate;
+  note: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type StudentBenchmarkInput = Pick<StudentBenchmark, "test" | "name" | "unit" | "higherIsBetter" | "value" | "measuredOn" | "note">;
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
@@ -474,6 +522,8 @@ export interface PersistedData {
   studentLessons: StudentLesson[];
   ladderStages: LadderStage[];
   studentChecks: StudentCheck[];
+  studentMatches: StudentMatch[];
+  studentBenchmarks: StudentBenchmark[];
 }
 
 /** What components read: saved data + today's date. */

@@ -292,6 +292,39 @@ await apply(a, [{ table: "students", op: "delete", id: "st2", expected_version: 
 r = await a.client.from("student_checks").select("id").eq("student_id", "st2");
 check("Deleting a student removes their ticked milestones", r.data?.length === 0);
 
+// Matches and benchmark results: owner-only, sensible values only, removed with the student.
+const matchRow = (id, extra = {}) => ({ id, student_id: "st3", played_on: "2026-10-20", kind: "tournament", event: "", opponent: "", result: "win", score: "6-4", notes: "", created_at: now, updated_at: now, ...extra });
+const benchRow = (id, extra = {}) => ({ id, student_id: "st3", test: "first_serves", name: "First serves in", unit: "out_of_10", higher_is_better: true, value: 7, measured_on: "2026-10-20", note: "", created_at: now, updated_at: now, ...extra });
+r = await apply(a, [
+  { table: "students", op: "upsert", id: "st3", row: student("st3"), expected_version: null },
+  { table: "student_matches", op: "upsert", id: "sm1", row: matchRow("sm1", { first_in: 32, first_total: 50 }), expected_version: null },
+  { table: "student_benchmarks", op: "upsert", id: "sb1", row: benchRow("sb1"), expected_version: null },
+  { table: "student_benchmarks", op: "upsert", id: "sb2", row: benchRow("sb2", { test: "custom:spider drill", name: "Spider drill", unit: "seconds", higher_is_better: false, value: 19.2 }), expected_version: null },
+]);
+check("A match and benchmark results save (including a decimal time)", r.data?.ok === true, JSON.stringify(r.data ?? r.error));
+r = await a.client.from("student_benchmarks").select("value").eq("id", "sb2").single();
+check("…and a decimal comes back exactly", Number(r.data?.value) === 19.2, JSON.stringify(r.data));
+r = await b.client.from("student_matches").select("id");
+check("Another account can't see matches", !r.error && r.data.length === 0);
+r = await b.client.from("student_benchmarks").select("id");
+check("Another account can't see benchmark results", !r.error && r.data.length === 0);
+r = await anon.from("student_matches").select("id");
+check("Signed-out visitors can't see matches", (r.data ?? []).length === 0);
+r = await apply(b, [{ table: "student_matches", op: "upsert", id: "sm-b", row: matchRow("sm-b"), expected_version: null }]);
+check("Another account can't add a match for the student", r.data?.ok !== true);
+r = await apply(a, [{ table: "student_matches", op: "upsert", id: "sm2", row: matchRow("sm2", { first_in: 60, first_total: 50 }), expected_version: null }]);
+check("More first serves in than hit is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "student_matches", op: "upsert", id: "sm3", row: matchRow("sm3", { result: "draw" }), expected_version: null }]);
+check("A result other than win or loss is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "student_benchmarks", op: "upsert", id: "sb3", row: benchRow("sb3", { value: 11 }), expected_version: null }]);
+check("More than 10 out of 10 is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "student_benchmarks", op: "upsert", id: "sb4", row: benchRow("sb4", { unit: "balls", value: -1 }), expected_version: null }]);
+check("A negative result is refused", r.data?.ok !== true);
+r = await a.client.from("students").select("version").eq("id", "st3").single();
+await apply(a, [{ table: "students", op: "delete", id: "st3", expected_version: r.data.version }]);
+const left = [(await a.client.from("student_matches").select("id").eq("student_id", "st3")).data, (await a.client.from("student_benchmarks").select("id").eq("student_id", "st3")).data];
+check("Deleting a student removes their matches and results", left.every((x) => x.length === 0));
+
 // Profiles: only the display name can be changed.
 r = await a.client.from("profiles").update({ display_name: "Belle" }).eq("id", a.id).select("display_name");
 check("Profile display name can be updated", !r.error && r.data[0]?.display_name === "Belle", r.error?.message);

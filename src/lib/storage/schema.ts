@@ -40,6 +40,10 @@ import type {
   LadderCheck,
   LadderStage,
   StudentCheck,
+  BenchmarkUnit,
+  MatchKind,
+  StudentBenchmark,
+  StudentMatch,
 } from "@/types";
 
 /**
@@ -60,8 +64,9 @@ export const STORAGE_KEY = "belles-life-system:v1";
  *     `pausedPeriods`, milestones `completedAt`, sessions `allocations`.
  * 6 — Students: `students`, `studentStages`, `studentLessons`.
  * 7 — Coaching ladder: `ladderStages` (your wording), `studentChecks` (milestones reached).
+ * 8 — Matches and benchmarks: `studentMatches`, `studentBenchmarks`.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -87,6 +92,8 @@ export const EMPTY_DATA: PersistedData = {
   studentLessons: [],
   ladderStages: [],
   studentChecks: [],
+  studentMatches: [],
+  studentBenchmarks: [],
 };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
@@ -482,6 +489,75 @@ export function parseStudentCheck(raw: unknown): StudentCheck | null {
   return { id, studentId, track, stage, checkId, doneOn, createdAt, updatedAt: timestamp(raw.updatedAt) ?? createdAt };
 }
 
+const MATCH_KINDS: MatchKind[] = ["tournament", "club", "practice"];
+const BENCHMARK_UNITS: BenchmarkUnit[] = ["balls", "out_of_10", "count", "seconds"];
+/** A whole, non-negative count, or null when it wasn't recorded. */
+const countOrNull = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100000 ? v : null);
+
+export function parseStudentMatch(raw: unknown): StudentMatch | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const studentId = str(raw.studentId);
+  const playedOn = isoDate(raw.playedOn);
+  const result = oneOf(raw.result, ["win", "loss"] as const);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !studentId || !playedOn || !result || !createdAt) return null;
+  let firstIn = countOrNull(raw.firstIn);
+  let firstTotal = countOrNull(raw.firstTotal);
+  let secondIn = countOrNull(raw.secondIn);
+  let secondTotal = countOrNull(raw.secondTotal);
+  // "In" can't be more than "hit"; if it is, the pair can't be trusted, so neither is kept.
+  if (firstIn !== null && firstTotal !== null && firstIn > firstTotal) firstIn = firstTotal = null;
+  if (secondIn !== null && secondTotal !== null && secondIn > secondTotal) secondIn = secondTotal = null;
+  return {
+    id,
+    studentId,
+    playedOn,
+    kind: oneOf(raw.kind, MATCH_KINDS) ?? "practice",
+    event: str(raw.event) ?? "",
+    opponent: str(raw.opponent) ?? "",
+    result,
+    score: str(raw.score) ?? "",
+    firstIn,
+    firstTotal,
+    secondIn,
+    secondTotal,
+    doubleFaults: countOrNull(raw.doubleFaults),
+    unforcedErrors: countOrNull(raw.unforcedErrors),
+    winners: countOrNull(raw.winners),
+    notes: str(raw.notes) ?? "",
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+  };
+}
+
+export function parseStudentBenchmark(raw: unknown): StudentBenchmark | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const studentId = str(raw.studentId);
+  const test = str(raw.test)?.trim();
+  const name = str(raw.name)?.trim();
+  const unit = oneOf(raw.unit, BENCHMARK_UNITS);
+  const value = typeof raw.value === "string" ? Number(raw.value) : raw.value;
+  const measuredOn = isoDate(raw.measuredOn);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !studentId || !test || test.length > 120 || !name || !unit || !measuredOn || !createdAt) return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100000 || (unit === "out_of_10" && value > 10)) return null;
+  return {
+    id,
+    studentId,
+    test,
+    name,
+    unit,
+    higherIsBetter: typeof raw.higherIsBetter === "boolean" ? raw.higherIsBetter : true,
+    value,
+    measuredOn,
+    note: str(raw.note) ?? "",
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+  };
+}
+
 export function parseCompletion(raw: unknown): CommitmentCompletion | null {
   if (!isObj(raw)) return null;
   const id = str(raw.id);
@@ -584,7 +660,7 @@ export interface ParseResult {
     completions: number;
     /** Weekly priorities whose review is missing, or beyond three per review. */
     priorities: number;
-    /** Student stages, lesson notes or ticked milestones whose student is missing. */
+    /** Student stages, lesson notes, ticked milestones, matches or benchmark results whose student is missing. */
     studentRecords: number;
     /** Repeated copies: the same id twice, or a second record for one day or week. */
     duplicates: number;
@@ -692,6 +768,12 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
   const checksKept = dedupeById(checksParsed.parsed);
   const checksLinked = checksKept.filter((x) => studentIds.has(x.studentId));
   const studentChecks = uniqueBy(checksLinked, (x) => `${x.studentId}|${x.checkId}`, (x) => x.updatedAt);
+  const matchesParsed = parseList(migrated.studentMatches, parseStudentMatch);
+  const matchesKept = dedupeById(matchesParsed.parsed);
+  const studentMatches = matchesKept.filter((x) => studentIds.has(x.studentId));
+  const benchParsed = parseList(migrated.studentBenchmarks, parseStudentBenchmark);
+  const benchKept = dedupeById(benchParsed.parsed);
+  const studentBenchmarks = benchKept.filter((x) => studentIds.has(x.studentId));
 
   const highlightsKept = dedupeById(highlights.parsed);
   const commitmentsKept = dedupeById(commitments.parsed);
@@ -718,6 +800,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     studentLessons,
     ladderStages,
     studentChecks,
+    studentMatches,
+    studentBenchmarks,
   };
 
   const unreadable =
@@ -738,13 +822,20 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     stagesParsed.dropped +
     lessonsParsed.dropped +
     ladderParsed.dropped +
-    checksParsed.dropped;
+    checksParsed.dropped +
+    matchesParsed.dropped +
+    benchParsed.dropped;
   const removed = {
     milestones: dedupeById(milestonesParsed.parsed).length - milestones.length,
     completions: completionsKept.length - completionsLinked.length,
     priorities: prioritiesKept.length - weeklyPriorities.length,
     studentRecords:
-      stagesKept.length - stagesLinked.length + (lessonsKept.length - studentLessons.length) + (checksKept.length - checksLinked.length),
+      stagesKept.length -
+      stagesLinked.length +
+      (lessonsKept.length - studentLessons.length) +
+      (checksKept.length - checksLinked.length) +
+      (matchesKept.length - studentMatches.length) +
+      (benchKept.length - studentBenchmarks.length),
     duplicates:
       parsedTaskCount -
       tasks.length +
@@ -766,7 +857,9 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       (lessonsParsed.parsed.length - lessonsKept.length) +
       (ladderParsed.parsed.length - ladderStages.length) +
       (checksParsed.parsed.length - checksKept.length) +
-      (checksLinked.length - studentChecks.length),
+      (checksLinked.length - studentChecks.length) +
+      (matchesParsed.parsed.length - matchesKept.length) +
+      (benchParsed.parsed.length - benchKept.length),
   };
 
   return {
@@ -814,6 +907,10 @@ function migrate(version: number, data: Obj): Obj | null {
   if (version < 7) {
     // v6 → v7: the built-in ladder applies until you edit it; no milestones ticked yet.
     current = { ...current, ladderStages: [], studentChecks: [] };
+  }
+  if (version < 8) {
+    // v7 → v8: no matches or benchmark results yet.
+    current = { ...current, studentMatches: [], studentBenchmarks: [] };
   }
   return current;
 }

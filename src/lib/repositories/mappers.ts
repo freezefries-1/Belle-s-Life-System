@@ -31,6 +31,8 @@ export const emptyRowSet = (): RowSet => ({
   student_lessons: new Map(),
   ladder_stages: new Map(),
   student_checks: new Map(),
+  student_matches: new Map(),
+  student_benchmarks: new Map(),
 });
 
 const sessionTaskId = (sessionId: string, taskId: string) => `${sessionId}:${taskId}`;
@@ -296,6 +298,45 @@ export function dataToRows(d: PersistedData): RowSet {
       updated_at: x.updatedAt,
     });
   }
+  for (const x of d.studentMatches) {
+    if (!studentIds.has(x.studentId)) continue;
+    rows.student_matches.set(x.id, {
+      id: x.id,
+      student_id: x.studentId,
+      played_on: x.playedOn,
+      kind: x.kind,
+      event: x.event,
+      opponent: x.opponent,
+      result: x.result,
+      score: x.score,
+      first_in: x.firstIn,
+      first_total: x.firstTotal,
+      second_in: x.secondIn,
+      second_total: x.secondTotal,
+      double_faults: x.doubleFaults,
+      unforced_errors: x.unforcedErrors,
+      winners: x.winners,
+      notes: x.notes,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  }
+  for (const x of d.studentBenchmarks) {
+    if (!studentIds.has(x.studentId)) continue;
+    rows.student_benchmarks.set(x.id, {
+      id: x.id,
+      student_id: x.studentId,
+      test: x.test,
+      name: x.name,
+      unit: x.unit,
+      higher_is_better: x.higherIsBetter,
+      value: x.value,
+      measured_on: x.measuredOn,
+      note: x.note,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  }
   return rows;
 }
 
@@ -519,6 +560,40 @@ export function rowsToData(rows: RowSet): PersistedData {
       createdAt: x.created_at,
       updatedAt: x.updated_at,
     })),
+    studentMatches: list("student_matches").map((x) => ({
+      id: x.id,
+      studentId: x.student_id,
+      playedOn: x.played_on,
+      kind: x.kind,
+      event: x.event,
+      opponent: x.opponent,
+      result: x.result,
+      score: x.score,
+      firstIn: x.first_in,
+      firstTotal: x.first_total,
+      secondIn: x.second_in,
+      secondTotal: x.second_total,
+      doubleFaults: x.double_faults,
+      unforcedErrors: x.unforced_errors,
+      winners: x.winners,
+      notes: x.notes,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
+    studentBenchmarks: list("student_benchmarks").map((x) => ({
+      id: x.id,
+      studentId: x.student_id,
+      test: x.test,
+      name: x.name,
+      unit: x.unit,
+      higherIsBetter: x.higher_is_better,
+      // Postgres "numeric" can arrive as a string.
+      value: Number(x.value),
+      measuredOn: x.measured_on,
+      note: x.note,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
   };
   const parsed = parseEnvelope({ schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), data: raw });
   return parsed ? parsed.data : rowsToEmpty();
@@ -543,6 +618,8 @@ function rowsToEmpty(): PersistedData {
     studentLessons: [],
     ladderStages: [],
     studentChecks: [],
+    studentMatches: [],
+    studentBenchmarks: [],
   };
 }
 

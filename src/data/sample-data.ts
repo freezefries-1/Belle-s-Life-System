@@ -8,6 +8,7 @@ import { createTemplate } from "@/lib/recurrence/recurrence";
 import { createSession, endSession, runSession } from "@/lib/sessions/session-model";
 import { createWeeklyReview } from "@/lib/review/weekly";
 import { createId } from "@/lib/id";
+import { BUILTIN_TESTS, createBenchmark, createMatch, customTestKey } from "@/lib/students/performance";
 import { createLesson, createStudent } from "@/lib/students/student-model";
 import { createTask } from "@/lib/tasks/task-model";
 import type {
@@ -268,7 +269,54 @@ export function createSampleData(today: ISODate): PersistedData {
     lesson(ethan.id, -2, "Second serve under pressure; match plan", "Kick serve held up in the practice set", "Return position against lefties"),
   ];
 
+  // Ethan's recent matches (some with serve stats), and benchmark results over the last few months.
+  const match = (offset: number, kind: "tournament" | "club" | "practice", event: string, result: "win" | "loss", score: string, stats: Partial<Record<"firstIn" | "firstTotal" | "doubleFaults" | "unforcedErrors" | "winners", number>> = {}) =>
+    createMatch(
+      ethan.id,
+      {
+        playedOn: d(offset),
+        kind,
+        event,
+        opponent: "",
+        result,
+        score,
+        firstIn: stats.firstIn ?? null,
+        firstTotal: stats.firstTotal ?? null,
+        secondIn: null,
+        secondTotal: null,
+        doubleFaults: stats.doubleFaults ?? null,
+        unforcedErrors: stats.unforcedErrors ?? null,
+        winners: stats.winners ?? null,
+        notes: "",
+      },
+      at(offset, 20),
+    );
+  const studentMatches = [
+    match(-130, "club", "Club junior league", "win", "6-3 6-4"),
+    match(-100, "tournament", "STA Junior Tour", "loss", "4-6 3-6", { firstIn: 28, firstTotal: 52, doubleFaults: 6 }),
+    match(-72, "tournament", "STA Junior Tour", "win", "6-4 3-6 10-7", { firstIn: 35, firstTotal: 58, doubleFaults: 4, unforcedErrors: 21, winners: 12 }),
+    match(-40, "club", "Club junior league", "win", "6-2 6-1"),
+    match(-18, "tournament", "STA Junior Tour", "loss", "6-7 4-6", { firstIn: 37, firstTotal: 55, doubleFaults: 3 }),
+    match(-6, "practice", "Practice set", "win", "6-3"),
+  ];
+  const builtin = (test: string) => BUILTIN_TESTS.find((t) => t.test === test)!;
+  const result = (studentId: string, test: string, offset: number, value: number) => {
+    const t = builtin(test);
+    return createBenchmark(studentId, { test, name: t.name, unit: t.unit, higherIsBetter: t.higherIsBetter, value, measuredOn: d(offset), note: "" }, at(offset, 18));
+  };
+  const studentBenchmarks = [
+    ...[[-120, 4], [-75, 7], [-40, 10], [-8, 12]].map(([o, v]) => result(mia.id, "rally_short", o, v)),
+    ...[[-150, 6], [-110, 9], [-70, 14], [-35, 18], [-7, 22]].map(([o, v]) => result(daniel.id, "rally_baseline", o, v)),
+    ...[[-90, 3], [-45, 4], [-10, 6]].map(([o, v]) => result(daniel.id, "first_serves", o, v)),
+    ...[[-120, 6], [-60, 7], [-14, 7]].map(([o, v]) => result(ethan.id, "first_serves", o, v)),
+    ...[[-120, 21.4], [-60, 20.1], [-14, 19.2]].map(([o, v]) =>
+      createBenchmark(ethan.id, { test: customTestKey("Spider drill"), name: "Spider drill", unit: "seconds", higherIsBetter: false, value: v, measuredOn: d(o), note: "" }, at(o, 18)),
+    ),
+  ];
+
   return {
+    studentMatches,
+    studentBenchmarks,
     students: [mia, daniel, ethan],
     studentStages,
     studentLessons,

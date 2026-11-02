@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createSampleData } from "@/data/sample-data";
 import { createCapture } from "@/lib/brain-dump/capture-model";
 import { createCommitment } from "@/lib/daily/commitments";
+import { createBenchmark, createMatch } from "@/lib/students/performance";
 import { createLesson, createStudent } from "@/lib/students/student-model";
 import { formatShortDate } from "@/lib/date";
 import { nowISO } from "@/lib/id";
@@ -49,9 +50,13 @@ import type {
   SprintId,
   SprintSession,
   Student,
+  StudentBenchmark,
+  StudentBenchmarkInput,
   StudentInput,
   StudentLesson,
   StudentLessonInput,
+  StudentMatch,
+  StudentMatchInput,
   StudentStage,
   Task,
   TaskInput,
@@ -189,6 +194,16 @@ export interface WorkspaceActions {
   restoreLesson: (lesson: StudentLesson) => void;
   /** Tick a milestone for a student on a date, or untick it (null). */
   setStudentCheck: (studentId: string, track: TrackId, stage: string, checkId: string, done: ISODate | null) => void;
+
+  // Matches and benchmark results
+  addMatch: (studentId: string, input: StudentMatchInput) => StudentMatch | null;
+  updateMatch: (id: string, input: StudentMatchInput) => void;
+  deleteMatch: (id: string) => StudentMatch | null;
+  restoreMatch: (match: StudentMatch) => void;
+  addBenchmark: (studentId: string, input: StudentBenchmarkInput) => StudentBenchmark | null;
+  updateBenchmark: (id: string, input: StudentBenchmarkInput) => void;
+  deleteBenchmark: (id: string) => StudentBenchmark | null;
+  restoreBenchmark: (result: StudentBenchmark) => void;
 
   // Coaching ladder
   /** Save your wording for a stage: name, focus and milestones. */
@@ -497,6 +512,33 @@ export function WorkspaceProvider({
       restoreLesson: (lesson) => commit((d) => students.restoreLesson(d, lesson)),
       setStudentCheck: (studentId, track, stage, checkId, done) =>
         commit((d) => students.setStudentCheck(d, studentId, track, stage, checkId, done, nowISO())),
+
+      addMatch: (studentId, input) => {
+        if (!current()?.students.some((s) => s.id === studentId)) return null;
+        const match = createMatch(studentId, input, nowISO());
+        commit((d) => students.addMatch(d, match));
+        return match;
+      },
+      updateMatch: (id, input) => commit((d) => students.updateMatch(d, id, input, nowISO())),
+      deleteMatch: (id) => {
+        const match = current()?.studentMatches.find((m) => m.id === id) ?? null;
+        if (match) commit((d) => students.deleteMatch(d, id));
+        return match;
+      },
+      restoreMatch: (match) => commit((d) => students.restoreMatch(d, match)),
+      addBenchmark: (studentId, input) => {
+        if (!current()?.students.some((s) => s.id === studentId) || !input.name.trim()) return null;
+        const result = createBenchmark(studentId, input, nowISO());
+        commit((d) => students.addBenchmark(d, result));
+        return result;
+      },
+      updateBenchmark: (id, input) => commit((d) => students.updateBenchmark(d, id, input, nowISO())),
+      deleteBenchmark: (id) => {
+        const result = current()?.studentBenchmarks.find((b) => b.id === id) ?? null;
+        if (result) commit((d) => students.deleteBenchmark(d, id));
+        return result;
+      },
+      restoreBenchmark: (result) => commit((d) => students.restoreBenchmark(d, result)),
 
       saveLadderStage: (track, stage, input) => commit((d) => ladder.saveLadderStage(d, track, stage, input, nowISO())),
       addLadderStage: (track, input) => {

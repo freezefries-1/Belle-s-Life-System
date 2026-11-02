@@ -94,6 +94,39 @@ many students are at it.
   the last one on a track. Stages after R9 count as Competitive/Advanced,
   like R9.
 
+## Matches
+
+On a student's page, **Add match** (singles):
+- date, **Win** or **Loss**, score (e.g. 6-4 3-6 10-7), type (tournament,
+  club competition or practice match), event, and opponent (optional, e.g.
+  a first name or club);
+- **Match stats (optional):** first serves in and hit, second serves in and
+  hit, double faults, unforced errors, winners. Enter counts only; the app
+  works out the percentages (32 in out of 50 hit = 64%). Leave blank
+  anything that wasn't counted.
+
+The Matches section shows the won–lost record this year, win rate, first
+serves in across every match that has counts, the last five results, a
+chart of wins and losses by month, and every match (edit or delete, with
+Undo).
+
+## Benchmarks
+
+Quick tests you repeat every few weeks. **Record result**, choose a test,
+enter the number and the date.
+- Built-in tests: rally short court and baseline (balls), crosscourt
+  forehand and backhand (balls), first serves, second serves and volleys
+  to a target (out of 10, shown as a percentage).
+- **New test…** makes your own (e.g. "Spider drill"): measured as balls,
+  out of 10, a number or a time, and whether higher or lower is better.
+- Each test shows the latest result, the best, the change since the first
+  result, a trend chart, and all results (edit or delete, with Undo).
+
+## Stage timeline
+
+Under the tracks, a small chart for Rally and for Serve shows when each
+stage was reached, carried on to today.
+
 ## Not yet
 
-Matches, benchmarks and charts are planned as Stage 3.
+Doubles matches, and sharing progress with students or parents.
