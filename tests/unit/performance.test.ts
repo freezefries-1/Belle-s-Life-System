@@ -42,6 +42,11 @@ const matchInput = (over: Partial<StudentMatchInput> = {}): StudentMatchInput =>
   unforcedErrors: null,
   winners: null,
   notes: "",
+  format: "singles",
+  partner: "",
+  rated: false,
+  pointLosses: {},
+  kapStats: {},
   ...over,
 });
 

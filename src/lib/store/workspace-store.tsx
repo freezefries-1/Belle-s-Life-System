@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { createSampleData } from "@/data/sample-data";
 import { createCapture } from "@/lib/brain-dump/capture-model";
 import { createCommitment } from "@/lib/daily/commitments";
-import { createBenchmark, createMatch } from "@/lib/students/performance";
+import { createBenchmark, createMatch, createRating } from "@/lib/students/performance";
 import { createLesson, createStudent } from "@/lib/students/student-model";
 import { formatShortDate } from "@/lib/date";
 import { nowISO } from "@/lib/id";
@@ -57,6 +57,8 @@ import type {
   StudentLessonInput,
   StudentMatch,
   StudentMatchInput,
+  StudentRating,
+  StudentRatingInput,
   StudentStage,
   Task,
   TaskInput,
@@ -204,6 +206,14 @@ export interface WorkspaceActions {
   updateBenchmark: (id: string, input: StudentBenchmarkInput) => void;
   deleteBenchmark: (id: string) => StudentBenchmark | null;
   restoreBenchmark: (result: StudentBenchmark) => void;
+
+  // Ratings and My Pickleball
+  addRating: (studentId: string, input: StudentRatingInput) => StudentRating | null;
+  updateRating: (id: string, input: StudentRatingInput) => void;
+  deleteRating: (id: string) => StudentRating | null;
+  restoreRating: (rating: StudentRating) => void;
+  /** Create your own pickleball profile (once), with optional starting DUPR ratings. Returns it (or the existing one). */
+  setUpMyPickleball: (ratings: { singles: number | null; doubles: number | null }) => Student | null;
 
   // Coaching ladder
   /** Save your wording for a stage: name, focus and milestones. */
@@ -539,6 +549,37 @@ export function WorkspaceProvider({
         return result;
       },
       restoreBenchmark: (result) => commit((d) => students.restoreBenchmark(d, result)),
+
+      addRating: (studentId, input) => {
+        if (!current()?.students.some((s) => s.id === studentId)) return null;
+        const rating = createRating(studentId, input, nowISO());
+        commit((d) => students.addRating(d, rating));
+        return rating;
+      },
+      updateRating: (id, input) => commit((d) => students.updateRating(d, id, input, nowISO())),
+      deleteRating: (id) => {
+        const rating = current()?.studentRatings.find((r) => r.id === id) ?? null;
+        if (rating) commit((d) => students.deleteRating(d, id));
+        return rating;
+      },
+      restoreRating: (rating) => commit((d) => students.restoreRating(d, rating)),
+      setUpMyPickleball: (ratings) => {
+        const data = current();
+        if (!data || !today) return null;
+        const existing = students.selfProfile(data, "pickleball");
+        if (existing) return existing;
+        const now = nowISO();
+        const me = createStudent({ name: "Me", sport: "pickleball", isSelf: true, startedOn: null }, now);
+        const initial = (["singles", "doubles"] as const)
+          .filter((k) => ratings[k] !== null)
+          .map((k) => createRating(me.id, { kind: k, rating: ratings[k]!, ratedOn: today, note: "Starting rating" }, now));
+        commit((d) => {
+          let next = students.addStudent(d, me);
+          for (const r of initial) next = students.addRating(next, r);
+          return next;
+        });
+        return me;
+      },
 
       saveLadderStage: (track, stage, input) => commit((d) => ladder.saveLadderStage(d, track, stage, input, nowISO())),
       addLadderStage: (track, input) => {

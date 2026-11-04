@@ -31,7 +31,12 @@ export function BenchmarkDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { workspace, actions } = useWorkspace();
-  const tests = availableTests(workspace.studentBenchmarks);
+  // This sport's built-in tests, plus your own tests from results for students of the same sport.
+  const sameSport = new Set(workspace.students.filter((x) => x.sport === student.sport).map((x) => x.id));
+  const tests = availableTests(
+    workspace.studentBenchmarks.filter((r) => sameSport.has(r.studentId)),
+    student.sport,
+  );
   const [test, setTest] = React.useState(result?.test ?? initialTest ?? tests[0].test);
   const [newName, setNewName] = React.useState("");
   const [newUnit, setNewUnit] = React.useState<BenchmarkUnit>("count");

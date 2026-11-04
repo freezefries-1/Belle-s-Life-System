@@ -325,6 +325,43 @@ await apply(a, [{ table: "students", op: "delete", id: "st3", expected_version: 
 const left = [(await a.client.from("student_matches").select("id").eq("student_id", "st3")).data, (await a.client.from("student_benchmarks").select("id").eq("student_id", "st3")).data];
 check("Deleting a student removes their matches and results", left.every((x) => x.length === 0));
 
+// My Pickleball: your own pickleball profile, doubles matches with KAP tallies, and DUPR history.
+const ratingRow = (id, extra = {}) => ({ id, student_id: "me", kind: "doubles", rating: 4.123, rated_on: "2026-10-25", note: "", created_at: now, updated_at: now, ...extra });
+r = await apply(a, [
+  { table: "students", op: "upsert", id: "me", row: student("me", { sport: "pickleball", is_self: true }), expected_version: null },
+  { table: "student_stages", op: "upsert", id: "me-k1", row: { id: "me-k1", student_id: "me", track: "kitchen", stage: "K1", reached_on: "2026-10-01", note: "", created_at: now, updated_at: now }, expected_version: null },
+  { table: "ladder_stages", op: "upsert", id: "play:P5", row: { id: "play:P5", track: "play", stage: "P5", name: "PPA main draw", focus: "", checks: [], created_at: now, updated_at: now }, expected_version: null },
+  { table: "student_matches", op: "upsert", id: "pm1", row: matchRow("pm1", { student_id: "me", score: "11-7", format: "doubles", partner: "Jess", rated: true, point_losses: { reset: 3 }, kap_stats: { drop_ok: 2, drop_miss: 2 } }), expected_version: null },
+  { table: "student_ratings", op: "upsert", id: "dr1", row: ratingRow("dr1"), expected_version: null },
+]);
+check("A pickleball profile, pickleball stages, a doubles match with tallies and a DUPR rating save", r.data?.ok === true, JSON.stringify(r.data ?? r.error));
+r = await a.client.from("student_ratings").select("rating").eq("id", "dr1").single();
+check("…and a three-decimal DUPR comes back exactly", Number(r.data?.rating) === 4.123, JSON.stringify(r.data));
+r = await a.client.from("student_matches").select("format, partner, kap_stats").eq("id", "pm1").single();
+check("…and the partner and KAP tallies come back", r.data?.partner === "Jess" && r.data?.kap_stats?.drop_ok === 2, JSON.stringify(r.data));
+r = await b.client.from("student_ratings").select("id");
+check("Another account can't see DUPR ratings", !r.error && r.data.length === 0);
+r = await anon.from("student_ratings").select("id");
+check("Signed-out visitors can't see DUPR ratings", (r.data ?? []).length === 0);
+r = await apply(b, [{ table: "student_ratings", op: "upsert", id: "dr-b", row: ratingRow("dr-b"), expected_version: null }]);
+check("Another account can't add a rating to your profile", r.data?.ok !== true);
+r = await apply(a, [{ table: "student_ratings", op: "upsert", id: "dr2", row: ratingRow("dr2", { rating: 9.5 }), expected_version: null }]);
+check("A DUPR above 9 is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "student_ratings", op: "upsert", id: "dr3", row: ratingRow("dr3", { kind: "mixed" }), expected_version: null }]);
+check("A rating kind other than singles or doubles is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "student_matches", op: "upsert", id: "pm2", row: matchRow("pm2", { student_id: "me", format: "triples" }), expected_version: null }]);
+check("A format other than singles or doubles is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "student_matches", op: "upsert", id: "pm3", row: matchRow("pm3", { student_id: "me", kap_stats: [1, 2] }), expected_version: null }]);
+check("KAP tallies must be an object", r.data?.ok !== true);
+r = await apply(a, [{ table: "students", op: "upsert", id: "st-golf", row: student("st-golf", { sport: "golf" }), expected_version: null }]);
+check("An unknown sport is refused", r.data?.ok !== true);
+r = await a.client.from("students").select("version").eq("id", "me").single();
+await apply(a, [{ table: "students", op: "delete", id: "me", expected_version: r.data.version }]);
+r = await a.client.from("student_ratings").select("id").eq("student_id", "me");
+check("Deleting the profile removes its ratings", r.data?.length === 0);
+r = await a.client.from("sync_tombstones").select("table_name").eq("id", "dr1");
+check("…and other devices are told the rating was deleted", r.data?.some((t) => t.table_name === "student_ratings"));
+
 // Profiles: only the display name can be changed.
 r = await a.client.from("profiles").update({ display_name: "Belle" }).eq("id", a.id).select("display_name");
 check("Profile display name can be updated", !r.error && r.data[0]?.display_name === "Belle", r.error?.message);

@@ -120,9 +120,10 @@ describe("students are saved everywhere", () => {
   const sample = parseEnvelope({ schemaVersion: SCHEMA_VERSION, data: createSampleData("2026-10-29") })!.data;
 
   it("the sample data includes students, stages and lessons", () => {
-    expect(sample.students.length).toBe(3);
+    expect(sample.students.filter((x) => !x.isSelf).length).toBe(3);
+    expect(sample.students.filter((x) => x.isSelf)).toHaveLength(1);
     expect(sample.studentStages.length).toBeGreaterThan(0);
-    expect(sample.studentLessons.length).toBe(3);
+    expect(sample.studentLessons.length).toBeGreaterThanOrEqual(3);
   });
 
   it("round-trips through the cloud rows and the backup file unchanged", () => {

@@ -377,7 +377,10 @@ export type PlayerGroup = "junior" | "adult";
 /** Red, orange and green are the slower kids' balls; yellow is the regular ball. */
 export type BallColour = "red" | "orange" | "green" | "yellow";
 export type StudentStatus = "active" | "paused" | "finished";
-export type TrackId = "rally" | "serve" | "net" | "match";
+export type Sport = "tennis" | "pickleball";
+export type TennisTrackId = "rally" | "serve" | "net" | "match";
+export type PickleballTrackId = "kitchen" | "transition" | "serve_return" | "hands" | "play";
+export type TrackId = TennisTrackId | PickleballTrackId;
 
 export interface Student {
   id: string;
@@ -390,12 +393,16 @@ export interface Student {
   goals: string;
   notes: string;
   status: StudentStatus;
+  /** Tennis for coaching students; pickleball for your own profile. */
+  sport: Sport;
+  /** Your own profile (My Pickleball), kept out of the Students list. */
+  isSelf: boolean;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
 
 export type StudentInput = Pick<Student, "name"> &
-  Partial<Pick<Student, "group" | "ball" | "hand" | "backhand" | "startedOn" | "goals" | "notes" | "status">>;
+  Partial<Pick<Student, "group" | "ball" | "hand" | "backhand" | "startedOn" | "goals" | "notes" | "status" | "sport" | "isSelf">>;
 
 /** A student reached `stage` (e.g. "R5") on a track on `reachedOn`. One per student, track and stage. */
 export interface StudentStage {
@@ -456,6 +463,7 @@ export interface StudentCheck {
 }
 
 export type MatchKind = "tournament" | "club" | "practice";
+export type MatchFormat = "singles" | "doubles";
 
 /** One singles match a student played. Serve counts are optional; percentages are worked out from them. */
 export interface StudentMatch {
@@ -475,6 +483,18 @@ export interface StudentMatch {
   unforcedErrors: number | null;
   winners: number | null;
   notes: string;
+  format: MatchFormat;
+  /** Doubles partner (free text). */
+  partner: string;
+  /** Counted towards a rating (e.g. DUPR). */
+  rated: boolean;
+  /** Optional tallies of how points were lost, by reason (e.g. { reset: 3, dink: 2 }). */
+  pointLosses: Record<string, number>;
+  /**
+   * Optional kitchen-arrival (KAP) tallies for third-shot situations:
+   * drop_ok / drop_miss / drive_ok / drive_miss, and third_err / fifth_err / seventh_err.
+   */
+  kapStats: Record<string, number>;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
@@ -503,6 +523,20 @@ export interface StudentBenchmark {
 
 export type StudentBenchmarkInput = Pick<StudentBenchmark, "test" | "name" | "unit" | "higherIsBetter" | "value" | "measuredOn" | "note">;
 
+/** One rating on a date, e.g. DUPR doubles 4.12. */
+export interface StudentRating {
+  id: string;
+  studentId: string;
+  kind: MatchFormat;
+  rating: number;
+  ratedOn: ISODate;
+  note: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type StudentRatingInput = Pick<StudentRating, "kind" | "rating" | "ratedOn" | "note">;
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
@@ -524,6 +558,7 @@ export interface PersistedData {
   studentChecks: StudentCheck[];
   studentMatches: StudentMatch[];
   studentBenchmarks: StudentBenchmark[];
+  studentRatings: StudentRating[];
 }
 
 /** What components read: saved data + today's date. */

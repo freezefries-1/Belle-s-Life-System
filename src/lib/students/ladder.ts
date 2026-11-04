@@ -1,4 +1,4 @@
-import type { LadderCheck, LadderStage, TrackId } from "@/types";
+import type { LadderCheck, LadderStage, Sport, TrackId } from "@/types";
 
 /**
  * The coaching ladder: four tracks a student moves through at their own pace.
@@ -24,6 +24,7 @@ export interface StageDef {
 
 export interface TrackDef {
   id: TrackId;
+  sport: Sport;
   name: string;
   /** Letter that stage ids start with (R, S, N, M). */
   prefix: string;
@@ -34,9 +35,10 @@ export type Ladder = Record<TrackId, TrackDef> & { tracks: TrackDef[] };
 
 type Builtin = [id: string, name: string, focus: string, checks: string[]];
 
-const BUILTIN: { id: TrackId; name: string; prefix: string; stages: Builtin[] }[] = [
+const BUILTIN: { id: TrackId; sport: Sport; name: string; prefix: string; stages: Builtin[] }[] = [
   {
     id: "rally",
+    sport: "tennis",
     name: "Rally",
     prefix: "R",
     stages: [
@@ -53,6 +55,7 @@ const BUILTIN: { id: TrackId; name: string; prefix: string; stages: Builtin[] }[
   },
   {
     id: "serve",
+    sport: "tennis",
     name: "Serve",
     prefix: "S",
     stages: [
@@ -67,6 +70,7 @@ const BUILTIN: { id: TrackId; name: string; prefix: string; stages: Builtin[] }[
   },
   {
     id: "net",
+    sport: "tennis",
     name: "Net",
     prefix: "N",
     stages: [
@@ -79,6 +83,7 @@ const BUILTIN: { id: TrackId; name: string; prefix: string; stages: Builtin[] }[
   },
   {
     id: "match",
+    sport: "tennis",
     name: "Match play",
     prefix: "M",
     stages: [
@@ -90,15 +95,76 @@ const BUILTIN: { id: TrackId; name: string; prefix: string; stages: Builtin[] }[
       ["M6", "Tournaments", "STA and other tournaments, with a match plan and a review afterwards", []],
     ],
   },
+  // Pickleball (My Pickleball): stages line up with DUPR levels — 1 ≈ 4.0, 2 ≈ 4.5, 3 ≈ 5.0, 4 ≈ 5.5+.
+  {
+    id: "kitchen",
+    sport: "pickleball",
+    name: "Kitchen (dinks)",
+    prefix: "K",
+    stages: [
+      ["K1", "Consistent dinks (4.0)", "Crosscourt dinks that stay low and land in the kitchen", ["20-ball crosscourt dink rally, both sides", "Few dinks pop up above the net"]],
+      ["K2", "Patient dinking (4.5)", "Long dink exchanges without forcing", ["30-ball crosscourt dink rally without a miss", "Stays patient in long dink battles — no unforced dink errors in a game"]],
+      ["K3", "Dink placement (5.0)", "Moving opponents with placement, forehand and backhand", ["50 dinks with at least 3 direction changes", "Dinks to targets: crosscourt, middle and down the line", "Mixes pace and spin on dinks"]],
+      ["K4", "Kitchen control (5.5+)", "Attacking only the right balls; neutralising strong dinkers", ["Attacks only pop-ups above the net", "Resets speed-ups at the kitchen line"]],
+    ],
+  },
+  {
+    id: "transition",
+    sport: "pickleball",
+    name: "Third shot and transition",
+    prefix: "T",
+    stages: [
+      ["T1", "Third shot in (4.0)", "Third-shot drop and following it in", ["Third-shot drop into the kitchen 5 out of 10", "Follows the drop in towards the kitchen"]],
+      ["T2", "Reliable drop and reset (4.5)", "Dependable drops; resets from mid-court", ["Third-shot drop into the kitchen 7 out of 10", "Resets into the kitchen from mid-court 6 out of 10", "Gets to the kitchen in 3 shots or fewer"]],
+      ["T3", "Reset anything (5.0)", "Resets every ball from mid-court; good drop-or-drive choices", ["Third-shot drop 8 out of 10, forehand and backhand", "Resets hard drives into the kitchen 8 out of 10", "Chooses drop or drive well (drives the short or high returns)"]],
+      ["T4", "Transition weapon (5.5+)", "Turns resets into counters on the right balls", ["Counters waist-high balls instead of resetting them", "Drops and drives with disguise"]],
+    ],
+  },
+  {
+    id: "serve_return",
+    sport: "pickleball",
+    name: "Serve and return",
+    prefix: "SR",
+    stages: [
+      ["SR1", "In play (4.0)", "No free points on serve or return", ["Serves in 10 out of 10", "Returns in 9 out of 10"]],
+      ["SR2", "Depth (4.5)", "Deep serves and returns, then to the kitchen", ["Deep serves 7 out of 10", "Deep returns 8 out of 10, and gets to the kitchen line"]],
+      ["SR3", "Pressure (5.0)", "Serve and return that set up the point", ["Deep serves 8 out of 10 with spin or placement", "Deep returns 9 out of 10, aimed at the weaker player or the middle"]],
+    ],
+  },
+  {
+    id: "hands",
+    sport: "pickleball",
+    name: "Hands (volleys)",
+    prefix: "H",
+    stages: [
+      ["H1", "Blocks and punches (4.0)", "Blocking low; punch volleys with direction", ["Punch volleys with direction and depth 7 out of 10", "Blocks hard balls back low"]],
+      ["H2", "Quick hands (4.5)", "Holding up in hand battles; consistent overheads", ["Resets speed-ups aimed at the body", "Overheads in 8 out of 10"]],
+      ["H3", "Earned attacks (5.0)", "Speeds up only on pop-ups; counters well; covers more court", ["Speeds up only after earning a pop-up", "Wins more hand battles than loses", "Covers more than half the court at the kitchen"]],
+    ],
+  },
+  {
+    id: "play",
+    sport: "pickleball",
+    name: "Competition",
+    prefix: "P",
+    stages: [
+      ["P1", "Rated play (4.0)", "Regular DUPR-rated matches, with notes afterwards", ["Plays DUPR-rated matches every month", "Writes a note after each match"]],
+      ["P2", "Medals at 4.5 (4.5)", "Medalling in 4.0–4.5 events", ["Medals in a 4.5 tournament", "Under 5 unforced errors a game in rated matches"]],
+      ["P3", "Open level (5.0)", "Competing in 5.0 and open events", ["DUPR 5.0 or above", "Wins matches in 5.0+ or open events", "Changes the game plan mid-match when it isn't working"]],
+      ["P4", "Pro qualifiers (5.5+)", "Entering and winning PPA qualifier matches", ["Plays a PPA qualifier", "Wins a qualifier match"]],
+      ["P5", "PPA main draw", "Reaching the main draw", ["Reaches a PPA main draw"]],
+    ],
+  },
 ];
 
 export const TRACK_IDS: TrackId[] = BUILTIN.map((t) => t.id);
+export const SPORT_OF_TRACK = Object.fromEntries(BUILTIN.map((t) => [t.id, t.sport])) as Record<TrackId, Sport>;
 
 const stageNumber = (prefix: string, id: string) => (id.startsWith(prefix) ? Number(id.slice(prefix.length)) : NaN);
 
-/** The ladder as you use it: the built-in stages with your edits, plus any stages you added. */
-export function buildLadder(edits: LadderStage[] = []): Ladder {
-  const tracks = BUILTIN.map((t): TrackDef => {
+/** The ladder as you use it: the built-in stages with your edits, plus any stages you added. `tracks` lists one sport's tracks. */
+export function buildLadder(edits: LadderStage[] = [], sport: Sport = "tennis"): Ladder {
+  const all = BUILTIN.map((t): TrackDef => {
     const mine = new Map(edits.filter((e) => e.track === t.id).map((e) => [e.stage, e]));
     const builtIn = t.stages.map(([id, name, focus, checks]): StageDef => {
       const e = mine.get(id);
@@ -111,12 +177,12 @@ export function buildLadder(edits: LadderStage[] = []): Ladder {
       .filter((e) => !known.has(e.stage) && Number.isInteger(stageNumber(t.prefix, e.stage)))
       .sort((a, b) => stageNumber(t.prefix, a.stage) - stageNumber(t.prefix, b.stage))
       .map((e): StageDef => ({ id: e.stage, name: e.name, focus: e.focus, checks: e.checks, builtIn: false, edited: true }));
-    return { id: t.id, name: t.name, prefix: t.prefix, stages: [...builtIn, ...added] };
+    return { id: t.id, sport: t.sport, name: t.name, prefix: t.prefix, stages: [...builtIn, ...added] };
   });
-  return Object.assign(Object.fromEntries(tracks.map((t) => [t.id, t])) as Record<TrackId, TrackDef>, { tracks });
+  return Object.assign(Object.fromEntries(all.map((t) => [t.id, t])) as Record<TrackId, TrackDef>, { tracks: all.filter((t) => t.sport === sport) });
 }
 
-/** The built-in ladder, with no edits. */
+/** The built-in tennis ladder, with no edits (every sport's tracks are available by id). */
 export const DEFAULT_LADDER = buildLadder();
 
 /** The built-in version of a stage (for "Reset to default"), or null for a stage you added. */

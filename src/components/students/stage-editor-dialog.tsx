@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createId } from "@/lib/id";
 import { stageInUse } from "@/lib/store/changes/ladder";
 import { useWorkspace } from "@/lib/store/workspace-store";
-import { builtInStage, type StageDef } from "@/lib/students/ladder";
+import { builtInStage, SPORT_OF_TRACK, type StageDef } from "@/lib/students/ladder";
 import { useLadder } from "@/lib/students/use-ladder";
 import type { TrackId } from "@/types";
 
@@ -31,7 +31,7 @@ export function StageEditorDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { workspace, actions } = useWorkspace();
-  const ladder = useLadder();
+  const ladder = useLadder(SPORT_OF_TRACK[track]);
   const t = ladder[track];
   const [name, setName] = React.useState(stage?.name ?? "");
   const [focus, setFocus] = React.useState(stage?.focus ?? "");

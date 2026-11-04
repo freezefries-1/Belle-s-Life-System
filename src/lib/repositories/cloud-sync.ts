@@ -70,7 +70,7 @@ const PAGE = 1000;
 const OVERLAP_MS = 10_000; // re-read a little before the cursor so late commits aren't missed
 const POLL_MS = 30_000;
 /** Bump when a migration changes table columns, so copies saved on devices are downloaded afresh. */
-const DEVICE_COPY_FORMAT = 4; // 2: students tables; 3: coaching ladder; 4: matches and benchmarks
+const DEVICE_COPY_FORMAT = 5; // 2: students tables; 3: coaching ladder; 4: matches and benchmarks; 5: My Pickleball
 /** Even with a device copy, download everything at least this often, as a safety net. */
 const FULL_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
 const DEVICE_COPY_SAVE_DELAY_MS = 1500;
@@ -104,6 +104,7 @@ const PARENT_LINKS: Partial<Record<TableName, { col: string; parent: TableName }
   student_checks: [{ col: "student_id", parent: "students" }],
   student_matches: [{ col: "student_id", parent: "students" }],
   student_benchmarks: [{ col: "student_id", parent: "students" }],
+  student_ratings: [{ col: "student_id", parent: "students" }],
 };
 
 export class NetworkError extends Error {}

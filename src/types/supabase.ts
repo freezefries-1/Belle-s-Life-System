@@ -757,11 +757,16 @@ export type Database = {
           event: string
           first_in: number | null
           first_total: number | null
+          format: string
           id: string
+          kap_stats: Json
           kind: string
           notes: string
           opponent: string
+          partner: string
           played_on: string
+          point_losses: Json
+          rated: boolean
           result: string
           score: string
           second_in: number | null
@@ -780,11 +785,16 @@ export type Database = {
           event?: string
           first_in?: number | null
           first_total?: number | null
+          format?: string
           id: string
+          kap_stats?: Json
           kind: string
           notes?: string
           opponent?: string
+          partner?: string
           played_on: string
+          point_losses?: Json
+          rated?: boolean
           result: string
           score?: string
           second_in?: number | null
@@ -803,11 +813,16 @@ export type Database = {
           event?: string
           first_in?: number | null
           first_total?: number | null
+          format?: string
           id?: string
+          kap_stats?: Json
           kind?: string
           notes?: string
           opponent?: string
+          partner?: string
           played_on?: string
+          point_losses?: Json
+          rated?: boolean
           result?: string
           score?: string
           second_in?: number | null
@@ -823,6 +838,55 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "student_matches_user_id_student_id_fkey"
+            columns: ["user_id", "student_id"]
+            referencedRelation: "students"
+            referencedColumns: ["user_id", "id"]
+          },
+        ]
+      }
+      student_ratings: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          note: string
+          rated_on: string
+          rating: number
+          student_id: string
+          synced_at: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at: string
+          id: string
+          kind: string
+          note?: string
+          rated_on: string
+          rating: number
+          student_id: string
+          synced_at?: string
+          updated_at: string
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          note?: string
+          rated_on?: string
+          rating?: number
+          student_id?: string
+          synced_at?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_ratings_user_id_student_id_fkey"
             columns: ["user_id", "student_id"]
             referencedRelation: "students"
             referencedColumns: ["user_id", "id"]
@@ -886,9 +950,11 @@ export type Database = {
           goals: string
           hand: string | null
           id: string
+          is_self: boolean
           name: string
           notes: string
           player_group: string
+          sport: string
           started_on: string | null
           status: string
           synced_at: string
@@ -903,9 +969,11 @@ export type Database = {
           goals?: string
           hand?: string | null
           id: string
+          is_self?: boolean
           name: string
           notes?: string
           player_group?: string
+          sport?: string
           started_on?: string | null
           status?: string
           synced_at?: string
@@ -920,9 +988,11 @@ export type Database = {
           goals?: string
           hand?: string | null
           id?: string
+          is_self?: boolean
           name?: string
           notes?: string
           player_group?: string
+          sport?: string
           started_on?: string | null
           status?: string
           synced_at?: string

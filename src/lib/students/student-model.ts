@@ -13,7 +13,7 @@ import type {
   TrackId,
 } from "@/types";
 
-import { overallLevel, stageIndex, type Ladder, type StageDef } from "./ladder";
+import { TRACK_IDS, overallLevel, stageIndex, type Ladder, type StageDef } from "./ladder";
 
 export function createStudent(input: StudentInput, now: ISODateTime): Student {
   return {
@@ -27,6 +27,8 @@ export function createStudent(input: StudentInput, now: ISODateTime): Student {
     goals: input.goals?.trim() ?? "",
     notes: input.notes?.trim() ?? "",
     status: input.status ?? "active",
+    sport: input.sport ?? "tennis",
+    isSelf: input.isSelf ?? false,
     createdAt: now,
     updatedAt: now,
   };
@@ -49,7 +51,7 @@ export type CurrentStages = Record<TrackId, StudentStage | null>;
 
 /** The furthest stage reached on each track (a correction is made by removing the wrong entry). */
 export function currentStages(ladder: Ladder, stages: StudentStage[], studentId: string): CurrentStages {
-  const out = { rally: null, serve: null, net: null, match: null } as CurrentStages;
+  const out = Object.fromEntries(TRACK_IDS.map((t) => [t, null])) as CurrentStages;
   for (const s of stages) {
     if (s.studentId !== studentId) continue;
     const at = stageIndex(ladder, s.track, s.stage);

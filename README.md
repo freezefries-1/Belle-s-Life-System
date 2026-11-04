@@ -253,7 +253,15 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 - A **Students** page for tennis coaching: each student's stage on four tracks (Rally R1–R9, Serve S1–S7, Net N1–N5, Match play M1–M6), the overall level worked out from the Rally stage, time at each stage, a full progress history and lesson notes. Juniors carry their ball colour (red, orange, green). See [docs/students.md](docs/students.md).
 - **Milestones and an editable ladder (stage 2):** each stage's "ready to move on" test is a checklist you tick per student (dated), with "ready to move up" once all are done; the **Coaching ladder** page lets you reword any stage and its milestones, reset to the original, and add stages at the end of a track.
 - **Matches, benchmarks and charts (stage 3):** singles match results with optional stats (first/second-serve percentages worked out from counts), win–loss record, form and results by month; repeatable benchmark tests (built-in or your own, higher- or lower-is-better) with latest, best, change and a trend chart; a stage timeline for Rally and Serve.
-- Database: `supabase/migrations/20261029000000_students.sql`, `20261031000000_coaching_ladder.sql` and `20261102000000_matches_benchmarks.sql` (owner-only tables). Storage format v8.
+- Database: `supabase/migrations/20261029000000_students.sql`, `20261031000000_coaching_ladder.sql`, `20261102000000_matches_benchmarks.sql` and `20261104000000_my_pickleball.sql` (owner-only tables). Storage format v9.
+
+## My Pickleball — what’s included
+
+- A **My Pickleball** page (Personal Growth) for your own game, built on the same tracks, benchmarks and matches as Students but kept out of the Students list. See [docs/pickleball.md](docs/pickleball.md).
+- **DUPR history** for doubles and singles (up to three decimals), with the change since your first entry and a chart.
+- **Five pickleball tracks** with the level each stage usually matches: Kitchen (dinks), Third shot and transition, Serve and return, Hands (volleys), and Competition up to a PPA main draw. Your own ladder page lets you reword them.
+- **Benchmarks with targets** for 4.5 and 5.0, and a **Focus next** card that lists the biggest gaps first.
+- **Doubles matches:** partner, DUPR-rated or not, opponents, notes and insights; your record with each partner; optional tallies of how points were lost; and optional **kitchen arrival (KAP)** tallies with drop vs drive and a KAP trend.
 
 ## Phase 8 — what’s included
 

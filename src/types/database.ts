@@ -36,8 +36,9 @@ export type StudentStageRow = AppRow<"student_stages">;
 export type StudentLessonRow = AppRow<"student_lessons">;
 export type LadderStageRow = AppRow<"ladder_stages", { checks: { id: string; text: string }[] }>;
 export type StudentCheckRow = AppRow<"student_checks">;
-export type StudentMatchRow = AppRow<"student_matches">;
+export type StudentMatchRow = AppRow<"student_matches", { point_losses: Record<string, number>; kap_stats: Record<string, number> }>;
 export type StudentBenchmarkRow = AppRow<"student_benchmarks">;
+export type StudentRatingRow = AppRow<"student_ratings">;
 
 export interface TableRows {
   projects: ProjectRow;
@@ -60,6 +61,7 @@ export interface TableRows {
   student_checks: StudentCheckRow;
   student_matches: StudentMatchRow;
   student_benchmarks: StudentBenchmarkRow;
+  student_ratings: StudentRatingRow;
 }
 
 export type TableName = keyof TableRows;
@@ -93,4 +95,5 @@ export const TABLE_ORDER: TableName[] = [
   "student_checks",
   "student_matches",
   "student_benchmarks",
+  "student_ratings",
 ];

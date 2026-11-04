@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Sprout,
   Sun,
+  Target,
   Timer,
   Users,
   type LucideIcon,
@@ -44,6 +45,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Personal Growth",
     items: [
+      { title: "My Pickleball", href: "/pickleball", icon: Target },
       { title: "Kaizen Log", href: "/kaizen-log", icon: NotebookPen },
       { title: "Micro-Commitments", href: "/micro-commitments", icon: Sprout },
       { title: "Weekly Review", href: "/weekly-review", icon: ClipboardList },

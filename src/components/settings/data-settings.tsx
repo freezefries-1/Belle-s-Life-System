@@ -53,6 +53,7 @@ export function DataSettings() {
       studentChecks,
       studentMatches,
       studentBenchmarks,
+      studentRatings,
     } = workspace;
     const envelope = createEnvelope({
       tasks,
@@ -74,6 +75,7 @@ export function DataSettings() {
       studentChecks,
       studentMatches,
       studentBenchmarks,
+      studentRatings,
     });
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -110,7 +112,7 @@ export function DataSettings() {
             {workspace.tasks.length} tasks · {workspace.captures.length} Brain Dump entries ·{" "}
             {workspace.commitments.length} commitments · {workspace.projects.length} projects ·{" "}
             {workspace.recurrences.length} recurring · {workspace.kaizenLogs.length} log days
-            {workspace.students.length > 0 && ` · ${workspace.students.length} students`}.{" "}
+            {workspace.students.some((x) => !x.isSelf) && ` · ${workspace.students.filter((x) => !x.isSelf).length} students`}.{" "}
             {cloud
               ? "Saved securely in your account and available on every device you sign in to."
               : storage.status === "unavailable"
@@ -123,7 +125,7 @@ export function DataSettings() {
       <div className="flex flex-col gap-2.5">
         <DataAction
           title="Download a backup"
-          body="A JSON file with everything — tasks, Brain Dump, focus sessions and time, highlights, commitments and their history, Kaizen Logs, projects, milestones, recurring tasks and weekly reviews, students, lesson notes, matches, benchmarks and your coaching ladder — with every id and link kept. Keep a recent copy somewhere safe."
+          body="A JSON file with everything — tasks, Brain Dump, focus sessions and time, highlights, commitments and their history, Kaizen Logs, projects, milestones, recurring tasks and weekly reviews, students, lesson notes, matches, benchmarks, your coaching ladder and My Pickleball — with every id and link kept. Keep a recent copy somewhere safe."
           action={
             <Button variant="outline" size="sm" className="gap-1.5" onClick={downloadBackup} disabled={!hasData}>
               <Download className="size-3.5" />

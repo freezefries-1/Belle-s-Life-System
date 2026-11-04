@@ -31,10 +31,21 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
   );
 }
 
+// Dialogs here are opened from code rather than a built-in trigger, so Radix has nowhere to send focus when
+// one closes. Remember the last element focused outside dialogs and menus, and return focus there instead.
+let lastFocusedOutside: HTMLElement | null = null;
+if (typeof document !== "undefined") {
+  document.addEventListener("focusin", (e) => {
+    const el = e.target;
+    if (el instanceof HTMLElement && !el.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [data-sonner-toaster]')) lastFocusedOutside = el;
+  });
+}
+
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { showCloseButton?: boolean }) {
   return (
@@ -46,6 +57,14 @@ function DialogContent({
           "fixed top-[max(1rem,env(safe-area-inset-top))] left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 gap-4 overflow-y-auto overscroll-contain sm:top-[18%] sm:max-h-[78dvh] rounded-xl border bg-card p-5 shadow-2xl duration-150 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[0.98]",
           className,
         )}
+        onCloseAutoFocus={(e) => {
+          onCloseAutoFocus?.(e);
+          if (e.defaultPrevented) return;
+          if (lastFocusedOutside?.isConnected) {
+            e.preventDefault();
+            lastFocusedOutside.focus();
+          }
+        }}
         {...props}
       >
         {children}

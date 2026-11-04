@@ -8,7 +8,7 @@ import { createTemplate } from "@/lib/recurrence/recurrence";
 import { createSession, endSession, runSession } from "@/lib/sessions/session-model";
 import { createWeeklyReview } from "@/lib/review/weekly";
 import { createId } from "@/lib/id";
-import { BUILTIN_TESTS, createBenchmark, createMatch, customTestKey } from "@/lib/students/performance";
+import { BUILTIN_TESTS, createBenchmark, createMatch, createRating, customTestKey } from "@/lib/students/performance";
 import { createLesson, createStudent } from "@/lib/students/student-model";
 import { createTask } from "@/lib/tasks/task-model";
 import type {
@@ -288,6 +288,11 @@ export function createSampleData(today: ISODate): PersistedData {
         unforcedErrors: stats.unforcedErrors ?? null,
         winners: stats.winners ?? null,
         notes: "",
+        format: "singles",
+        partner: "",
+        rated: kind === "tournament",
+        pointLosses: {},
+        kapStats: {},
       },
       at(offset, 20),
     );
@@ -314,12 +319,85 @@ export function createSampleData(today: ISODate): PersistedData {
     ),
   ];
 
+  // My Pickleball: your own profile, DUPR around 4.1, mostly doubles.
+  const me = createStudent({ name: "Me", sport: "pickleball", isSelf: true }, at(-200, 9));
+  const dupr = [
+    ...[[-180, 3.86], [-120, 3.94], [-60, 4.03], [-10, 4.11]].map(([o, v]) => createRating(me.id, { kind: "doubles", rating: v, ratedOn: d(o), note: "" }, at(o, 21))),
+    ...[[-150, 3.72], [-50, 3.95]].map(([o, v]) => createRating(me.id, { kind: "singles", rating: v, ratedOn: d(o), note: "" }, at(o, 21))),
+  ];
+  const pbMatch = (
+    offset: number,
+    partner: string,
+    kind: "tournament" | "club" | "practice",
+    result: "win" | "loss",
+    score: string,
+    notes: string,
+    pointLosses: Record<string, number> = {},
+    kapStats: Record<string, number> = {},
+  ) =>
+    createMatch(
+      me.id,
+      {
+        playedOn: d(offset),
+        kind,
+        event: kind === "tournament" ? "4.0–4.5 open doubles" : "",
+        opponent: "",
+        result,
+        score,
+        firstIn: null,
+        firstTotal: null,
+        secondIn: null,
+        secondTotal: null,
+        doubleFaults: null,
+        unforcedErrors: null,
+        winners: null,
+        notes,
+        format: "doubles",
+        partner,
+        rated: kind !== "practice",
+        pointLosses,
+        kapStats,
+      },
+      at(offset, 21),
+    );
+  const myMatches = [
+    pbMatch(-40, "Jess", "club", "win", "11-7 11-9", "We stacked so Jess's forehand stayed in the middle; worked well."),
+    pbMatch(-26, "Jess", "tournament", "loss", "9-11 11-8 8-11", "Popped up resets against hard drives; lost the third game on speed-ups.", { reset: 5, speedup: 3, dink: 1 }, { drop_ok: 4, drop_miss: 6, drive_ok: 2, drive_miss: 3, third_err: 4, fifth_err: 3, seventh_err: 1 }),
+    pbMatch(-19, "Wei", "club", "win", "11-5", "Wei covers the middle well — I can poach more.", { reset: 2, serve: 1 }),
+    pbMatch(-9, "Jess", "tournament", "win", "11-9 7-11 11-6", "Patient dinking won us game three.", { reset: 3, third: 2, dink: 1 }, { drop_ok: 7, drop_miss: 4, drive_ok: 2, drive_miss: 2, third_err: 3, fifth_err: 2 }),
+    pbMatch(-3, "Wei", "practice", "loss", "8-11", "Tried driving more third shots; too many errors.", { third: 4, reset: 1 }, { drop_ok: 2, drop_miss: 3, drive_ok: 1, drive_miss: 1, third_err: 2 }),
+  ];
+  const pb = (test: string, offset: number, value: number) => {
+    const t = BUILTIN_TESTS.find((x) => x.test === test)!;
+    return createBenchmark(me.id, { test, name: t.name, unit: t.unit, higherIsBetter: t.higherIsBetter, value, measuredOn: d(offset), note: "" }, at(offset, 19));
+  };
+  const myBenchmarks = [
+    pb("pb_dink_rally", -60, 18),
+    pb("pb_dink_rally", -14, 26),
+    pb("pb_third_drop", -45, 5),
+    pb("pb_third_drop", -12, 6),
+    pb("pb_reset", -12, 4),
+    pb("pb_deep_return", -12, 8),
+  ];
+  const myStages = [
+    stage(me.id, "kitchen", "K1", -150),
+    stage(me.id, "transition", "T1", -120),
+    stage(me.id, "serve_return", "SR1", -150),
+    stage(me.id, "serve_return", "SR2", -60),
+    stage(me.id, "hands", "H1", -100),
+    stage(me.id, "play", "P1", -180),
+  ];
+
   return {
-    studentMatches,
-    studentBenchmarks,
-    students: [mia, daniel, ethan],
-    studentStages,
-    studentLessons,
+    studentRatings: dupr,
+    studentMatches: [...studentMatches, ...myMatches],
+    studentBenchmarks: [...studentBenchmarks, ...myBenchmarks],
+    students: [mia, daniel, ethan, me],
+    studentStages: [...studentStages, ...myStages],
+    studentLessons: [
+      ...studentLessons,
+      createLesson(me.id, { date: d(-5), focus: "Reset drill: partner drives at my feet from mid-court", wentWell: "Soft hands on the backhand", workOn: "Paddle face too open on the forehand reset" }, at(-5, 20)),
+    ],
     // One reworded stage (an extra milestone on R5) and a few milestones ticked.
     ladderStages: [
       {

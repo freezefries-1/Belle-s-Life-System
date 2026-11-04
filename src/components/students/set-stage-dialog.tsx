@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { stageIndex } from "@/lib/students/ladder";
+import { SPORT_OF_TRACK, stageIndex } from "@/lib/students/ladder";
 import { useLadder } from "@/lib/students/use-ladder";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ export function SetStageDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { workspace, actions } = useWorkspace();
-  const ladder = useLadder();
+  const ladder = useLadder(SPORT_OF_TRACK[track]);
   const def = ladder[track];
   const [stage, setStage] = React.useState(initialStage ?? current ?? def.stages[0].id);
   // Opened from the history to change an entry: start from its date and note.

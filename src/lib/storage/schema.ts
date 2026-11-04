@@ -44,6 +44,8 @@ import type {
   MatchKind,
   StudentBenchmark,
   StudentMatch,
+  StudentRating,
+  Sport,
 } from "@/types";
 
 /**
@@ -65,8 +67,10 @@ export const STORAGE_KEY = "belles-life-system:v1";
  * 6 — Students: `students`, `studentStages`, `studentLessons`.
  * 7 — Coaching ladder: `ladderStages` (your wording), `studentChecks` (milestones reached).
  * 8 — Matches and benchmarks: `studentMatches`, `studentBenchmarks`.
+ * 9 — My Pickleball: students gain `sport` and `isSelf`; matches gain `format`,
+ *     `partner`, `rated`, `pointLosses`, `kapStats`; `studentRatings` (e.g. DUPR).
  */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -94,6 +98,7 @@ export const EMPTY_DATA: PersistedData = {
   studentChecks: [],
   studentMatches: [],
   studentBenchmarks: [],
+  studentRatings: [],
 };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
@@ -386,7 +391,8 @@ export function parseWeeklyPriority(raw: unknown): WeeklyPriority | null {
 const PLAYER_GROUPS: PlayerGroup[] = ["junior", "adult"];
 const BALL_COLOURS: BallColour[] = ["red", "orange", "green", "yellow"];
 const STUDENT_STATUSES: StudentStatus[] = ["active", "paused", "finished"];
-const TRACK_IDS: TrackId[] = ["rally", "serve", "net", "match"];
+const TRACK_IDS: TrackId[] = ["rally", "serve", "net", "match", "kitchen", "transition", "serve_return", "hands", "play"];
+const SPORTS: Sport[] = ["tennis", "pickleball"];
 
 export function parseStudent(raw: unknown): Student | null {
   if (!isObj(raw)) return null;
@@ -405,6 +411,8 @@ export function parseStudent(raw: unknown): Student | null {
     goals: str(raw.goals) ?? "",
     notes: str(raw.notes) ?? "",
     status: oneOf(raw.status, STUDENT_STATUSES) ?? "active",
+    sport: oneOf(raw.sport, SPORTS) ?? "tennis",
+    isSelf: raw.isSelf === true,
     createdAt,
     updatedAt: timestamp(raw.updatedAt) ?? createdAt,
   };
@@ -526,9 +534,38 @@ export function parseStudentMatch(raw: unknown): StudentMatch | null {
     unforcedErrors: countOrNull(raw.unforcedErrors),
     winners: countOrNull(raw.winners),
     notes: str(raw.notes) ?? "",
+    format: oneOf(raw.format, ["singles", "doubles"] as const) ?? "singles",
+    partner: str(raw.partner) ?? "",
+    rated: raw.rated === true,
+    pointLosses: parseCounts(raw.pointLosses),
+    kapStats: parseCounts(raw.kapStats),
     createdAt,
     updatedAt: timestamp(raw.updatedAt) ?? createdAt,
   };
+}
+
+/** Tallies (points lost, kitchen arrivals): short keys with whole, positive counts. */
+function parseCounts(raw: unknown): Record<string, number> {
+  if (!isObj(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const n = countOrNull(v);
+    if (/^[a-z_]{1,30}$/.test(k) && n !== null && n > 0) out[k] = n;
+  }
+  return out;
+}
+
+export function parseStudentRating(raw: unknown): StudentRating | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const studentId = str(raw.studentId);
+  const kind = oneOf(raw.kind, ["singles", "doubles"] as const);
+  const rating = typeof raw.rating === "string" ? Number(raw.rating) : raw.rating;
+  const ratedOn = isoDate(raw.ratedOn);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !studentId || !kind || !ratedOn || !createdAt) return null;
+  if (typeof rating !== "number" || !Number.isFinite(rating) || rating < 1 || rating > 9) return null;
+  return { id, studentId, kind, rating, ratedOn, note: str(raw.note) ?? "", createdAt, updatedAt: timestamp(raw.updatedAt) ?? createdAt };
 }
 
 export function parseStudentBenchmark(raw: unknown): StudentBenchmark | null {
@@ -774,6 +811,9 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
   const benchParsed = parseList(migrated.studentBenchmarks, parseStudentBenchmark);
   const benchKept = dedupeById(benchParsed.parsed);
   const studentBenchmarks = benchKept.filter((x) => studentIds.has(x.studentId));
+  const ratingsParsed = parseList(migrated.studentRatings, parseStudentRating);
+  const ratingsKept = dedupeById(ratingsParsed.parsed);
+  const studentRatings = ratingsKept.filter((x) => studentIds.has(x.studentId));
 
   const highlightsKept = dedupeById(highlights.parsed);
   const commitmentsKept = dedupeById(commitments.parsed);
@@ -802,6 +842,7 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     studentChecks,
     studentMatches,
     studentBenchmarks,
+    studentRatings,
   };
 
   const unreadable =
@@ -824,7 +865,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     ladderParsed.dropped +
     checksParsed.dropped +
     matchesParsed.dropped +
-    benchParsed.dropped;
+    benchParsed.dropped +
+    ratingsParsed.dropped;
   const removed = {
     milestones: dedupeById(milestonesParsed.parsed).length - milestones.length,
     completions: completionsKept.length - completionsLinked.length,
@@ -835,7 +877,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       (lessonsKept.length - studentLessons.length) +
       (checksKept.length - checksLinked.length) +
       (matchesKept.length - studentMatches.length) +
-      (benchKept.length - studentBenchmarks.length),
+      (benchKept.length - studentBenchmarks.length) +
+      (ratingsKept.length - studentRatings.length),
     duplicates:
       parsedTaskCount -
       tasks.length +
@@ -859,7 +902,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       (checksParsed.parsed.length - checksKept.length) +
       (checksLinked.length - studentChecks.length) +
       (matchesParsed.parsed.length - matchesKept.length) +
-      (benchParsed.parsed.length - benchKept.length),
+      (benchParsed.parsed.length - benchKept.length) +
+      (ratingsParsed.parsed.length - ratingsKept.length),
   };
 
   return {
@@ -911,6 +955,10 @@ function migrate(version: number, data: Obj): Obj | null {
   if (version < 8) {
     // v7 → v8: no matches or benchmark results yet.
     current = { ...current, studentMatches: [], studentBenchmarks: [] };
+  }
+  if (version < 9) {
+    // v8 → v9: existing students are tennis students (filled in while parsing); no ratings yet.
+    current = { ...current, studentRatings: [] };
   }
   return current;
 }

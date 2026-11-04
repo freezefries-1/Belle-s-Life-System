@@ -28,16 +28,9 @@ import type { Student, StudentCheck, StudentLesson, StudentStage, TrackId } from
 type StageTarget = { track: TrackId; initial?: string };
 
 export function StudentPage() {
-  const { workspace, actions } = useWorkspace();
-  const ladder = useLadder();
-  const router = useRouter();
+  const { workspace } = useWorkspace();
   const params = useParams<{ id: string }>();
-  const student = workspace.students.find((s) => s.id === params.id);
-  const [editing, setEditing] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
-  const [lesson, setLesson] = React.useState<StudentLesson | "new" | null>(null);
-  const [stageTarget, setStageTarget] = React.useState<StageTarget | null>(null);
-
+  const student = workspace.students.find((s) => s.id === params.id && !s.isSelf);
   if (!student) {
     return (
       <div className="flex flex-col items-start gap-4">
@@ -49,6 +42,23 @@ export function StudentPage() {
       </div>
     );
   }
+  return <StudentView student={student} />;
+}
+
+/**
+ * A student's progress: tracks, benchmarks, matches, notes and history.
+ * Also used for your own profile (My Pickleball), which brings its own header.
+ */
+export function StudentView({ student, header }: { student: Student; header?: React.ReactNode }) {
+  const { workspace, actions } = useWorkspace();
+  const ladder = useLadder(student.sport);
+  const router = useRouter();
+  const [editing, setEditing] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+  const [lesson, setLesson] = React.useState<StudentLesson | "new" | null>(null);
+  const [stageTarget, setStageTarget] = React.useState<StageTarget | null>(null);
+  const self = student.isSelf;
+  const noteNoun = self ? "Practice note" : "Lesson note";
 
   const current = currentStages(ladder, workspace.studentStages, student.id);
   const level = levelOf(ladder, workspace.studentStages, student.id);
@@ -62,7 +72,7 @@ export function StudentPage() {
     if (!next || !student) return;
     const saved = actions.setStudentStage(student.id, track.id, next.id, workspace.today);
     if (!saved) return;
-    toast(`${student.name}: ${next.id} · ${next.name}`, {
+    toast(`${self ? "" : `${student.name}: `}${next.id} · ${next.name}`, {
       description: `${track.name} track, today`,
       action: saved.created ? { label: "Undo", onClick: () => actions.removeStudentStage(saved.entry.id) } : undefined,
     });
@@ -80,7 +90,7 @@ export function StudentPage() {
   function removeLesson(l: StudentLesson) {
     const removed = actions.deleteLesson(l.id);
     if (!removed) return;
-    toast("Lesson note deleted", { description: formatLongDate(removed.date), action: { label: "Undo", onClick: () => actions.restoreLesson(removed) } });
+    toast(`${noteNoun} deleted`, { description: formatLongDate(removed.date), action: { label: "Undo", onClick: () => actions.restoreLesson(removed) } });
   }
 
   function deleteStudent() {
@@ -93,6 +103,8 @@ export function StudentPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {header ?? (
+      <>
       <Link href="/students" className="inline-flex items-center gap-1.5 self-start text-xs font-semibold text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-3.5" />
         All students
@@ -148,6 +160,8 @@ export function StudentPage() {
           </div>
         </div>
       </Card>
+      </>
+      )}
 
       <section aria-labelledby="tracks-heading" className="flex flex-col gap-3">
         <h3 id="tracks-heading" className="text-base font-semibold">
@@ -177,7 +191,7 @@ export function StudentPage() {
         <section aria-labelledby="lessons-heading" className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <h3 id="lessons-heading" className="text-base font-semibold">
-              Lesson notes
+              {self ? "Practice notes" : "Lesson notes"}
             </h3>
             <Button variant="outline" size="sm" onClick={() => setLesson("new")}>
               Add note
@@ -185,11 +199,13 @@ export function StudentPage() {
           </div>
           {lessons.length === 0 ? (
             <p className="rounded-xl border border-dashed bg-card/60 px-4 py-6 text-center text-[13px] text-muted-foreground">
-              No lesson notes yet. After a lesson, jot down what you worked on and what’s next.
+              {self
+                ? "No practice notes yet. After a session (or a lesson from a course), jot down what you worked on and what’s next."
+                : "No lesson notes yet. After a lesson, jot down what you worked on and what’s next."}
             </p>
           ) : (
             <Card className="overflow-hidden">
-              <ul className="divide-y" aria-label="Lesson notes">
+              <ul className="divide-y" aria-label={self ? "Practice notes" : "Lesson notes"}>
                 {lessons.map((l) => (
                   <li key={l.id} className="flex items-start gap-3 px-4 py-3 sm:px-5">
                     <div className="min-w-0 flex-1 text-[13px]">
@@ -210,7 +226,7 @@ export function StudentPage() {
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-xs" aria-label={`Actions for the lesson note of ${formatLongDate(l.date)}`}>
+                        <Button variant="ghost" size="icon-xs" aria-label={`Actions for the ${noteNoun.toLowerCase()} of ${formatLongDate(l.date)}`}>
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -279,7 +295,9 @@ export function StudentPage() {
       </div>
 
       {editing && <StudentEditorDialog student={student} open={editing} onOpenChange={setEditing} />}
-      {lesson && <LessonDialog student={student} lesson={lesson === "new" ? undefined : lesson} open={!!lesson} onOpenChange={(o) => !o && setLesson(null)} />}
+      {lesson && (
+        <LessonDialog student={student} lesson={lesson === "new" ? undefined : lesson} noun={noteNoun} open={!!lesson} onOpenChange={(o) => !o && setLesson(null)} />
+      )}
       {stageTarget && (
         <SetStageDialog
           student={student}
@@ -290,7 +308,7 @@ export function StudentPage() {
           onOpenChange={(o) => !o && setStageTarget(null)}
         />
       )}
-      <DeleteStudentDialog student={student} open={deleting} onOpenChange={setDeleting} onConfirm={deleteStudent} lessons={lessons.length} />
+      {!self && <DeleteStudentDialog student={student} open={deleting} onOpenChange={setDeleting} onConfirm={deleteStudent} lessons={lessons.length} />}
     </div>
   );
 }

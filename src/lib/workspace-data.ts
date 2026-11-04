@@ -25,6 +25,7 @@ export function hasAnyData(d: PersistedData) {
     d.studentChecks.length > 0 ||
     d.studentMatches.length > 0 ||
     d.studentBenchmarks.length > 0 ||
+    d.studentRatings.length > 0 ||
     d.kaizenLogs.some((l) => l.notes || l.reflectionWentWell || l.reflectionImprove || l.reflectionLearned)
   );
 }

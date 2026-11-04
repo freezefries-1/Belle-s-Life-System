@@ -58,6 +58,7 @@ const TABLE_LABEL: Record<string, string> = {
   student_checks: "Milestone",
   student_matches: "Match",
   student_benchmarks: "Benchmark result",
+  student_ratings: "Rating",
 };
 
 function conflictTitle(c: SyncConflict) {

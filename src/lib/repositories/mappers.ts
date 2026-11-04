@@ -33,6 +33,7 @@ export const emptyRowSet = (): RowSet => ({
   student_checks: new Map(),
   student_matches: new Map(),
   student_benchmarks: new Map(),
+  student_ratings: new Map(),
 });
 
 const sessionTaskId = (sessionId: string, taskId: string) => `${sessionId}:${taskId}`;
@@ -245,6 +246,8 @@ export function dataToRows(d: PersistedData): RowSet {
       goals: x.goals,
       notes: x.notes,
       status: x.status,
+      sport: x.sport,
+      is_self: x.isSelf,
       created_at: x.createdAt,
       updated_at: x.updatedAt,
     });
@@ -317,6 +320,11 @@ export function dataToRows(d: PersistedData): RowSet {
       unforced_errors: x.unforcedErrors,
       winners: x.winners,
       notes: x.notes,
+      format: x.format,
+      partner: x.partner,
+      rated: x.rated,
+      point_losses: { ...x.pointLosses },
+      kap_stats: { ...x.kapStats },
       created_at: x.createdAt,
       updated_at: x.updatedAt,
     });
@@ -332,6 +340,19 @@ export function dataToRows(d: PersistedData): RowSet {
       higher_is_better: x.higherIsBetter,
       value: x.value,
       measured_on: x.measuredOn,
+      note: x.note,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  }
+  for (const x of d.studentRatings) {
+    if (!studentIds.has(x.studentId)) continue;
+    rows.student_ratings.set(x.id, {
+      id: x.id,
+      student_id: x.studentId,
+      kind: x.kind,
+      rating: x.rating,
+      rated_on: x.ratedOn,
       note: x.note,
       created_at: x.createdAt,
       updated_at: x.updatedAt,
@@ -517,6 +538,8 @@ export function rowsToData(rows: RowSet): PersistedData {
       goals: x.goals,
       notes: x.notes,
       status: x.status,
+      sport: x.sport,
+      isSelf: x.is_self,
       createdAt: x.created_at,
       updatedAt: x.updated_at,
     })),
@@ -577,6 +600,11 @@ export function rowsToData(rows: RowSet): PersistedData {
       unforcedErrors: x.unforced_errors,
       winners: x.winners,
       notes: x.notes,
+      format: x.format,
+      partner: x.partner,
+      rated: x.rated,
+      pointLosses: x.point_losses,
+      kapStats: x.kap_stats,
       createdAt: x.created_at,
       updatedAt: x.updated_at,
     })),
@@ -590,6 +618,17 @@ export function rowsToData(rows: RowSet): PersistedData {
       // Postgres "numeric" can arrive as a string.
       value: Number(x.value),
       measuredOn: x.measured_on,
+      note: x.note,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
+    studentRatings: list("student_ratings").map((x) => ({
+      id: x.id,
+      studentId: x.student_id,
+      kind: x.kind,
+      // Postgres "numeric" can arrive as a string.
+      rating: Number(x.rating),
+      ratedOn: x.rated_on,
       note: x.note,
       createdAt: x.created_at,
       updatedAt: x.updated_at,
@@ -620,6 +659,7 @@ function rowsToEmpty(): PersistedData {
     studentChecks: [],
     studentMatches: [],
     studentBenchmarks: [],
+    studentRatings: [],
   };
 }
 

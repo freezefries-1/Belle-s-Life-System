@@ -12,16 +12,23 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatLongDate, formatShortDate } from "@/lib/date";
 import { stageIndex, type Ladder } from "@/lib/students/ladder";
 import {
-  MATCH_KIND_LABELS,
+  POINT_LOSS_REASONS,
+  kapOf,
+  kapSummary,
   benchmarkSeries,
   chartValue,
   formatBenchmark,
   matchRecord,
   matchesByMonth,
   matchesOf,
+  partnerRecords,
   percent,
+  pointLossSummary,
+  kindLabels,
+  targetsFor,
   type BenchmarkSeries,
 } from "@/lib/students/performance";
+import { HBarList } from "@/components/analytics/bar-chart";
 import { useWorkspace } from "@/lib/store/workspace-store";
 import { cn } from "@/lib/utils";
 import type { Student, StudentBenchmark, StudentMatch, StudentStage, TrackId } from "@/types";
@@ -105,6 +112,7 @@ function BenchmarkCard({
   onDelete: (r: StudentBenchmark) => void;
 }) {
   const values = s.results.map((r) => chartValue(s.unit, r.value));
+  const targets = targetsFor(s.test);
   const scale = s.unit === "out_of_10" ? { top: 100, ticks: [0, 50, 100] } : niceTicks(Math.max(...values) * 1.1);
   return (
     <Card role="group" className="gap-3 p-4 sm:p-5" aria-label={s.name}>
@@ -116,6 +124,15 @@ function BenchmarkCard({
             Latest, {formatShortDate(s.latest.measuredOn)} · Best {formatBenchmark(s.unit, s.best.value)}
           </p>
           <p className={cn("mt-0.5 text-xs font-semibold", s.improvement && s.improvement > 0 ? "text-emerald-700" : "text-muted-foreground")}>{changeText(s)}</p>
+          {targets && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Targets:{" "}
+              {Object.entries(targets)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([level, v]) => `${Number(level).toFixed(1)} → ${formatBenchmark(s.unit, v)}${s.latest.value >= v ? " ✓" : ""}`)
+                .join(" · ")}
+            </p>
+          )}
         </div>
         <Button variant="ghost" size="sm" className="shrink-0 gap-1" onClick={onRecord} aria-label={`Record a result for ${s.name}`}>
           <Plus className="size-3.5" />
@@ -195,6 +212,16 @@ function statLine(m: StudentMatch) {
     m.doubleFaults !== null && `${m.doubleFaults} double ${m.doubleFaults === 1 ? "fault" : "faults"}`,
     m.unforcedErrors !== null && `${m.unforcedErrors} unforced ${m.unforcedErrors === 1 ? "error" : "errors"}`,
     m.winners !== null && `${m.winners} ${m.winners === 1 ? "winner" : "winners"}`,
+    (() => {
+      const k = kapOf(m.kapStats);
+      if (k.kap === null) return false;
+      const split = [k.drops && k.dropKap !== null ? `drops ${k.dropKap}%` : "", k.drives && k.driveKap !== null ? `drives ${k.driveKap}%` : ""].filter(Boolean);
+      return `KAP ${k.kap}% (${k.arrived}/${k.thirds})${split.length === 2 ? ` — ${split.join(", ")}` : ""}${k.thirdErrors ? ` · ${k.thirdErrors} 3rd-shot ${k.thirdErrors === 1 ? "error" : "errors"}` : ""}`;
+    })(),
+    Object.keys(m.pointLosses).length > 0 &&
+      `Points lost: ${POINT_LOSS_REASONS.filter((r) => m.pointLosses[r.key])
+        .map((r) => `${m.pointLosses[r.key]} ${r.label.toLowerCase()}`)
+        .join(", ")}`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -228,6 +255,12 @@ export function MatchesSection({ student }: { student: Student }) {
     withServe.reduce((n, m) => n + (m.firstTotal ?? 0), 0),
   );
   const shown = showAll ? matches : matches.slice(0, 8);
+  const pickleball = student.sport === "pickleball";
+  const labels = kindLabels(student.sport);
+  const partners = pickleball ? partnerRecords(matches) : [];
+  const losses = pickleball ? pointLossSummary(matches.slice(0, 10)) : null;
+  const kap = pickleball ? kapSummary(matches) : null;
+  const byFormat = (f: "singles" | "doubles") => matchRecord(matches.filter((m) => m.format === f), workspace.today).all;
 
   function remove(m: StudentMatch) {
     const removed = actions.deleteMatch(m.id);
@@ -248,18 +281,28 @@ export function MatchesSection({ student }: { student: Student }) {
       </div>
       {matches.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-card/60 px-4 py-6 text-center text-[13px] text-muted-foreground">
-          No matches yet. For students who compete, add results here to see their record and form.
+          {pickleball
+            ? "No matches yet. Add your matches — with your partner and a note — to see your record, partners and where points go."
+            : "No matches yet. For students who compete, add results here to see their record and form."}
         </p>
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Tile label={`This year (${workspace.today.slice(0, 4)})`} value={`${record.thisYear.wins}–${record.thisYear.losses}`} note="Won–lost" />
             <Tile label="Win rate" value={record.all.winRate === null ? "—" : `${record.all.winRate}%`} note={`${record.all.wins} of ${record.all.played} matches`} />
-            <Tile
-              label="First serves in"
-              value={firstServe === null ? "—" : `${firstServe}%`}
-              note={withServe.length ? `Across ${withServe.length} ${withServe.length === 1 ? "match" : "matches"} with counts` : "Add serve counts to a match"}
-            />
+            {pickleball ? (
+              <Tile
+                label="Doubles · singles"
+                value={`${byFormat("doubles").wins}–${byFormat("doubles").losses} · ${byFormat("singles").wins}–${byFormat("singles").losses}`}
+                note="Won–lost, all time"
+              />
+            ) : (
+              <Tile
+                label="First serves in"
+                value={firstServe === null ? "—" : `${firstServe}%`}
+                note={withServe.length ? `Across ${withServe.length} ${withServe.length === 1 ? "match" : "matches"} with counts` : "Add serve counts to a match"}
+              />
+            )}
             <div className="rounded-xl border bg-card px-3.5 py-3">
               <dt className="text-xs text-muted-foreground">Recent form</dt>
               <dd className="mt-1.5 flex gap-1" aria-label={`Last ${record.form.length}, oldest first: ${record.form.map((m) => (m.result === "win" ? "win" : "loss")).join(", ")}`}>
@@ -275,6 +318,86 @@ export function MatchesSection({ student }: { student: Student }) {
               <WinLossChart months={months} />
             </Card>
           )}
+          {kap && kap.matches > 0 && kap.overall.kap !== null && (
+            <Card className="p-4 sm:p-5" role="group" aria-label="Kitchen arrival (KAP)">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[13px] font-semibold">Kitchen arrival (KAP)</p>
+                  <p className="mt-1 text-[22px] leading-tight font-bold">{kap.overall.kap}%</p>
+                  <p className="text-xs text-muted-foreground">
+                    {kap.overall.arrived} of {kap.overall.thirds} thirds, across {kap.matches} {kap.matches === 1 ? "match" : "matches"}
+                    {kap.overall.thirdErrorRate !== null && kap.overall.thirdErrors > 0 ? ` · 3rd-shot errors ${kap.overall.thirdErrorRate}%` : ""}
+                  </p>
+                </div>
+                {kap.overall.drops > 0 && kap.overall.drives > 0 && (
+                  <div className="min-w-48 flex-1 sm:max-w-64">
+                    <HBarList
+                      ariaLabel="Kitchen arrival by third shot"
+                      rows={[
+                        { key: "drop", label: "Drops", value: kap.overall.dropKap ?? 0, display: `${kap.overall.dropKap}% of ${kap.overall.drops}` },
+                        { key: "drive", label: "Drives", value: kap.overall.driveKap ?? 0, display: `${kap.overall.driveKap}% of ${kap.overall.drives}` },
+                      ]}
+                    />
+                  </div>
+                )}
+              </div>
+              {kap.perMatch.length > 1 && (
+                <div className="mt-3">
+                  <TrendChart
+                    label={`KAP by match: ${kap.perMatch.map((x) => `${formatShortDate(x.match.playedOn)} ${x.kap}%`).join(", ")}`}
+                    points={kap.perMatch.map((x) => ({ key: x.match.id, date: x.match.playedOn, value: x.kap ?? 0, display: `KAP ${x.kap}% (${x.arrived}/${x.thirds})` }))}
+                    yMax={100}
+                    ticks={[0, 50, 100]}
+                    formatTick={(v) => `${v}%`}
+                  />
+                </div>
+              )}
+            </Card>
+          )}
+          {pickleball && (partners.length > 0 || (losses && losses.reasons.length > 0)) && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {partners.length > 0 && (
+                <Card className="p-4 sm:p-5">
+                  <p className="text-[13px] font-semibold">Record with each partner</p>
+                  <table className="mt-2 w-full text-[13px]" aria-label="Record with each partner">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground">
+                        <th className="pb-1 font-medium">Partner</th>
+                        <th className="pb-1 text-right font-medium">Won–lost</th>
+                        <th className="pb-1 text-right font-medium">Win rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {partners.map((p) => (
+                        <tr key={p.name} className="border-t align-top">
+                          <td className="py-1.5 pr-2">
+                            <span className="font-semibold">{p.name}</span>
+                            {p.last.notes && <span className="mt-0.5 block text-xs text-muted-foreground">Latest: {p.last.notes}</span>}
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums">
+                            {p.wins}–{p.losses}
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums">{p.winRate}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card>
+              )}
+              {losses && losses.reasons.length > 0 && (
+                <Card className="p-4 sm:p-5">
+                  <p className="text-[13px] font-semibold">How you lose points</p>
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    From the tallies in your last {losses.matches} {losses.matches === 1 ? "match" : "matches"} with counts — the top one is a good thing to work on.
+                  </p>
+                  <HBarList
+                    ariaLabel="Points lost by reason"
+                    rows={losses.reasons.map((r) => ({ key: r.key, label: r.label, value: r.total, display: `${r.total} ${r.total === 1 ? "point" : "points"}` }))}
+                  />
+                </Card>
+              )}
+            </div>
+          )}
           <Card className="overflow-hidden">
             <ul className="divide-y" aria-label="Matches">
               {shown.map((m) => {
@@ -286,11 +409,14 @@ export function MatchesSection({ student }: { student: Student }) {
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="font-semibold">{m.result === "win" ? "Won" : "Lost"}</span>
                         {m.score && <span className="font-semibold tabular-nums">{m.score}</span>}
+                        {pickleball && m.format === "doubles" && m.partner && <span>with {m.partner}</span>}
                         {m.opponent && <span className="text-muted-foreground">vs {m.opponent}</span>}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatLongDate(m.playedOn)} · {m.event || MATCH_KIND_LABELS[m.kind]}
-                        {m.event && <Badge variant="secondary" className="ml-1.5 align-middle">{MATCH_KIND_LABELS[m.kind]}</Badge>}
+                        {formatLongDate(m.playedOn)} · {m.event || labels[m.kind]}
+                        {m.event && <Badge variant="secondary" className="ml-1.5 align-middle">{labels[m.kind]}</Badge>}
+                        {pickleball && <Badge variant="secondary" className="ml-1.5 align-middle">{m.format === "doubles" ? "Doubles" : "Singles"}</Badge>}
+                        {pickleball && m.rated && <Badge variant="secondary" className="ml-1.5 align-middle">DUPR rated</Badge>}
                       </p>
                       {stats && <p className="mt-0.5 text-xs">{stats}</p>}
                       {m.notes && <p className="mt-0.5 text-xs whitespace-pre-line text-muted-foreground">{m.notes}</p>}
@@ -327,7 +453,8 @@ function Tile({ label, value, note }: { label: string; value: string; note: stri
 
 /** A staircase per track (Rally, Serve): when each stage was reached, carried on to today. */
 export function StageTimeline({ ladder, stages, today }: { ladder: Ladder; stages: StudentStage[]; today: string }) {
-  const tracks: TrackId[] = ["rally", "serve"];
+  // The first two tracks: Rally and Serve (tennis), Kitchen and Third shot (pickleball).
+  const tracks: TrackId[] = ladder.tracks.slice(0, 2).map((t) => t.id);
   const shown = tracks
     .map((t) => ({
       track: ladder[t],

@@ -35,11 +35,13 @@ export function StudentsPage() {
   const [group, setGroup] = React.useState<GroupFilter>("all");
   const [adding, setAdding] = React.useState(false);
 
-  const counts = Object.fromEntries(STUDENT_STATUSES.map((s) => [s.value, workspace.students.filter((x) => x.status === s.value).length]));
-  const visible = workspace.students
+  // Your own profile (My Pickleball) lives on its own page, not in this list.
+  const students = workspace.students.filter((x) => !x.isSelf);
+  const counts = Object.fromEntries(STUDENT_STATUSES.map((s) => [s.value, students.filter((x) => x.status === s.value).length]));
+  const visible = students
     .filter((x) => x.status === status && (group === "all" || x.group === group))
     .sort((a, b) => a.name.localeCompare(b.name));
-  const active = workspace.students.filter((x) => x.status === "active");
+  const active = students.filter((x) => x.status === "active");
 
   return (
     <>
@@ -62,7 +64,7 @@ export function StudentsPage() {
         }
       />
 
-      {workspace.students.length === 0 ? (
+      {students.length === 0 ? (
         <Card className="items-center py-12">
           <EmptyState icon={Users} title="No students yet" description="Add a student to track their stage on each track and keep lesson notes." className="py-0" />
           <Button className="mt-4" onClick={() => setAdding(true)}>

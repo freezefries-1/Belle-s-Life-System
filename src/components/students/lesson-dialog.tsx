@@ -15,11 +15,13 @@ import type { Student, StudentLesson } from "@/types";
 export function LessonDialog({
   student,
   lesson,
+  noun = "Lesson note",
   open,
   onOpenChange,
 }: {
   student: Student;
   lesson?: StudentLesson;
+  noun?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -36,9 +38,9 @@ export function LessonDialog({
     const input = { date, focus, wentWell, workOn };
     if (lesson) {
       actions.updateLesson(lesson.id, input);
-      toast("Lesson note saved", { description: student.name });
+      toast(`${noun} saved`, { description: student.isSelf ? undefined : student.name });
     } else if (actions.addLesson(student.id, input)) {
-      toast("Lesson note added", { description: student.name });
+      toast(`${noun} added`, { description: student.isSelf ? undefined : student.name });
     }
     onOpenChange(false);
   }
@@ -48,7 +50,8 @@ export function LessonDialog({
       <DialogContent className="top-4 max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto sm:top-[8%] sm:max-h-[88dvh]">
         <DialogHeader>
           <DialogTitle>
-            {lesson ? "Edit lesson note" : "Lesson note"}: {student.name}
+            {lesson ? `Edit ${noun.toLowerCase()}` : noun}
+            {student.isSelf ? "" : `: ${student.name}`}
           </DialogTitle>
           <DialogDescription>A line or two is plenty. Fill in whichever parts help.</DialogDescription>
         </DialogHeader>

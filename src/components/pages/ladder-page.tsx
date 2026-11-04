@@ -13,19 +13,20 @@ import { type StageDef } from "@/lib/students/ladder";
 import { currentStages } from "@/lib/students/student-model";
 import { useLadder } from "@/lib/students/use-ladder";
 import { useWorkspace } from "@/lib/store/workspace-store";
-import type { TrackId } from "@/types";
+import type { Sport, TrackId } from "@/types";
 
 type Editing = { track: TrackId; stage?: StageDef };
 
-/** Students → Coaching ladder: your wording for every stage and its milestones. */
-export function LadderPage() {
+/** Students → Coaching ladder (tennis), or My Pickleball → My ladder: your wording for every stage and its milestones. */
+export function LadderPage({ sport = "tennis" }: { sport?: Sport }) {
   const { workspace } = useWorkspace();
-  const ladder = useLadder();
+  const ladder = useLadder(sport);
+  const self = sport === "pickleball";
   const [editing, setEditing] = React.useState<Editing | null>(null);
 
   // How many active students are currently at each stage.
   const atStage = new Map<string, number>();
-  for (const s of workspace.students.filter((x) => x.status === "active")) {
+  for (const s of workspace.students.filter((x) => x.status === "active" && !x.isSelf && x.sport === sport)) {
     const current = currentStages(ladder, workspace.studentStages, s.id);
     for (const t of ladder.tracks) {
       const id = current[t.id]?.stage;
@@ -35,13 +36,17 @@ export function LadderPage() {
 
   return (
     <>
-      <Link href="/students" className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground">
+      <Link href={self ? "/pickleball" : "/students"} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-3.5" />
-        All students
+        {self ? "My Pickleball" : "All students"}
       </Link>
       <PageHeader
-        title="Coaching ladder"
-        description="The stages on each track and the milestones for moving on. Reword anything to match how you coach; students keep their progress."
+        title={self ? "My pickleball ladder" : "Coaching ladder"}
+        description={
+          self
+            ? "The stages on each part of your game, with the level they usually match and the milestones for moving on. Reword anything; your progress is kept."
+            : "The stages on each track and the milestones for moving on. Reword anything to match how you coach; students keep their progress."
+        }
       />
       <div className="flex flex-col gap-6">
         {ladder.tracks.map((t) => (

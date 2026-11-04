@@ -11,6 +11,8 @@ import type {
   StudentInput,
   StudentMatch,
   StudentMatchInput,
+  StudentRating,
+  StudentRatingInput,
   StudentLesson,
   StudentLessonInput,
   StudentStage,
@@ -50,6 +52,7 @@ export interface RemovedStudent {
   checks: StudentCheck[];
   matches: StudentMatch[];
   benchmarks: StudentBenchmark[];
+  ratings: StudentRating[];
 }
 
 /** Removes the student with their stages and lesson notes; returns them so Undo can put everything back. */
@@ -64,6 +67,7 @@ export function deleteStudent(d: PersistedData, id: string): { data: PersistedDa
       checks: d.studentChecks.filter((c) => c.studentId === id),
       matches: d.studentMatches.filter((m) => m.studentId === id),
       benchmarks: d.studentBenchmarks.filter((b) => b.studentId === id),
+      ratings: d.studentRatings.filter((r) => r.studentId === id),
     },
     data: {
       ...d,
@@ -73,6 +77,7 @@ export function deleteStudent(d: PersistedData, id: string): { data: PersistedDa
       studentChecks: d.studentChecks.filter((c) => c.studentId !== id),
       studentMatches: d.studentMatches.filter((m) => m.studentId !== id),
       studentBenchmarks: d.studentBenchmarks.filter((b) => b.studentId !== id),
+      studentRatings: d.studentRatings.filter((r) => r.studentId !== id),
     },
   };
 }
@@ -87,6 +92,7 @@ export function restoreStudent(d: PersistedData, removed: RemovedStudent): Persi
     studentChecks: [...d.studentChecks, ...(removed.checks ?? [])],
     studentMatches: [...d.studentMatches, ...(removed.matches ?? [])],
     studentBenchmarks: [...d.studentBenchmarks, ...(removed.benchmarks ?? [])],
+    studentRatings: [...d.studentRatings, ...(removed.ratings ?? [])],
   };
 }
 
@@ -186,7 +192,16 @@ export function updateMatch(d: PersistedData, id: string, input: StudentMatchInp
     ...d,
     studentMatches: d.studentMatches.map((m) =>
       m.id === id
-        ? { ...m, ...input, event: input.event.trim(), opponent: input.opponent.trim(), score: input.score.trim(), notes: input.notes.trim(), updatedAt: now }
+        ? {
+            ...m,
+            ...input,
+            event: input.event.trim(),
+            opponent: input.opponent.trim(),
+            partner: input.partner.trim(),
+            score: input.score.trim(),
+            notes: input.notes.trim(),
+            updatedAt: now,
+          }
         : m,
     ),
   };
@@ -217,3 +232,26 @@ export const deleteBenchmark = (d: PersistedData, id: string): PersistedData => 
 
 export const restoreBenchmark = (d: PersistedData, result: StudentBenchmark): PersistedData =>
   d.studentBenchmarks.some((b) => b.id === result.id) ? d : addBenchmark(d, result);
+
+/* ---------------- ratings (e.g. DUPR) ---------------- */
+
+export const addRating = (d: PersistedData, rating: StudentRating): PersistedData =>
+  hasStudent(d, rating.studentId) ? { ...d, studentRatings: [...d.studentRatings, rating] } : d;
+
+export function updateRating(d: PersistedData, id: string, input: StudentRatingInput, now: ISODateTime): PersistedData {
+  if (!d.studentRatings.some((r) => r.id === id)) return d;
+  return {
+    ...d,
+    studentRatings: d.studentRatings.map((r) =>
+      r.id === id ? { ...r, ...input, rating: Math.round(input.rating * 1000) / 1000, note: input.note.trim(), updatedAt: now } : r,
+    ),
+  };
+}
+
+export const deleteRating = (d: PersistedData, id: string): PersistedData => ({ ...d, studentRatings: d.studentRatings.filter((r) => r.id !== id) });
+
+export const restoreRating = (d: PersistedData, rating: StudentRating): PersistedData =>
+  d.studentRatings.some((r) => r.id === rating.id) ? d : addRating(d, rating);
+
+/** Your own profile for a sport (there's at most one). */
+export const selfProfile = (d: Pick<PersistedData, "students">, sport: Student["sport"]) => d.students.find((s) => s.isSelf && s.sport === sport) ?? null;
