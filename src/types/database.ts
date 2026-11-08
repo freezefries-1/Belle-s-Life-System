@@ -39,6 +39,8 @@ export type StudentCheckRow = AppRow<"student_checks">;
 export type StudentMatchRow = AppRow<"student_matches", { point_losses: Record<string, number>; kap_stats: Record<string, number> }>;
 export type StudentBenchmarkRow = AppRow<"student_benchmarks">;
 export type StudentRatingRow = AppRow<"student_ratings">;
+export type BookRow = AppRow<"books", { genres: string[] }>;
+export type ReadingGoalRow = AppRow<"reading_goals">;
 
 export interface TableRows {
   projects: ProjectRow;
@@ -62,6 +64,8 @@ export interface TableRows {
   student_matches: StudentMatchRow;
   student_benchmarks: StudentBenchmarkRow;
   student_ratings: StudentRatingRow;
+  books: BookRow;
+  reading_goals: ReadingGoalRow;
 }
 
 export type TableName = keyof TableRows;
@@ -96,4 +100,6 @@ export const TABLE_ORDER: TableName[] = [
   "student_matches",
   "student_benchmarks",
   "student_ratings",
+  "books",
+  "reading_goals",
 ];

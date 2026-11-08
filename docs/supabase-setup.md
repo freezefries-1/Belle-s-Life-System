@@ -20,6 +20,7 @@ Run each file in `supabase/migrations/` **once, in order** (the file names start
 5. `20261031000000_coaching_ladder.sql` adds your **coaching ladder** wording and the **milestones** each student has ticked. Run it **before** deploying the version of the app that has the editable ladder.
 6. `20261102000000_matches_benchmarks.sql` adds students' **matches** and **benchmark results**. Run it **before** deploying the version of the app that has them.
 7. `20261104000000_my_pickleball.sql` adds **My Pickleball**: a sport and a "this is me" marker on profiles, the pickleball tracks, doubles/partner/KAP details on matches, and a **DUPR ratings** table. It only adds — nothing existing is changed or removed. Run it **before** deploying the version of the app that has My Pickleball.
+8. `20261108000000_reading.sql` adds **Reading**: your books (with genres, stars and dates) and a yearly reading goal. It only adds — nothing existing is changed or removed. Run it **before** deploying the version of the app that has Reading.
 
 For each file:
 1. On GitHub, open the file and click **Raw**. Select everything (Cmd/Ctrl+A) and copy it.

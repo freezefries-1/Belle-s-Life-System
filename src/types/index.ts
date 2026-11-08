@@ -537,6 +537,37 @@ export interface StudentRating {
 
 export type StudentRatingInput = Pick<StudentRating, "kind" | "rating" | "ratedOn" | "note">;
 
+export type BookStatus = "reading" | "finished";
+
+/** A book you're reading or have finished. */
+export interface Book {
+  id: string;
+  title: string;
+  author: string;
+  /** One or more genres, e.g. ["WLW", "Mystery"]. */
+  genres: string[];
+  status: BookStatus;
+  /** 1–5 stars, or null for no rating. */
+  rating: number | null;
+  startedOn: ISODate | null;
+  /** Set when (and only when) the book is finished. */
+  finishedOn: ISODate | null;
+  note: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export type BookInput = Pick<Book, "title" | "author" | "genres" | "status" | "rating" | "startedOn" | "finishedOn" | "note">;
+
+/** How many books you want to finish in a year. The id is the year ("2026"). */
+export interface ReadingGoal {
+  id: string;
+  year: number;
+  target: number;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
@@ -559,6 +590,8 @@ export interface PersistedData {
   studentMatches: StudentMatch[];
   studentBenchmarks: StudentBenchmark[];
   studentRatings: StudentRating[];
+  books: Book[];
+  readingGoals: ReadingGoal[];
 }
 
 /** What components read: saved data + today's date. */

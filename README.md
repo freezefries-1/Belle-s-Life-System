@@ -263,6 +263,12 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 - **Benchmarks with targets** for 4.5 and 5.0, and a **Focus next** card that lists the biggest gaps first.
 - **Doubles matches:** partner, DUPR-rated or not, opponents, notes and insights; your record with each partner; optional tallies of how points were lost; and optional **kitchen arrival (KAP)** tallies with drop vs drive and a KAP trend.
 
+## Reading — what’s included
+
+- A **Reading** page (Personal Growth): a **yearly goal** with a progress bar and whether you're ahead or behind pace; books finished this year and all time; top genre and average rating; books finished each month; and the genres you read most. See [docs/reading.md](docs/reading.md).
+- **Books** with title, author, **several genres** each (built-in ones plus your own, e.g. WLW), 1–5 stars, start and finish dates, and a note. **Currently reading** with a one-tap "Finished it"; the finished list can be searched and filtered by genre; edit and delete with Undo.
+- Database: `supabase/migrations/20261108000000_reading.sql` (owner-only `books` and `reading_goals`). Storage format v10.
+
 ## Phase 8 — what’s included
 
 - **Phones:** a bottom navigation bar, tap areas of about 44 × 44 px, no zoom when typing, dialogs that fit small screens, and support for the iPhone notch and home bar.

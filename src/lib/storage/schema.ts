@@ -45,6 +45,8 @@ import type {
   StudentBenchmark,
   StudentMatch,
   StudentRating,
+  Book,
+  ReadingGoal,
   Sport,
 } from "@/types";
 
@@ -69,8 +71,9 @@ export const STORAGE_KEY = "belles-life-system:v1";
  * 8 — Matches and benchmarks: `studentMatches`, `studentBenchmarks`.
  * 9 — My Pickleball: students gain `sport` and `isSelf`; matches gain `format`,
  *     `partner`, `rated`, `pointLosses`, `kapStats`; `studentRatings` (e.g. DUPR).
+ * 10 — Reading: `books`, `readingGoals`.
  */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -99,6 +102,8 @@ export const EMPTY_DATA: PersistedData = {
   studentMatches: [],
   studentBenchmarks: [],
   studentRatings: [],
+  books: [],
+  readingGoals: [],
 };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
@@ -568,6 +573,58 @@ export function parseStudentRating(raw: unknown): StudentRating | null {
   return { id, studentId, kind, rating, ratedOn, note: str(raw.note) ?? "", createdAt, updatedAt: timestamp(raw.updatedAt) ?? createdAt };
 }
 
+/** Genres: trimmed, non-empty, at most 40 characters each, no repeats (ignoring capitals), at most 20. */
+export function cleanGenres(raw: unknown): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const g of stringArray(raw)) {
+    const name = g.trim().replace(/\s+/g, " ").slice(0, 40);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length === 20) break;
+  }
+  return out;
+}
+
+export function parseBook(raw: unknown): Book | null {
+  if (!isObj(raw)) return null;
+  const id = str(raw.id);
+  const title = str(raw.title)?.trim().slice(0, 300);
+  const status = oneOf(raw.status, ["reading", "finished"] as const);
+  const createdAt = timestamp(raw.createdAt);
+  if (!id || !title || !status || !createdAt) return null;
+  const finishedOn = isoDate(raw.finishedOn);
+  // A finished book needs its finish date; a book you're reading has none yet.
+  if (status === "finished" && !finishedOn) return null;
+  const rating = typeof raw.rating === "number" && Number.isInteger(raw.rating) && raw.rating >= 1 && raw.rating <= 5 ? raw.rating : null;
+  return {
+    id,
+    title,
+    author: (str(raw.author) ?? "").trim().slice(0, 200),
+    genres: cleanGenres(raw.genres),
+    status,
+    rating,
+    startedOn: isoDate(raw.startedOn),
+    finishedOn: status === "finished" ? finishedOn : null,
+    note: str(raw.note) ?? "",
+    createdAt,
+    updatedAt: timestamp(raw.updatedAt) ?? createdAt,
+  };
+}
+
+export function parseReadingGoal(raw: unknown): ReadingGoal | null {
+  if (!isObj(raw)) return null;
+  const year = raw.year;
+  const target = raw.target;
+  const createdAt = timestamp(raw.createdAt);
+  if (typeof year !== "number" || !Number.isInteger(year) || year < 1900 || year > 2200 || !createdAt) return null;
+  if (typeof target !== "number" || !Number.isInteger(target) || target < 1 || target > 1000) return null;
+  // One goal per year: the id is always the year.
+  return { id: String(year), year, target, createdAt, updatedAt: timestamp(raw.updatedAt) ?? createdAt };
+}
+
 export function parseStudentBenchmark(raw: unknown): StudentBenchmark | null {
   if (!isObj(raw)) return null;
   const id = str(raw.id);
@@ -814,6 +871,10 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
   const ratingsParsed = parseList(migrated.studentRatings, parseStudentRating);
   const ratingsKept = dedupeById(ratingsParsed.parsed);
   const studentRatings = ratingsKept.filter((x) => studentIds.has(x.studentId));
+  const booksParsed = parseList(migrated.books, parseBook);
+  const books = dedupeById(booksParsed.parsed);
+  const goalsParsed = parseList(migrated.readingGoals, parseReadingGoal);
+  const readingGoals = uniqueBy(goalsParsed.parsed, (x) => x.id, (x) => x.updatedAt);
 
   const highlightsKept = dedupeById(highlights.parsed);
   const commitmentsKept = dedupeById(commitments.parsed);
@@ -843,6 +904,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     studentMatches,
     studentBenchmarks,
     studentRatings,
+    books,
+    readingGoals,
   };
 
   const unreadable =
@@ -866,7 +929,9 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     checksParsed.dropped +
     matchesParsed.dropped +
     benchParsed.dropped +
-    ratingsParsed.dropped;
+    ratingsParsed.dropped +
+    booksParsed.dropped +
+    goalsParsed.dropped;
   const removed = {
     milestones: dedupeById(milestonesParsed.parsed).length - milestones.length,
     completions: completionsKept.length - completionsLinked.length,
@@ -903,7 +968,9 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       (checksLinked.length - studentChecks.length) +
       (matchesParsed.parsed.length - matchesKept.length) +
       (benchParsed.parsed.length - benchKept.length) +
-      (ratingsParsed.parsed.length - ratingsKept.length),
+      (ratingsParsed.parsed.length - ratingsKept.length) +
+      (booksParsed.parsed.length - books.length) +
+      (goalsParsed.parsed.length - readingGoals.length),
   };
 
   return {
@@ -959,6 +1026,10 @@ function migrate(version: number, data: Obj): Obj | null {
   if (version < 9) {
     // v8 → v9: existing students are tennis students (filled in while parsing); no ratings yet.
     current = { ...current, studentRatings: [] };
+  }
+  if (version < 10) {
+    // v9 → v10: no books or reading goals yet.
+    current = { ...current, books: [], readingGoals: [] };
   }
   return current;
 }

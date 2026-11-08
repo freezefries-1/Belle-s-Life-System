@@ -12,6 +12,57 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      books: {
+        Row: {
+          author: string
+          created_at: string
+          finished_on: string | null
+          genres: Json
+          id: string
+          note: string
+          rating: number | null
+          started_on: string | null
+          status: string
+          synced_at: string
+          title: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          author?: string
+          created_at: string
+          finished_on?: string | null
+          genres?: Json
+          id: string
+          note?: string
+          rating?: number | null
+          started_on?: string | null
+          status: string
+          synced_at?: string
+          title: string
+          updated_at: string
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          finished_on?: string | null
+          genres?: Json
+          id?: string
+          note?: string
+          rating?: number | null
+          started_on?: string | null
+          status?: string
+          synced_at?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       brain_dump_entries: {
         Row: {
           converted_task_id: string | null
@@ -418,6 +469,39 @@ export type Database = {
           updated_at?: string
           user_id?: string
           version?: number
+        }
+        Relationships: []
+      }
+      reading_goals: {
+        Row: {
+          created_at: string
+          id: string
+          synced_at: string
+          target: number
+          updated_at: string
+          user_id: string
+          version: number
+          year: number
+        }
+        Insert: {
+          created_at: string
+          id: string
+          synced_at?: string
+          target: number
+          updated_at: string
+          user_id?: string
+          version?: number
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          synced_at?: string
+          target?: number
+          updated_at?: string
+          user_id?: string
+          version?: number
+          year?: number
         }
         Relationships: []
       }

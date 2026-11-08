@@ -27,7 +27,7 @@ settings to confirm in your own Supabase and Vercel dashboards.
 
 | Check | Result |
 | --- | --- |
-| RLS on every table (`supabase/checks/rls-check.sql`) | 23/23 tables on (15 at the review, plus 7 Students tables and the DUPR ratings table added later); policies for `authenticated` only; signed-out (`anon`) can't read any table |
+| RLS on every table (`supabase/checks/rls-check.sql`) | 25/25 tables on (15 at the review, plus 7 Students tables, the DUPR ratings table and 2 Reading tables added later); policies for `authenticated` only; signed-out (`anon`) can't read any table |
 | Two-account database tests (`npm run test:db`) | 57 checks passed at the review (88 now, including Students, the ladder, matches and benchmarks): no cross-account reads, writes, deletes, links or RPC calls |
 | Browser tests (`npm run test:e2e`) | Account B can't see, change or delete A's task (in the app and directly in the database); signed-out reads return nothing; protected pages redirect; crafted `?next=` links stay on this site |
 | Secrets in the built app and in git history | None. The only match was Supabase's own library code checking a key's prefix. The only env file in git is the empty `.env.example`. The local test database's default password (`postgres`) appears in the Docker test setup only |

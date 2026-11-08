@@ -54,6 +54,8 @@ export function DataSettings() {
       studentMatches,
       studentBenchmarks,
       studentRatings,
+      books,
+      readingGoals,
     } = workspace;
     const envelope = createEnvelope({
       tasks,
@@ -76,6 +78,8 @@ export function DataSettings() {
       studentMatches,
       studentBenchmarks,
       studentRatings,
+      books,
+      readingGoals,
     });
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -112,7 +116,8 @@ export function DataSettings() {
             {workspace.tasks.length} tasks · {workspace.captures.length} Brain Dump entries ·{" "}
             {workspace.commitments.length} commitments · {workspace.projects.length} projects ·{" "}
             {workspace.recurrences.length} recurring · {workspace.kaizenLogs.length} log days
-            {workspace.students.some((x) => !x.isSelf) && ` · ${workspace.students.filter((x) => !x.isSelf).length} students`}.{" "}
+            {workspace.students.some((x) => !x.isSelf) && ` · ${workspace.students.filter((x) => !x.isSelf).length} students`}
+            {workspace.books.length > 0 && ` · ${workspace.books.length} books`}.{" "}
             {cloud
               ? "Saved securely in your account and available on every device you sign in to."
               : storage.status === "unavailable"

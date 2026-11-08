@@ -11,6 +11,7 @@ import { createLesson, createStudent } from "@/lib/students/student-model";
 import { formatShortDate } from "@/lib/date";
 import { nowISO } from "@/lib/id";
 import { createProject } from "@/lib/projects/project-model";
+import { createBook } from "@/lib/reading/books";
 import { createTemplate, generateOccurrences } from "@/lib/recurrence/recurrence";
 import { createSession, isOpenSession, type NewSession } from "@/lib/sessions/session-model";
 import { EMPTY_DATA } from "@/lib/storage/schema";
@@ -24,6 +25,7 @@ import * as projects from "./changes/projects";
 import * as recurrence from "./changes/recurrence";
 import * as reviews from "./changes/reviews";
 import * as ladder from "./changes/ladder";
+import * as reading from "./changes/reading";
 import * as students from "./changes/students";
 import * as tasks from "./changes/tasks";
 import type {
@@ -59,6 +61,8 @@ import type {
   StudentMatchInput,
   StudentRating,
   StudentRatingInput,
+  Book,
+  BookInput,
   StudentStage,
   Task,
   TaskInput,
@@ -214,6 +218,16 @@ export interface WorkspaceActions {
   restoreRating: (rating: StudentRating) => void;
   /** Create your own pickleball profile (once), with optional starting DUPR ratings. Returns it (or the existing one). */
   setUpMyPickleball: (ratings: { singles: number | null; doubles: number | null }) => Student | null;
+
+  // Reading
+  addBook: (input: BookInput) => Book | null;
+  updateBook: (id: string, input: BookInput) => void;
+  /** Mark a book you're reading as finished (with an optional rating). */
+  finishBook: (id: string, finishedOn: ISODate, rating: number | null) => void;
+  deleteBook: (id: string) => Book | null;
+  restoreBook: (book: Book) => void;
+  /** Set the number of books you want to finish in a year (0 removes the goal). */
+  setReadingGoal: (year: number, target: number) => void;
 
   // Coaching ladder
   /** Save your wording for a stage: name, focus and milestones. */
@@ -580,6 +594,26 @@ export function WorkspaceProvider({
         });
         return me;
       },
+
+      addBook: (input) => {
+        if (!current() || !input.title.trim()) return null;
+        if (input.status === "finished" && !input.finishedOn) return null;
+        const book = createBook(input, nowISO());
+        commit((d) => reading.addBook(d, book));
+        return book;
+      },
+      updateBook: (id, input) => {
+        if (!input.title.trim() || (input.status === "finished" && !input.finishedOn)) return;
+        commit((d) => reading.updateBook(d, id, input, nowISO()));
+      },
+      finishBook: (id, finishedOn, rating) => commit((d) => reading.finishBook(d, id, finishedOn, rating, nowISO())),
+      deleteBook: (id) => {
+        const book = current()?.books.find((b) => b.id === id) ?? null;
+        if (book) commit((d) => reading.deleteBook(d, id));
+        return book;
+      },
+      restoreBook: (book) => commit((d) => reading.restoreBook(d, book)),
+      setReadingGoal: (year, target) => commit((d) => reading.setReadingGoal(d, year, target, nowISO())),
 
       saveLadderStage: (track, stage, input) => commit((d) => ladder.saveLadderStage(d, track, stage, input, nowISO())),
       addLadderStage: (track, input) => {

@@ -362,6 +362,44 @@ check("Deleting the profile removes its ratings", r.data?.length === 0);
 r = await a.client.from("sync_tombstones").select("table_name").eq("id", "dr1");
 check("…and other devices are told the rating was deleted", r.data?.some((t) => t.table_name === "student_ratings"));
 
+// Reading: books and yearly goals, owner-only, sensible values only.
+const bookRow = (id, extra = {}) => ({ id, title: "The Quiet Harbour", author: "M. Lane", genres: ["WLW", "Mystery"], status: "finished", rating: 5, started_on: null, finished_on: "2026-11-02", note: "", created_at: now, updated_at: now, ...extra });
+r = await apply(a, [
+  { table: "books", op: "upsert", id: "bk1", row: bookRow("bk1"), expected_version: null },
+  { table: "books", op: "upsert", id: "bk2", row: bookRow("bk2", { status: "reading", rating: null, finished_on: null, started_on: "2026-11-01" }), expected_version: null },
+  { table: "reading_goals", op: "upsert", id: "2026", row: { id: "2026", year: 2026, target: 24, created_at: now, updated_at: now }, expected_version: null },
+]);
+check("A finished book, a book being read and a yearly goal save", r.data?.ok === true, JSON.stringify(r.data ?? r.error));
+r = await a.client.from("books").select("genres, rating").eq("id", "bk1").single();
+check("…and several genres come back in order", JSON.stringify(r.data?.genres) === JSON.stringify(["WLW", "Mystery"]) && r.data?.rating === 5, JSON.stringify(r.data));
+r = await b.client.from("books").select("id");
+check("Another account can't see your books", !r.error && r.data.length === 0);
+r = await b.client.from("reading_goals").select("id");
+check("Another account can't see your reading goals", !r.error && r.data.length === 0);
+r = await anon.from("books").select("id");
+check("Signed-out visitors can't see books", (r.data ?? []).length === 0);
+await b.client.from("books").update({ title: "Hacked" }).eq("id", "bk1");
+r = await a.client.from("books").select("title").eq("id", "bk1").single();
+check("Another account can't change your books", r.data?.title === "The Quiet Harbour");
+r = await apply(a, [{ table: "books", op: "upsert", id: "bk3", row: bookRow("bk3", { finished_on: null }), expected_version: null }]);
+check("A finished book without a finish date is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "books", op: "upsert", id: "bk4", row: bookRow("bk4", { status: "reading" }), expected_version: null }]);
+check("A book being read with a finish date is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "books", op: "upsert", id: "bk5", row: bookRow("bk5", { rating: 6 }), expected_version: null }]);
+check("A rating above 5 stars is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "books", op: "upsert", id: "bk6", row: bookRow("bk6", { title: "   " }), expected_version: null }]);
+check("A book with no title is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "books", op: "upsert", id: "bk7", row: bookRow("bk7", { genres: { not: "a list" } }), expected_version: null }]);
+check("Genres must be a list", r.data?.ok !== true);
+r = await apply(a, [{ table: "reading_goals", op: "upsert", id: "2027", row: { id: "2027", year: 2026, target: 10, created_at: now, updated_at: now }, expected_version: null }]);
+check("A goal's id must be its year (one goal per year)", r.data?.ok !== true);
+r = await apply(a, [{ table: "reading_goals", op: "upsert", id: "2028", row: { id: "2028", year: 2028, target: 0, created_at: now, updated_at: now }, expected_version: null }]);
+check("A goal of 0 books is refused", r.data?.ok !== true);
+r = await a.client.from("books").select("version").eq("id", "bk1").single();
+r = await apply(a, [{ table: "books", op: "delete", id: "bk1", expected_version: r.data.version }]);
+const bookTomb = await a.client.from("sync_tombstones").select("table_name").eq("id", "bk1");
+check("Deleting a book tells other devices", r.data?.ok === true && bookTomb.data?.some((t) => t.table_name === "books"), JSON.stringify(r.data ?? r.error));
+
 // Profiles: only the display name can be changed.
 r = await a.client.from("profiles").update({ display_name: "Belle" }).eq("id", a.id).select("display_name");
 check("Profile display name can be updated", !r.error && r.data[0]?.display_name === "Belle", r.error?.message);

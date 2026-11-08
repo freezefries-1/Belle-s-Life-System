@@ -34,6 +34,8 @@ export const emptyRowSet = (): RowSet => ({
   student_matches: new Map(),
   student_benchmarks: new Map(),
   student_ratings: new Map(),
+  books: new Map(),
+  reading_goals: new Map(),
 });
 
 const sessionTaskId = (sessionId: string, taskId: string) => `${sessionId}:${taskId}`;
@@ -358,6 +360,24 @@ export function dataToRows(d: PersistedData): RowSet {
       updated_at: x.updatedAt,
     });
   }
+  for (const x of d.books) {
+    rows.books.set(x.id, {
+      id: x.id,
+      title: x.title,
+      author: x.author,
+      genres: [...x.genres],
+      status: x.status,
+      rating: x.rating,
+      started_on: x.startedOn,
+      finished_on: x.finishedOn,
+      note: x.note,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+    });
+  }
+  for (const x of d.readingGoals) {
+    rows.reading_goals.set(x.id, { id: x.id, year: x.year, target: x.target, created_at: x.createdAt, updated_at: x.updatedAt });
+  }
   return rows;
 }
 
@@ -633,6 +653,26 @@ export function rowsToData(rows: RowSet): PersistedData {
       createdAt: x.created_at,
       updatedAt: x.updated_at,
     })),
+    books: list("books").map((x) => ({
+      id: x.id,
+      title: x.title,
+      author: x.author,
+      genres: x.genres,
+      status: x.status,
+      rating: x.rating,
+      startedOn: x.started_on,
+      finishedOn: x.finished_on,
+      note: x.note,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
+    readingGoals: list("reading_goals").map((x) => ({
+      id: x.id,
+      year: x.year,
+      target: x.target,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
   };
   const parsed = parseEnvelope({ schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), data: raw });
   return parsed ? parsed.data : rowsToEmpty();
@@ -660,6 +700,8 @@ function rowsToEmpty(): PersistedData {
     studentMatches: [],
     studentBenchmarks: [],
     studentRatings: [],
+    books: [],
+    readingGoals: [],
   };
 }
 

@@ -8,6 +8,7 @@ import { createTemplate } from "@/lib/recurrence/recurrence";
 import { createSession, endSession, runSession } from "@/lib/sessions/session-model";
 import { createWeeklyReview } from "@/lib/review/weekly";
 import { createId } from "@/lib/id";
+import { createBook } from "@/lib/reading/books";
 import { BUILTIN_TESTS, createBenchmark, createMatch, createRating, customTestKey } from "@/lib/students/performance";
 import { createLesson, createStudent } from "@/lib/students/student-model";
 import { createTask } from "@/lib/tasks/task-model";
@@ -388,7 +389,39 @@ export function createSampleData(today: ISODate): PersistedData {
     stage(me.id, "play", "P1", -180),
   ];
 
+  // Reading: a few finished books this year and last, two on the go, and a goal for this year.
+  const year = Number(today.slice(0, 4));
+  const book = (title: string, author: string, genres: string[], finishedOffset: number | null, rating: number | null, startedOffset: number | null = null) =>
+    createBook(
+      {
+        title,
+        author,
+        genres,
+        status: finishedOffset === null ? "reading" : "finished",
+        rating,
+        startedOn: startedOffset === null ? null : d(startedOffset),
+        finishedOn: finishedOffset === null ? null : d(finishedOffset),
+        note: "",
+      },
+      at(finishedOffset ?? startedOffset ?? -1, 21),
+    );
+  const books = [
+    book("The Quiet Harbour", "M. Lane", ["Mystery", "WLW"], -6, 5),
+    book("Letters from Lisbon", "A. Correia", ["Historical fiction", "Romance"], -21, 4),
+    book("Small Habits, Big Days", "J. Okafor", ["Self-help"], -40, 3),
+    book("Third Shot Thinking", "R. Hale", ["Sport", "Non-fiction"], -55, 4),
+    book("Summer at the Orchard", "E. Byrne", ["Romance", "WLW"], -80, 5),
+    book("The Lantern Keeper", "S. Ito", ["Fantasy"], -110, 4),
+    book("A Winter Ledger", "P. Grant", ["Historical fiction"], -150, 3),
+    book("Founders, Unfiltered", "D. Mensah", ["Business", "Biography / memoir"], -400, 4),
+    book("Night Ferry", "C. Varga", ["Thriller", "Mystery"], null, null, -4),
+    book("The Glasshouse Girls", "L. Moreau", ["WLW", "Historical fiction"], null, null, -10),
+  ];
+  const readingGoals = [{ id: String(year), year, target: 24, createdAt: at(-200, 9), updatedAt: at(-200, 9) }];
+
   return {
+    books,
+    readingGoals,
     studentRatings: dupr,
     studentMatches: [...studentMatches, ...myMatches],
     studentBenchmarks: [...studentBenchmarks, ...myBenchmarks],
