@@ -50,7 +50,7 @@ export function WhoopDialog({
     e.preventDefault();
     if (!valid) return;
     actions.setWhoopDay(date, { recovery: r ?? null, sleep: s ?? null });
-    const parts = [r != null ? `Recovery ${r}%` : null, s != null ? `Sleep ${s}%` : null].filter(Boolean).join(" · ");
+    const parts = [s != null ? `Sleep ${s}%` : null, r != null ? `Recovery ${r}%` : null].filter(Boolean).join(" · ");
     toast(date === workspace.today ? "Today’s WHOOP saved" : `WHOOP saved for ${formatShortDate(date)}`, { description: parts });
     onOpenChange(false);
   }
@@ -59,7 +59,7 @@ export function WhoopDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
-          <DialogTitle>{existing ? "Edit recovery & sleep" : "Add recovery & sleep"}</DialogTitle>
+          <DialogTitle>{existing ? "Edit sleep & recovery" : "Add sleep & recovery"}</DialogTitle>
           <DialogDescription>Copy the numbers from your WHOOP app. You can leave one blank.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
@@ -68,8 +68,8 @@ export function WhoopDialog({
             <Input id="whoop-date" type="date" value={date} max={workspace.today} onChange={(e) => changeDate(e.target.value)} className="w-44" />
           </div>
           <div className="flex flex-wrap gap-4">
-            <PercentField id="whoop-recovery" label="Recovery %" value={recovery} onChange={setRecovery} parsed={r} autoFocus zoned />
-            <PercentField id="whoop-sleep" label="Sleep %" value={sleep} onChange={setSleep} parsed={s} />
+            <PercentField id="whoop-sleep" label="Sleep %" value={sleep} onChange={setSleep} parsed={s} autoFocus />
+            <PercentField id="whoop-recovery" label="Recovery %" value={recovery} onChange={setRecovery} parsed={r} zoned />
           </div>
           {bad && (
             <p role="alert" className="text-xs text-rose-700">
