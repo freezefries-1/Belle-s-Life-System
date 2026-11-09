@@ -28,6 +28,7 @@ export function hasAnyData(d: PersistedData) {
     d.studentRatings.length > 0 ||
     d.books.length > 0 ||
     d.readingGoals.length > 0 ||
+    d.whoopDays.length > 0 ||
     d.kaizenLogs.some((l) => l.notes || l.reflectionWentWell || l.reflectionImprove || l.reflectionLearned)
   );
 }

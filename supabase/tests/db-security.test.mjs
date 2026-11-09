@@ -400,6 +400,31 @@ r = await apply(a, [{ table: "books", op: "delete", id: "bk1", expected_version:
 const bookTomb = await a.client.from("sync_tombstones").select("table_name").eq("id", "bk1");
 check("Deleting a book tells other devices", r.data?.ok === true && bookTomb.data?.some((t) => t.table_name === "books"), JSON.stringify(r.data ?? r.error));
 
+// Recovery & sleep: one entry per day, whole percentages, owner-only.
+const whoopRow = (id, extra = {}) => ({ id, day: id, recovery: 72, sleep: 88, created_at: now, updated_at: now, ...extra });
+r = await apply(a, [
+  { table: "whoop_days", op: "upsert", id: "2026-11-09", row: whoopRow("2026-11-09"), expected_version: null },
+  { table: "whoop_days", op: "upsert", id: "2026-11-08", row: whoopRow("2026-11-08", { sleep: null }), expected_version: null },
+]);
+check("Recovery and sleep days save (one number can be blank)", r.data?.ok === true, JSON.stringify(r.data ?? r.error));
+r = await b.client.from("whoop_days").select("id");
+check("Another account can't see your recovery and sleep", !r.error && r.data.length === 0);
+r = await anon.from("whoop_days").select("id");
+check("Signed-out visitors can't see recovery and sleep", (r.data ?? []).length === 0);
+r = await apply(b, [{ table: "whoop_days", op: "upsert", id: "2026-11-09", row: whoopRow("2026-11-09", { recovery: 1 }), expected_version: null }]);
+const mine = await a.client.from("whoop_days").select("recovery").eq("id", "2026-11-09").single();
+check("Another account can't change your day", mine.data?.recovery === 72, JSON.stringify(mine.data));
+r = await apply(a, [{ table: "whoop_days", op: "upsert", id: "2026-11-07", row: whoopRow("2026-11-07", { recovery: 101 }), expected_version: null }]);
+check("A percentage above 100 is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "whoop_days", op: "upsert", id: "2026-11-06", row: whoopRow("2026-11-06", { recovery: null, sleep: null }), expected_version: null }]);
+check("A day with neither number is refused", r.data?.ok !== true);
+r = await apply(a, [{ table: "whoop_days", op: "upsert", id: "2026-11-05", row: whoopRow("2026-11-05", { day: "2026-11-04" }), expected_version: null }]);
+check("A day's id must be its date (one entry per day)", r.data?.ok !== true);
+r = await a.client.from("whoop_days").select("version").eq("id", "2026-11-08").single();
+r = await apply(a, [{ table: "whoop_days", op: "delete", id: "2026-11-08", expected_version: r.data.version }]);
+const whoopTomb = await a.client.from("sync_tombstones").select("table_name").eq("id", "2026-11-08");
+check("Deleting a day tells other devices", r.data?.ok === true && whoopTomb.data?.some((t) => t.table_name === "whoop_days"), JSON.stringify(r.data ?? r.error));
+
 // Profiles: only the display name can be changed.
 r = await a.client.from("profiles").update({ display_name: "Belle" }).eq("id", a.id).select("display_name");
 check("Profile display name can be updated", !r.error && r.data[0]?.display_name === "Belle", r.error?.message);

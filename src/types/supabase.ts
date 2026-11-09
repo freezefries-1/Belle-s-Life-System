@@ -1322,6 +1322,42 @@ export type Database = {
         }
         Relationships: []
       }
+      whoop_days: {
+        Row: {
+          created_at: string
+          day: string
+          id: string
+          recovery: number | null
+          sleep: number | null
+          synced_at: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at: string
+          day: string
+          id: string
+          recovery?: number | null
+          sleep?: number | null
+          synced_at?: string
+          updated_at: string
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          id?: string
+          recovery?: number | null
+          sleep?: number | null
+          synced_at?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

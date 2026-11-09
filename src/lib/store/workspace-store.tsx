@@ -26,6 +26,7 @@ import * as recurrence from "./changes/recurrence";
 import * as reviews from "./changes/reviews";
 import * as ladder from "./changes/ladder";
 import * as reading from "./changes/reading";
+import { deleteWhoopDay, restoreWhoopDay, setWhoopDay } from "@/lib/whoop/whoop";
 import * as students from "./changes/students";
 import * as tasks from "./changes/tasks";
 import type {
@@ -63,6 +64,7 @@ import type {
   StudentRatingInput,
   Book,
   BookInput,
+  WhoopDay,
   StudentStage,
   Task,
   TaskInput,
@@ -228,6 +230,12 @@ export interface WorkspaceActions {
   restoreBook: (book: Book) => void;
   /** Set the number of books you want to finish in a year (0 removes the goal). */
   setReadingGoal: (year: number, target: number) => void;
+
+  // Recovery & sleep (WHOOP)
+  /** Save a day's recovery % and sleep % (adds the day, or updates it). */
+  setWhoopDay: (date: ISODate, values: { recovery: number | null; sleep: number | null }) => void;
+  deleteWhoopDay: (date: ISODate) => WhoopDay | null;
+  restoreWhoopDay: (day: WhoopDay) => void;
 
   // Coaching ladder
   /** Save your wording for a stage: name, focus and milestones. */
@@ -614,6 +622,14 @@ export function WorkspaceProvider({
       },
       restoreBook: (book) => commit((d) => reading.restoreBook(d, book)),
       setReadingGoal: (year, target) => commit((d) => reading.setReadingGoal(d, year, target, nowISO())),
+
+      setWhoopDay: (date, values) => commit((d) => setWhoopDay(d, date, values, nowISO())),
+      deleteWhoopDay: (date) => {
+        const day = current()?.whoopDays.find((x) => x.id === date) ?? null;
+        if (day) commit((d) => deleteWhoopDay(d, date));
+        return day;
+      },
+      restoreWhoopDay: (day) => commit((d) => restoreWhoopDay(d, day)),
 
       saveLadderStage: (track, stage, input) => commit((d) => ladder.saveLadderStage(d, track, stage, input, nowISO())),
       addLadderStage: (track, input) => {

@@ -269,6 +269,13 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 - **Books** with title, author, **several genres** each (built-in ones plus your own, e.g. WLW), 1–5 stars, start and finish dates, and a note. **Currently reading** with a one-tap "Finished it"; the finished list can be searched and filtered by genre; edit and delete with Undo.
 - Database: `supabase/migrations/20261108000000_reading.sql` (owner-only `books` and `reading_goals`). Storage format v10.
 
+## Recovery & Sleep — what’s included
+
+- Type in your **WHOOP recovery % and sleep %** each day (either can be blank; one entry per day, past days editable). See [docs/recovery-and-sleep.md](docs/recovery-and-sleep.md).
+- The **Today** page shows today's numbers in WHOOP's colours (green 67–100%, yellow 34–66%, red 0–33%), or a button to add them.
+- A **Recovery & Sleep** page (Personal Growth): 7- and 30-day averages, day-by-day charts for 30 or 90 days, how many green, yellow and red days, and every day with edit and delete (Undo).
+- Database: `supabase/migrations/20261109000000_whoop.sql` (owner-only `whoop_days`). Storage format v11. There's no automatic WHOOP connection; numbers are typed in.
+
 ## Phase 8 — what’s included
 
 - **Phones:** a bottom navigation bar, tap areas of about 44 × 44 px, no zoom when typing, dialogs that fit small screens, and support for the iPhone notch and home bar.

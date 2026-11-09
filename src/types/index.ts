@@ -568,6 +568,18 @@ export interface ReadingGoal {
   updatedAt: ISODateTime;
 }
 
+/** One day's WHOOP numbers, typed in. The id is the date. Either can be missing, not both. */
+export interface WhoopDay {
+  id: string;
+  date: ISODate;
+  /** Recovery %, 0–100. */
+  recovery: number | null;
+  /** Sleep performance %, 0–100. */
+  sleep: number | null;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
 /** Everything that is saved between visits. */
 export interface PersistedData {
   tasks: Task[];
@@ -592,6 +604,7 @@ export interface PersistedData {
   studentRatings: StudentRating[];
   books: Book[];
   readingGoals: ReadingGoal[];
+  whoopDays: WhoopDay[];
 }
 
 /** What components read: saved data + today's date. */

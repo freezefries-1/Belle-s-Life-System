@@ -56,6 +56,7 @@ export function DataSettings() {
       studentRatings,
       books,
       readingGoals,
+      whoopDays,
     } = workspace;
     const envelope = createEnvelope({
       tasks,
@@ -80,6 +81,7 @@ export function DataSettings() {
       studentRatings,
       books,
       readingGoals,
+      whoopDays,
     });
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);

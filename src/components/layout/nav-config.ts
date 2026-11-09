@@ -4,6 +4,7 @@ import {
   ChartColumn,
   ClipboardList,
   FolderKanban,
+  HeartPulse,
   Inbox,
   Layers,
   ListChecks,
@@ -48,6 +49,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { title: "My Pickleball", href: "/pickleball", icon: Target },
       { title: "Reading", href: "/reading", icon: BookOpen },
+      { title: "Recovery & Sleep", href: "/recovery", icon: HeartPulse },
       { title: "Kaizen Log", href: "/kaizen-log", icon: NotebookPen },
       { title: "Micro-Commitments", href: "/micro-commitments", icon: Sprout },
       { title: "Weekly Review", href: "/weekly-review", icon: ClipboardList },

@@ -36,6 +36,7 @@ export const emptyRowSet = (): RowSet => ({
   student_ratings: new Map(),
   books: new Map(),
   reading_goals: new Map(),
+  whoop_days: new Map(),
 });
 
 const sessionTaskId = (sessionId: string, taskId: string) => `${sessionId}:${taskId}`;
@@ -378,6 +379,9 @@ export function dataToRows(d: PersistedData): RowSet {
   for (const x of d.readingGoals) {
     rows.reading_goals.set(x.id, { id: x.id, year: x.year, target: x.target, created_at: x.createdAt, updated_at: x.updatedAt });
   }
+  for (const x of d.whoopDays) {
+    rows.whoop_days.set(x.id, { id: x.id, day: x.date, recovery: x.recovery, sleep: x.sleep, created_at: x.createdAt, updated_at: x.updatedAt });
+  }
   return rows;
 }
 
@@ -673,6 +677,14 @@ export function rowsToData(rows: RowSet): PersistedData {
       createdAt: x.created_at,
       updatedAt: x.updated_at,
     })),
+    whoopDays: list("whoop_days").map((x) => ({
+      id: x.id,
+      date: x.day,
+      recovery: x.recovery,
+      sleep: x.sleep,
+      createdAt: x.created_at,
+      updatedAt: x.updated_at,
+    })),
   };
   const parsed = parseEnvelope({ schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), data: raw });
   return parsed ? parsed.data : rowsToEmpty();
@@ -702,6 +714,7 @@ function rowsToEmpty(): PersistedData {
     studentRatings: [],
     books: [],
     readingGoals: [],
+    whoopDays: [],
   };
 }
 

@@ -47,6 +47,7 @@ import type {
   StudentRating,
   Book,
   ReadingGoal,
+  WhoopDay,
   Sport,
 } from "@/types";
 
@@ -72,8 +73,9 @@ export const STORAGE_KEY = "belles-life-system:v1";
  * 9 — My Pickleball: students gain `sport` and `isSelf`; matches gain `format`,
  *     `partner`, `rated`, `pointLosses`, `kapStats`; `studentRatings` (e.g. DUPR).
  * 10 — Reading: `books`, `readingGoals`.
+ * 11 — Recovery & sleep: `whoopDays`.
  */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export interface StorageEnvelope {
   schemaVersion: number;
@@ -104,6 +106,7 @@ export const EMPTY_DATA: PersistedData = {
   studentRatings: [],
   books: [],
   readingGoals: [],
+  whoopDays: [],
 };
 
 const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "completed", "skipped"];
@@ -625,6 +628,20 @@ export function parseReadingGoal(raw: unknown): ReadingGoal | null {
   return { id: String(year), year, target, createdAt, updatedAt: timestamp(raw.updatedAt) ?? createdAt };
 }
 
+const percentOrNull = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100 ? v : null);
+
+export function parseWhoopDay(raw: unknown): WhoopDay | null {
+  if (!isObj(raw)) return null;
+  const date = isoDate(raw.date);
+  const createdAt = timestamp(raw.createdAt);
+  if (!date || !createdAt) return null;
+  const recovery = percentOrNull(raw.recovery);
+  const sleep = percentOrNull(raw.sleep);
+  if (recovery === null && sleep === null) return null;
+  // One entry per day: the id is always the date.
+  return { id: date, date, recovery, sleep, createdAt, updatedAt: timestamp(raw.updatedAt) ?? createdAt };
+}
+
 export function parseStudentBenchmark(raw: unknown): StudentBenchmark | null {
   if (!isObj(raw)) return null;
   const id = str(raw.id);
@@ -875,6 +892,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
   const books = dedupeById(booksParsed.parsed);
   const goalsParsed = parseList(migrated.readingGoals, parseReadingGoal);
   const readingGoals = uniqueBy(goalsParsed.parsed, (x) => x.id, (x) => x.updatedAt);
+  const whoopParsed = parseList(migrated.whoopDays, parseWhoopDay);
+  const whoopDays = uniqueBy(whoopParsed.parsed, (x) => x.id, (x) => x.updatedAt);
 
   const highlightsKept = dedupeById(highlights.parsed);
   const commitmentsKept = dedupeById(commitments.parsed);
@@ -906,6 +925,7 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     studentRatings,
     books,
     readingGoals,
+    whoopDays,
   };
 
   const unreadable =
@@ -931,7 +951,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
     benchParsed.dropped +
     ratingsParsed.dropped +
     booksParsed.dropped +
-    goalsParsed.dropped;
+    goalsParsed.dropped +
+    whoopParsed.dropped;
   const removed = {
     milestones: dedupeById(milestonesParsed.parsed).length - milestones.length,
     completions: completionsKept.length - completionsLinked.length,
@@ -970,7 +991,8 @@ export function parseEnvelope(raw: unknown): ParseResult | null {
       (benchParsed.parsed.length - benchKept.length) +
       (ratingsParsed.parsed.length - ratingsKept.length) +
       (booksParsed.parsed.length - books.length) +
-      (goalsParsed.parsed.length - readingGoals.length),
+      (goalsParsed.parsed.length - readingGoals.length) +
+      (whoopParsed.parsed.length - whoopDays.length),
   };
 
   return {
@@ -1030,6 +1052,10 @@ function migrate(version: number, data: Obj): Obj | null {
   if (version < 10) {
     // v9 → v10: no books or reading goals yet.
     current = { ...current, books: [], readingGoals: [] };
+  }
+  if (version < 11) {
+    // v10 → v11: no recovery or sleep days yet.
+    current = { ...current, whoopDays: [] };
   }
   return current;
 }

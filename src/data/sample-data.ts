@@ -419,7 +419,16 @@ export function createSampleData(today: ISODate): PersistedData {
   ];
   const readingGoals = [{ id: String(year), year, target: 24, createdAt: at(-200, 9), updatedAt: at(-200, 9) }];
 
+  // Recovery & sleep: about six weeks of WHOOP numbers, with a few days skipped.
+  const whoopDays = Array.from({ length: 42 }, (_, i) => {
+    const offset = i - 41;
+    const recovery = Math.max(8, Math.min(98, Math.round(58 + 22 * Math.sin(i * 1.7) + 9 * Math.cos(i * 0.6))));
+    const sleep = Math.max(45, Math.min(100, Math.round(80 + 10 * Math.sin(i * 1.3 + 1) + 4 * Math.cos(i))));
+    return { id: d(offset), date: d(offset), recovery, sleep, createdAt: at(offset, 7), updatedAt: at(offset, 7) };
+  }).filter((_, i) => i % 9 !== 4 && i !== 41); // no entry for today yet, so the Today card asks for it
+
   return {
+    whoopDays,
     books,
     readingGoals,
     studentRatings: dupr,

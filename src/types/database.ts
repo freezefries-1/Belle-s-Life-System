@@ -41,6 +41,7 @@ export type StudentBenchmarkRow = AppRow<"student_benchmarks">;
 export type StudentRatingRow = AppRow<"student_ratings">;
 export type BookRow = AppRow<"books", { genres: string[] }>;
 export type ReadingGoalRow = AppRow<"reading_goals">;
+export type WhoopDayRow = AppRow<"whoop_days">;
 
 export interface TableRows {
   projects: ProjectRow;
@@ -66,6 +67,7 @@ export interface TableRows {
   student_ratings: StudentRatingRow;
   books: BookRow;
   reading_goals: ReadingGoalRow;
+  whoop_days: WhoopDayRow;
 }
 
 export type TableName = keyof TableRows;
@@ -102,4 +104,5 @@ export const TABLE_ORDER: TableName[] = [
   "student_ratings",
   "books",
   "reading_goals",
+  "whoop_days",
 ];
