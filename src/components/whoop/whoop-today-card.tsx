@@ -11,7 +11,7 @@ import { ZONE_LABEL, ZONE_STYLE, dayOn, zoneOf } from "@/lib/whoop/whoop";
 
 import { WhoopDialog } from "./whoop-dialog";
 
-/** Today page: today's WHOOP recovery and sleep, or a button to add them. */
+/** Today page: today's WHOOP sleep and recovery, or a button to add them. */
 export function WhoopTodayCard({ className }: { className?: string }) {
   const { workspace } = useWorkspace();
   const today = dayOn(workspace.whoopDays, workspace.today);
@@ -44,9 +44,9 @@ export function WhoopTodayCard({ className }: { className?: string }) {
       </div>
       {today ? (
         <div className="mt-3 flex items-stretch gap-3">
-          <Metric label="Recovery" value={today.recovery} icon={HeartPulse} zoned />
           <Metric label="Sleep" value={today.sleep} icon={Moon} />
-          <Button ref={editRef} variant="ghost" size="icon-xs" className="self-start" onClick={openDialog} aria-label="Edit today’s recovery and sleep">
+          <Metric label="Recovery" value={today.recovery} icon={HeartPulse} zoned />
+          <Button ref={editRef} variant="ghost" size="icon-xs" className="self-start" onClick={openDialog} aria-label="Edit today’s sleep and recovery">
             <Pencil className="size-3.5" />
           </Button>
         </div>

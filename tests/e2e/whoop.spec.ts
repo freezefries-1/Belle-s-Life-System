@@ -26,7 +26,7 @@ test("recovery & sleep: add today on the Today page, edit, a past day, averages,
   await expect(card.getByText("88%")).toBeVisible();
 
   // Edit today: recovery drops to yellow, sleep left blank.
-  await card.getByRole("button", { name: "Edit today’s recovery and sleep" }).click();
+  await card.getByRole("button", { name: "Edit today’s sleep and recovery" }).click();
   dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Recovery %")).toHaveValue("72");
   await dialog.getByLabel("Recovery %").fill("45");
