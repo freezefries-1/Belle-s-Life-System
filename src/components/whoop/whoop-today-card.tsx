@@ -15,6 +15,8 @@ import { WhoopDialog } from "./whoop-dialog";
 export function WhoopTodayCard({ className }: { className?: string }) {
   const { workspace } = useWorkspace();
   const today = dayOn(workspace.whoopDays, workspace.today);
+  // The card appears twice on the Today page (phone and desktop spots, one hidden), so ids must be unique.
+  const headingId = React.useId();
   // The dialog stays mounted after closing so focus goes back to the button that opened it.
   const [n, setN] = React.useState(0);
   const [open, setOpen] = React.useState(false);
@@ -27,11 +29,11 @@ export function WhoopTodayCard({ className }: { className?: string }) {
 
   return (
     <section
-      aria-labelledby="whoop-today-heading"
+      aria-labelledby={headingId}
       className={cn("rounded-xl border bg-card p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]", className)}
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 id="whoop-today-heading" className="text-[14px] font-semibold">
+        <h2 id={headingId} className="text-[14px] font-semibold">
           Recovery &amp; sleep
         </h2>
         <Link

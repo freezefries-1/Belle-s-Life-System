@@ -63,3 +63,26 @@ test("recovery & sleep: add today on the Today page, edit, a past day, averages,
   await saved(page);
   expect((await db.from("whoop_days").select("id")).data).toHaveLength(2);
 });
+
+/** On a phone, recovery & sleep sits near the top of Today (right after the highlight), not far down the page. */
+test("@phone recovery & sleep is near the top of Today on a phone, and saves", async ({ page }) => {
+  const email = newEmail("whoop-phone");
+  await signUp(page, email);
+  const db = await dbAs(email);
+  const today = todayKey();
+  await open(page, "/");
+  const card = page.getByRole("region", { name: "Recovery & sleep" });
+  await expect(card).toBeVisible();
+  // It comes before Today's tasks on the page.
+  const cardTop = (await card.boundingBox())!.y;
+  const tasksTop = (await page.getByTestId("today-tasks").filter({ visible: true }).boundingBox())!.y;
+  expect(cardTop).toBeLessThan(tasksTop);
+  await card.getByRole("button", { name: "Add today’s WHOOP" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Sleep %").fill("85");
+  await dialog.getByLabel("Recovery %").fill("64");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await saved(page);
+  expect((await db.from("whoop_days").select("id, sleep, recovery")).data).toEqual([{ id: today, sleep: 85, recovery: 64 }]);
+  await expect(card.getByText("85%")).toBeVisible();
+});

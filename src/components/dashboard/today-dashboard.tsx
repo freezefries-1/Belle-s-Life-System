@@ -18,7 +18,7 @@ import { WhoopTodayCard } from "@/components/whoop/whoop-today-card";
 
 /**
  * The command centre. DOM order is the phone reading order — what you need
- * through the day first: highlight → today's tasks → capture → recovery & sleep → commitments →
+ * through the day first: highlight → recovery & sleep → today's tasks → capture → commitments →
  * deadlines, then sprints, progress, reflection, this week and projects.
  * On large screens a 3-column grid places them side by side (positions are
  * explicit, so the order above doesn't change the desktop layout).
@@ -31,11 +31,13 @@ export function TodayDashboard() {
       <GettingStarted />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
         <HighlightCard className="lg:col-span-2 lg:col-start-1 lg:row-start-1" />
+        {/* Phone: recovery & sleep near the top, right after the highlight. (On large screens it sits under capture.) */}
+        <WhoopTodayCard className="lg:hidden" />
         <TodayTasksCard className="lg:hidden" />
         {/* Capture and recovery & sleep share the first slot on the right; the highlight beside them grows to match. */}
         <div className="flex flex-col gap-5 lg:col-start-3 lg:row-start-1 lg:gap-6">
           <QuickCaptureCard />
-          <WhoopTodayCard />
+          <WhoopTodayCard className="hidden lg:block" />
         </div>
         <MicroCommitmentsCard className="lg:col-start-3 lg:row-start-2" />
         <DeadlineOverview limit={5} horizonDays={21} className="lg:col-span-2 lg:col-start-1 lg:row-start-5 lg:self-start" />
