@@ -43,7 +43,7 @@ export function Topbar({
 
       <SyncIndicator />
 
-      <GlobalSearch inputRef={searchInputRef} className="hidden w-64 md:block xl:w-80" />
+      <GlobalSearch inputRef={searchInputRef} className="hidden w-64 md:block xl:w-80 pointer-coarse:w-80" />
 
       <Button
         variant="ghost"

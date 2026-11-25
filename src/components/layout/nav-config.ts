@@ -20,6 +20,8 @@ import {
 
 export interface NavItem {
   title: string;
+  /** A shorter name for the slim touch sidebar (iPad); always a word from the title. */
+  short?: string;
   href: string;
   icon: LucideIcon;
   /** Optional live count key shown as a small badge. */
@@ -47,13 +49,13 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Personal Growth",
     items: [
-      { title: "My Pickleball", href: "/pickleball", icon: Target },
+      { title: "My Pickleball", short: "Pickleball", href: "/pickleball", icon: Target },
       { title: "Reading", href: "/reading", icon: BookOpen },
-      { title: "Recovery & Sleep", href: "/recovery", icon: HeartPulse },
-      { title: "Kaizen Log", href: "/kaizen-log", icon: NotebookPen },
-      { title: "Micro-Commitments", href: "/micro-commitments", icon: Sprout },
-      { title: "Weekly Review", href: "/weekly-review", icon: ClipboardList },
-      { title: "Time Estimation", href: "/time-estimation", icon: Timer },
+      { title: "Recovery & Sleep", short: "Recovery", href: "/recovery", icon: HeartPulse },
+      { title: "Kaizen Log", short: "Kaizen", href: "/kaizen-log", icon: NotebookPen },
+      { title: "Micro-Commitments", short: "Commitments", href: "/micro-commitments", icon: Sprout },
+      { title: "Weekly Review", short: "Review", href: "/weekly-review", icon: ClipboardList },
+      { title: "Time Estimation", short: "Estimation", href: "/time-estimation", icon: Timer },
       { title: "Progress", href: "/progress", icon: ChartColumn },
     ],
   },

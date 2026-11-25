@@ -102,7 +102,7 @@ src/
 │   └── auth/confirm/         # Email link handler
 ├── components/
 │   ├── ui/                   # shadcn/ui primitives (button, card, dialog…)
-│   ├── layout/               # App shell, sidebar, top bar, phone/tablet bottom bar, search, quick add
+│   ├── layout/               # App shell, sidebar (slim on iPad), top bar, phone bottom bar, search, quick add
 │   ├── dashboard/            # Today page sections
 │   ├── brain-dump/           # Capture form, inbox, entry row, edit dialog
 │   ├── tasks/                # TaskItem row, shared task editor, filters, summary, actions menu
@@ -275,6 +275,13 @@ Colours live as CSS variables in `globals.css` and are exposed to Tailwind (`bg-
 - The **Today** page shows today's numbers in WHOOP's colours (green 67–100%, yellow 34–66%, red 0–33%), or a button to add them.
 - A **Recovery & Sleep** page (Personal Growth): 7- and 30-day averages, day-by-day charts for 30 or 90 days, how many green, yellow and red days, and every day with edit and delete (Undo).
 - Database: `supabase/migrations/20261109000000_whoop.sql` (owner-only `whoop_days`). Storage format v11. There's no automatic WHOOP connection; numbers are typed in.
+
+## iPad — what’s included
+
+- **Portrait (768–1023px wide):** a slim sidebar with each section's name under its icon replaces the phone's bottom bar, so every section is one tap away. The Today page uses two columns (the highlight and sprints span both).
+- **Landscape and smaller computers (under 1280px):** the sidebar starts slim; the button at its foot (or **[**) expands it, and the choice is remembered on that device.
+- With a mouse, the slim sidebar shows icons with names on hover; on touch screens the names are always shown.
+- Phones keep the bottom bar; computers 1280px and wider start with the full sidebar.
 
 ## Phase 8 — what’s included
 

@@ -18,7 +18,10 @@ Address: **https://belle-life-system.vercel.app**
    (newer iOS versions show this switch), then tap **Add**.
 
 The blue three-steps icon appears on your Home Screen. Opening it shows the
-app full-screen with the bottom navigation bar above the home indicator.
+app full-screen: on iPhone with the bottom navigation bar above the home
+indicator, and on iPad with a slim sidebar down the left (each section's name
+under its icon). In landscape on iPad, the button at the foot of the sidebar
+expands it to full width, and the app remembers your choice.
 
 You may need to sign in once more inside the installed app — iPhone keeps
 its sign-in separate from Safari's.

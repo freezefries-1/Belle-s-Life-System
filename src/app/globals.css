@@ -156,11 +156,11 @@
   }
 }
 
-/* Toasts sit above the bottom navigation bar on phones and tablets. */
+/* Toasts sit above the bottom navigation bar on phones (tablets and computers have the sidebar). */
 :root {
   --toast-bottom: calc(4.5rem + env(safe-area-inset-bottom));
 }
-@media (min-width: 64rem) {
+@media (min-width: 48rem) {
   :root {
     --toast-bottom: 24px;
   }

@@ -60,10 +60,12 @@ function NavLinks({ collapsed = false, onNavigate, pathname }: SidebarNavProps &
                 href={item.href}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
+                aria-label={collapsed ? item.title : undefined}
                 className={cn(
                   "group relative flex h-9 items-center gap-3 rounded-lg px-3 text-[13px] font-medium text-ink-muted transition-colors outline-none hover:bg-ink-2/70 hover:text-ink-foreground focus-visible:ring-2 focus-visible:ring-primary/60",
                   active && "bg-ink-2 text-ink-foreground",
-                  collapsed && "justify-center px-0",
+                  // Slim: icon only; on touch screens the name sits under the icon (there's no hover to show it).
+                  collapsed && "justify-center px-0 pointer-coarse:h-auto pointer-coarse:min-h-12 pointer-coarse:flex-col pointer-coarse:gap-1 pointer-coarse:py-1.5",
                 )}
               >
                 {active && (
@@ -77,6 +79,19 @@ function NavLinks({ collapsed = false, onNavigate, pathname }: SidebarNavProps &
                   strokeWidth={1.9}
                 />
                 {!collapsed && <span className="truncate">{item.title}</span>}
+                {collapsed && (
+                  <span aria-hidden className="hidden max-w-full text-center text-[10px] leading-tight break-words pointer-coarse:block">
+                    {item.short ?? item.title}
+                  </span>
+                )}
+                {collapsed && count !== undefined && count > 0 && (
+                  <span
+                    aria-hidden
+                    className="absolute top-0.5 right-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-white tabular-nums"
+                  >
+                    {count}
+                  </span>
+                )}
                 {!collapsed && count !== undefined && count > 0 && (
                   <span
                     className={cn(
@@ -90,6 +105,7 @@ function NavLinks({ collapsed = false, onNavigate, pathname }: SidebarNavProps &
               </Link>
             );
 
+            // The name is in the link's label; the tooltip just shows it on hover.
             return collapsed ? (
               <Tooltip key={item.href}>
                 <TooltipTrigger asChild>{link}</TooltipTrigger>

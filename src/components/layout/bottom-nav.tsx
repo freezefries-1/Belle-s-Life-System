@@ -20,8 +20,8 @@ const PRIMARY = PRIMARY_HREFS.map((href) => ALL_ITEMS.find((i) => i.href === hre
 const MORE = ALL_ITEMS.filter((i) => !PRIMARY_HREFS.includes(i.href));
 
 /**
- * Phones and tablets: a bottom bar (Today, Tasks, Brain Dump, Projects, More).
- * The desktop sidebar is unchanged. Sits above the iPhone home indicator.
+ * Phones: a bottom bar (Today, Tasks, Brain Dump, Projects, More). Tablets
+ * (iPad) and computers use the sidebar instead. Sits above the iPhone home indicator.
  */
 export function BottomNav() {
   return (
@@ -46,7 +46,7 @@ function BottomNavBar({ pathname }: { pathname: string }) {
       <nav
         aria-label="Main"
         data-testid="bottom-nav"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-border bg-ink pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-border bg-ink pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] md:hidden"
       >
         <ul className="mx-auto flex h-14 max-w-xl items-stretch">
           {PRIMARY.map((item) => (
@@ -70,7 +70,7 @@ function BottomNavBar({ pathname }: { pathname: string }) {
       </nav>
 
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="border-t border-ink-border bg-ink px-4 pt-4 lg:hidden">
+        <SheetContent side="bottom" className="border-t border-ink-border bg-ink px-4 pt-4 md:hidden">
           <SheetTitle className="px-1 text-[13px] text-ink-muted">More</SheetTitle>
           <SheetDescription className="sr-only">Every other section of belle’s life system.</SheetDescription>
           <ul className="mt-3 mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
